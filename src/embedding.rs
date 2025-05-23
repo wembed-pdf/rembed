@@ -19,6 +19,17 @@ impl<'a, const D: usize> crate::query::Graph for Embedding<'a, D> {
         self.graph.weight(index)
     }
 }
+impl<'a, const D: usize> query::Position<D> for Embedding<'a, D> {
+    fn position(&self, index: NodeId) -> &DVec<D> {
+        &self.positions[index]
+    }
+}
+impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
+    fn update_positions(&mut self, postions: &[DVec<D>]) {
+        self.positions = postions.to_vec();
+    }
+}
+
 impl<const D: usize> Query for Embedding<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let mut output = Vec::new();
@@ -35,16 +46,6 @@ impl<const D: usize> Query for Embedding<'_, D> {
             }
         }
         output
-    }
-}
-impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
-    fn update_positions(&mut self, postions: &[DVec<D>]) {
-        self.positions = postions.to_vec();
-    }
-}
-impl<'a, const D: usize> query::Position<D> for Embedding<'a, D> {
-    fn position(&self, index: NodeId) -> &DVec<D> {
-        &self.positions[index]
     }
 }
 

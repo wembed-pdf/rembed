@@ -154,6 +154,15 @@ impl<const D: usize> DVec<D> {
         Self { components: result }
     }
 
+    #[inline]
+    pub fn round(&self) -> [i32; D] {
+        let mut result = [0; D];
+        for (item, component) in result.iter_mut().zip(self.components.into_iter()) {
+            *item = component as i32;
+        }
+        result
+    }
+
     pub fn abs(&self) -> Self {
         self.map(|x| x.abs())
     }

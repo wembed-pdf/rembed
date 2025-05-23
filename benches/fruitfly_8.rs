@@ -12,7 +12,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let embeddings: Vec<Embedding<8>> = iterations
         .iter()
         .map(|x| Embedding {
-            positions: x.into(),
+            positions: x.coordinates().collect(),
             graph: &graph,
         })
         .collect();
