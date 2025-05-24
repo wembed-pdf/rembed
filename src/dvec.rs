@@ -32,6 +32,15 @@ impl<const D: usize> DVec<D> {
         components[direction] = 1.0;
         Self { components }
     }
+    pub fn units(direction_mask: usize) -> Self {
+        let mut unit = DVec::zero();
+        for i in 0..D {
+            if direction_mask & 1 << i != 0 {
+                unit += DVec::unit(i);
+            }
+        }
+        unit
+    }
 
     pub fn from_fn<F>(f: F) -> Self
     where
@@ -246,6 +255,18 @@ impl<const D: usize> Mul<f64> for DVec<D> {
 
     fn mul(self, scalar: f64) -> Self::Output {
         self.map(|x| x * scalar)
+    }
+}
+
+impl<const D: usize> Mul<DVec<D>> for DVec<D> {
+    type Output = Self;
+
+    fn mul(self, other: DVec<D>) -> Self::Output {
+        let mut result = [0.0; D];
+        for i in 0..D {
+            result[i] = self.components[i] * other.components[i];
+        }
+        Self { components: result }
     }
 }
 

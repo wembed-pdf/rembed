@@ -1,17 +1,57 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Mul,
+};
 
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
     query::{self, Graph, Position, Update},
 };
+// User smaller number to store in hashmap
+type SpatialMap<const D: usize> = HashMap<[i32; D], Node<D>>;
+
+const DIM_OFFSET: usize = 3;
+
+#[derive(Clone)]
+enum Node<const D: usize> {
+    Map(SpatialMap<D>),
+    Leaf(Vec<NodeId>),
+}
+
+impl<const D: usize> Node<D> {
+    fn map(&self) -> Option<&SpatialMap<D>> {
+        let Node::Map(spatial_map) = self else {
+            return None;
+        };
+        Some(spatial_map)
+    }
+    fn map_mut(&mut self) -> Option<&mut SpatialMap<D>> {
+        let Node::Map(spatial_map) = self else {
+            return None;
+        };
+        Some(spatial_map)
+    }
+    fn leaf(&self) -> Option<&Vec<NodeId>> {
+        let Node::Leaf(leaf) = self else {
+            return None;
+        };
+        Some(leaf)
+    }
+    fn leaf_mut(&mut self) -> Option<&mut Vec<NodeId>> {
+        let Node::Leaf(leaf) = self else {
+            return None;
+        };
+        Some(leaf)
+    }
+}
 
 #[derive(Clone)]
 pub struct Lsh<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
     pub weight_threshold: f64,
-    pub map: HashMap<[i32; D], Vec<NodeId>>,
+    pub map: SpatialMap<D>,
 }
 
 impl<'a, const D: usize> crate::query::Graph for Lsh<'a, D> {
@@ -36,8 +76,19 @@ impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
         self.positions = postions.to_vec();
         for (id, pos) in self.positions.iter().enumerate() {
-            for rounded_pos in nbox(pos) {
-                self.map.entry(rounded_pos).or_default().push(id);
+            for rounded_pos in nbox(pos, 0) {
+                let inner_map = self
+                    .map
+                    .entry(rounded_pos)
+                    .or_insert(Node::Map(SpatialMap::default()));
+                let Node::Map(map) = inner_map else { panic!() };
+                for rounded_pos in nbox(pos, DIM_OFFSET) {
+                    let inner_slot = map.entry(rounded_pos).or_insert(Node::Leaf(Vec::new()));
+                    let Node::Leaf(leaf) = inner_slot else {
+                        panic!()
+                    };
+                    leaf.push(id);
+                }
             }
         }
     }
@@ -86,12 +137,18 @@ impl<'a, const D: usize> Lsh<'a, D> {
 
     fn light_nn(&self, index: usize) -> Vec<usize> {
         let mut neighbors = HashSet::with_capacity(1000);
-        let lists = nbox(self.position(index)).flat_map(|x| self.map.get(&x));
+        let spatial_maps = nbox(self.position(index), 0).flat_map(|x| self.map.get(&x));
         let own_pos = self.position(index);
-        for list in lists {
-            for node in list {
-                if own_pos.distance_squared(self.position(*node)) <= 1. {
-                    neighbors.insert(*node);
+        for spatial_map in spatial_maps {
+            let lists = nbox(self.position(index), DIM_OFFSET)
+                .flat_map(|x| spatial_map.map().unwrap().get(&x));
+            // println!("new_list");
+            for list in lists {
+                // dbg!(list.leaf().unwrap().len());
+                for node in list.leaf().unwrap() {
+                    if own_pos.distance_squared(self.position(*node)) <= 1. {
+                        neighbors.insert(*node);
+                    }
                 }
             }
         }
@@ -106,8 +163,9 @@ fn nstar<const D: usize>(pos: &DVec<D>) -> impl Iterator<Item = [i32; D]> {
         .chain(iter)
         .map(|x| x.to_int_array())
 }
-fn nbox<const D: usize>(pos: &DVec<D>) -> impl Iterator<Item = [i32; D]> {
-    (0..(1 << 6)).map(move |mask| round_to_dimensions(&pos.truncate::<6>().extend(), mask))
+fn nbox<const D: usize>(pos: &DVec<D>, dim_offset: usize) -> impl Iterator<Item = [i32; D]> {
+    let vec = DVec::units(((1 << DIM_OFFSET) - 1) << dim_offset);
+    (0..(1 << DIM_OFFSET)).map(move |mask| round_to_dimensions(&(*pos * vec), mask << dim_offset))
 }
 fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i32; D] {
     let mut unit = DVec::zero();
