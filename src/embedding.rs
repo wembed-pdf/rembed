@@ -41,6 +41,9 @@ impl<const D: usize> Query for Embedding<'_, D> {
         for (i, (node, position)) in graph.nodes.iter().zip(positions.iter()).enumerate() {
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
+            if i == index {
+                continue;
+            }
             if distance < weight.powi(2) * radius {
                 output.push(i);
             }

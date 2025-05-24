@@ -155,7 +155,7 @@ impl<const D: usize> DVec<D> {
     }
 
     #[inline]
-    pub fn round(&self) -> [i32; D] {
+    pub fn to_int_array(&self) -> [i32; D] {
         let mut result = [0; D];
         for (item, component) in result.iter_mut().zip(self.components.into_iter()) {
             *item = component as i32;

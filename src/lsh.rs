@@ -36,7 +36,7 @@ impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
         self.positions = postions.to_vec();
         for (id, pos) in self.positions.iter().enumerate() {
-            for rounded_pos in nstar(pos) {
+            for rounded_pos in nbox(pos) {
                 self.map.entry(rounded_pos).or_default().push(id);
             }
         }
@@ -85,11 +85,16 @@ impl<'a, const D: usize> Lsh<'a, D> {
     }
 
     fn light_nn(&self, index: usize) -> Vec<usize> {
-        let neighbors: HashSet<NodeId> = nstar(self.position(index))
-            .flat_map(|x| self.map.get(&x))
-            .flatten()
-            .copied()
-            .collect();
+        let mut neighbors = HashSet::with_capacity(1000);
+        let lists = nbox(self.position(index)).flat_map(|x| self.map.get(&x));
+        let own_pos = self.position(index);
+        for list in lists {
+            for node in list {
+                if own_pos.distance_squared(self.position(*node)) <= 1. {
+                    neighbors.insert(*node);
+                }
+            }
+        }
         neighbors.into_iter().collect()
     }
 }
@@ -97,7 +102,86 @@ impl<'a, const D: usize> Lsh<'a, D> {
 fn nstar<const D: usize>(pos: &DVec<D>) -> impl Iterator<Item = [i32; D]> {
     let start = pos.map(|x| x.round());
     let iter = (0..D).flat_map(move |x| [start + DVec::unit(x), start - DVec::unit(x)]);
-    iter.chain(std::iter::once(start)).map(|x| x.round())
+    (std::iter::once(start))
+        .chain(iter)
+        .map(|x| x.to_int_array())
+}
+fn nbox<const D: usize>(pos: &DVec<D>) -> impl Iterator<Item = [i32; D]> {
+    (0..(1 << D)).map(move |mask| round_to_dimensions(pos, mask))
+}
+fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i32; D] {
+    let mut unit = DVec::zero();
+    for i in 0..D {
+        if mask & 1 << i != 0 {
+            unit += DVec::unit(i);
+        }
+    }
+    (*pos + unit).map(|x| x.floor()).to_int_array()
 }
 
 impl<'a, const D: usize> query::Embedder<D> for Lsh<'a, D> {}
+
+#[cfg(test)]
+mod test {
+    use crate::graph::{Graph, Node};
+
+    use super::*;
+
+    #[test]
+    fn should_intersect() {
+        let p1 = point([
+            1.04259, 1.55822, 4.6893, 3.99121, 2.93722, 4.016, 1.45376, 3.72547,
+        ]);
+        dbg!(nstar(&p1).collect::<Vec<_>>());
+        let p2 = point([
+            1.33247, 1.38505, 4.1491, 4.04101, 3.17872, 3.95226, 1.77118, 3.40646,
+        ]);
+        let positions = [p2, p2];
+
+        let graph = create_graph(2);
+        let embedding = Embedding {
+            positions: positions.to_vec(),
+            graph: &graph,
+        };
+
+        let lsh = Lsh::new(embedding);
+        dbg!(lsh.nearest_neighbors(0, 1.));
+        panic!();
+    }
+    #[test]
+    fn should_intersect_v2() {
+        let p1 = point([
+            -0.774175, 1.06153, 4.19799, 3.894, 3.41074, 3.78547, 1.98516, 1.36116,
+        ]);
+        dbg!(nstar(&p1).collect::<Vec<_>>());
+        let p2 = point([
+            -0.837306, 1.53845, 3.98596, 3.96884, 3.17616, 3.79302, 2.28606, 1.26695,
+        ]);
+        let positions = [p2, p2];
+
+        let graph = create_graph(2);
+        let embedding = Embedding {
+            positions: positions.to_vec(),
+            graph: &graph,
+        };
+
+        let lsh = Lsh::new(embedding);
+        dbg!(lsh.nearest_neighbors(0, 1.));
+        panic!();
+    }
+
+    fn point(arr: [f64; 8]) -> DVec<8> {
+        DVec { components: arr }
+    }
+    fn create_graph(n: i32) -> Graph {
+        Graph {
+            nodes: (0..n)
+                .map(|_| Node {
+                    weight: 0.9173302940621955,
+                    neighbors: vec![],
+                })
+                .collect(),
+            edges: vec![],
+        }
+    }
+}
