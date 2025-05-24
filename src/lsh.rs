@@ -107,7 +107,7 @@ fn nstar<const D: usize>(pos: &DVec<D>) -> impl Iterator<Item = [i32; D]> {
         .map(|x| x.to_int_array())
 }
 fn nbox<const D: usize>(pos: &DVec<D>) -> impl Iterator<Item = [i32; D]> {
-    (0..(1 << D)).map(move |mask| round_to_dimensions(pos, mask))
+    (0..(1 << 6)).map(move |mask| round_to_dimensions(&pos.truncate::<6>().extend(), mask))
 }
 fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i32; D] {
     let mut unit = DVec::zero();

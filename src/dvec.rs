@@ -138,7 +138,7 @@ impl<const D: usize> DVec<D> {
     pub fn extend<const N: usize>(&self) -> DVec<N> {
         assert!(N >= D, "Cannot extend to a smaller dimension");
         let mut result = [0.0; N];
-        result[..N].copy_from_slice(&self.components[..N]);
+        result[..D].copy_from_slice(&self.components[..D]);
         DVec::<N> { components: result }
     }
 
