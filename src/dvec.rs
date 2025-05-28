@@ -164,16 +164,30 @@ impl<const D: usize> DVec<D> {
     }
 
     #[inline]
-    pub fn to_int_array(&self) -> [i32; D] {
+    pub fn to_int_array(&self) -> [i8; D] {
         let mut result = [0; D];
         for (item, component) in result.iter_mut().zip(self.components.into_iter()) {
-            *item = component as i32;
+            *item = component as i8;
         }
         result
     }
 
     pub fn abs(&self) -> Self {
         self.map(|x| x.abs())
+    }
+
+    pub(crate) fn above(&self, rounded: DVec<D>) -> bool {
+        self.components
+            .iter()
+            .zip(rounded.components.iter())
+            .all(|(a, b)| a >= b)
+    }
+    pub(crate) fn round_up_dist_squared(&self, rounded: DVec<D>) -> f64 {
+        self.components
+            .iter()
+            .zip(rounded.components.iter())
+            .map(|(a, b)| if a <= b { (b - a).powi(2) } else { 0. })
+            .sum()
     }
 }
 

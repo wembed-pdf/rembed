@@ -9,9 +9,9 @@ use crate::{
     query::{self, Graph, Position, Update},
 };
 // User smaller number to store in hashmap
-type SpatialMap<const D: usize> = HashMap<[i32; D], Node<D>>;
+type SpatialMap<const D: usize> = HashMap<[i8; D], Node<D>>;
 
-const DIM_CHUNK_SIZE: usize = 3;
+const DIM_CHUNK_SIZE: usize = 2;
 
 #[derive(Clone)]
 pub enum Node<const D: usize> {
@@ -81,6 +81,7 @@ impl<'a, const D: usize> query::Position<D> for Lsh<'a, D> {
 impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
         self.positions = postions.to_vec();
+        self.map.clear();
         for (id, pos) in self.positions.iter().enumerate() {
             for rounded_pos in point(pos, 0, DIM_CHUNK_SIZE) {
                 // dbg!(&rounded_pos);
@@ -146,6 +147,7 @@ impl<'a, const D: usize> Lsh<'a, D> {
         let spatial_maps =
             nbig_box(self.position(index), 0, DIM_CHUNK_SIZE).flat_map(|x| self.map.get(&x));
         let own_pos = self.position(index);
+        // dbg!(own_pos);
 
         for spatial_map in spatial_maps {
             let spatial_map = spatial_map.map().unwrap();
@@ -153,25 +155,26 @@ impl<'a, const D: usize> Lsh<'a, D> {
                 continue;
             }
 
-            if nbig_box(self.position(index), DIM_CHUNK_SIZE, DIM_CHUNK_SIZE).count()
-                > spatial_map.len() * 20
-            {
-                // println!("short circuting second level");
-                for list in spatial_map.values() {
-                    for node in list.leaf().unwrap() {
-                        if own_pos.distance_squared(self.position(*node)) <= 1. {
-                            // neighbors.insert(*node);
-                            neighbors.push(*node);
-                        }
-                    }
-                }
-            }
+            // if nbig_box(self.position(index), DIM_CHUNK_SIZE, DIM_CHUNK_SIZE).count()
+            //     > spatial_map.len() * 20
+            // {
+            //     // println!("short circuting second level");
+            //     for list in spatial_map.values() {
+            //         for node in list.leaf().unwrap() {
+            //             if own_pos.distance_squared(self.position(*node)) <= 1. {
+            //                 // neighbors.insert(*node);
+            //                 neighbors.push(*node);
+            //             }
+            //         }
+            //     }
+            // }
             let lists = nbig_box(self.position(index), DIM_CHUNK_SIZE, DIM_CHUNK_SIZE)
                 .flat_map(|x| spatial_map.get(&x));
             // println!("new_list");
             for list in lists {
                 // dbg!(list.leaf());
                 for node in list.leaf().unwrap() {
+                    // if dbg!(dbg!(own_pos).distance_squared(dbg!(self.position(*node)))) <= 1. {
                     if own_pos.distance_squared(self.position(*node)) <= 1. {
                         // neighbors.insert(*node);
                         neighbors.push(*node);
@@ -187,19 +190,19 @@ fn point<const D: usize>(
     pos: &DVec<D>,
     dim_offset: usize,
     dim_count: usize,
-) -> impl Iterator<Item = [i32; D]> {
+) -> impl Iterator<Item = [i8; D]> {
     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
-    std::iter::once(pos.mul(vec).map(|x| x.round()).to_int_array())
+    std::iter::once(pos.mul(vec).map(|x| x.floor()).to_int_array())
 }
 fn nbox<const D: usize>(
     pos: &DVec<D>,
     dim_offset: usize,
     dim_count: usize,
-) -> impl Iterator<Item = [i32; D]> {
+) -> impl Iterator<Item = [i8; D]> {
     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
     (0..(1 << dim_count)).map(move |mask| round_to_dimensions(&(*pos * vec), mask << dim_offset))
 }
-fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i32; D] {
+fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i8; D] {
     let mut unit = DVec::zero();
     for i in 0..D {
         if mask & 1 << i != 0 {
@@ -213,22 +216,25 @@ fn nbig_box<const D: usize>(
     pos: &DVec<D>,
     dim_offset: usize,
     dim_count: usize,
-) -> impl Iterator<Item = [i32; D]> {
+) -> impl Iterator<Item = [i8; D]> {
     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
     let pos = *pos * vec;
-    let rounded = pos.map(|x| x.round()).to_int_array();
+    let rounded = pos.map(|x| x.floor());
     let total = 3usize.pow(dim_count as u32);
-    (0..total).map(move |i| {
+    (0..total).flat_map(move |i| {
         let mut result = rounded;
         let mut n = i;
         for d in 0..dim_count {
-            let offset = (n % 3) as i32 - 1;
+            let offset = (n % 3) as i8 - 1;
             n /= 3;
-            if dim_offset + d < D {
-                result[dim_offset + d] += offset;
-            }
+            let unit = DVec::unit(dim_offset + d);
+            result += unit * offset as f64;
         }
-        result
+        if pos.round_up_dist_squared(result) < 1. {
+            Some(result.to_int_array())
+        } else {
+            None
+        }
     })
 }
 
@@ -285,15 +291,23 @@ mod test {
     #[test]
     fn test_nbig_box() {
         let p1 = point([
-            7.78148, 3.26446, 7.7941, 6.45808, 4.5872, 5.53048, 5.17622, 3.38026,
+            3.89074, 1.63223, 3.89705, 3.22904, 2.2936, 2.76524, 2.58811, 1.69013,
         ]);
         let boxes = nbig_box(&p1, 0, DIM_CHUNK_SIZE);
         let p2 = point([
-            7.98382, 2.42968, 7.98004, 5.9167, 5.79404, 5.40852, 5.67474, 3.34754,
+            3.99191, 1.21484, 3.99002, 2.95835, 2.89702, 2.70426, 2.83737, 1.67377,
         ]);
         eprintln!(
             "Testing\n{:?} vs:",
             super::point(&p2, 0, DIM_CHUNK_SIZE).next().unwrap()
+        );
+        for b in boxes {
+            eprintln!("{:?}", b);
+        }
+        let boxes = nbig_box(&p1, 2, DIM_CHUNK_SIZE);
+        eprintln!(
+            "Testing\n{:?} vs:",
+            super::point(&p2, 2, DIM_CHUNK_SIZE).next().unwrap()
         );
         for b in boxes {
             eprintln!("{:?}", b);
@@ -309,12 +323,13 @@ mod test {
         let lsh = Lsh::new(embedding);
         let list = dbg!(lsh.nearest_neighbors(0, 1.));
         assert!(list.contains(&1));
+        panic!();
     }
 
     fn point(arr: [f64; 8]) -> DVec<8> {
         DVec { components: arr }
     }
-    fn create_graph(n: i32) -> Graph {
+    fn create_graph(n: i8) -> Graph {
         Graph {
             nodes: (0..n)
                 .map(|_| Node {

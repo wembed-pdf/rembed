@@ -1,14 +1,15 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
-use uwuembed::{query::Embedder, *};
+use uwuembed::{lsh::Lsh, query::Embedder, *};
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let graph = graph::Graph::parse_from_edge_list_file("bio-grid-fruitfly", 8, 8).unwrap();
+    let graph_name = "bio-grid-fruitfly";
 
-    // let positions_path = "positions.log";
-    let positions_path = "data/bio-grid-fruitfly/positions_8_8.log";
+    let dim = 8;
+    let dim_hint = 8;
 
-    let iterations = parsing::parse_positions_file(positions_path).unwrap();
+    let (graph, iterations) = load_graph(graph_name, dim, dim_hint).unwrap();
+
     let embeddings: Vec<Embedding<8>> = iterations
         .iter()
         .map(|x| Embedding {
@@ -19,12 +20,24 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let iter = &embeddings[200];
     let naive = iter;
-    c.bench_function("biogrid-fruitfly", |b| {
+    let lsh = Lsh::new(iter.clone());
+    c.bench_function("biogrid-fruitfly-naive", |b| {
         b.iter(|| {
             let sum: usize = black_box(
                 (0..(iter.positions.len()))
                     .step_by(10)
                     .map(|i| naive.repelling_nodes(i).len())
+                    .sum::<usize>(),
+            );
+            assert!(sum > 0);
+        })
+    });
+    c.bench_function("biogrid-fruitfly-lsh", |b| {
+        b.iter(|| {
+            let sum: usize = black_box(
+                (0..(iter.positions.len()))
+                    .step_by(10)
+                    .map(|i| lsh.repelling_nodes(i).len())
                     .sum::<usize>(),
             );
             assert!(sum > 0);

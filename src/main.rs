@@ -29,7 +29,7 @@ fn main() -> io::Result<()> {
 
     for embedding in embeddings.iter().skip(35) {
         println!("Updating positions");
-        // lsh.update_positions(&embedding.positions);
+        lsh.update_positions(&embedding.positions);
         println!("Query all nodes");
         for node in 0..embedding.positions.len() {
             let weight = embedding.weight(node);
@@ -44,10 +44,11 @@ fn main() -> io::Result<()> {
                         continue;
                     }
                     if !lsh_result.contains(&naive_node) {
-                        let p1 = *embedding.position(naive_node) * 2.;
-                        let p2 = *embedding.position(node) * 2.;
+                        let p1 = *embedding.position(naive_node);
+                        let p2 = *embedding.position(node);
                         let p1_rounded = p1.map(|x| x.floor());
                         let p2_rounded = p2.map(|x| x.floor());
+
                         dbg!(
                             naive_node,
                             node,
@@ -55,7 +56,9 @@ fn main() -> io::Result<()> {
                             p1_rounded.to_int_array(),
                             p2,
                             p2_rounded.to_int_array(),
-                            p1.distance_squared(&p2)
+                            p1.distance_squared(&p2),
+                            weight,
+                            other_weight,
                         );
                         assert_eq!(p1_rounded.to_int_array(), p2_rounded.to_int_array());
                         panic!("foo",)
