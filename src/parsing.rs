@@ -71,7 +71,7 @@ pub fn parse_positions_file<P: AsRef<Path>, const D: usize>(
                 DVec::from_fn(|_| {
                     parts.next().expect(
                     "Graph dimension from data file did not match the compiled graph dimension")
-                        .parse::<f64>()
+                        .parse::<f32>()
                         .unwrap()
                 });
 

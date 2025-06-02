@@ -6,7 +6,7 @@ use std::ops::{
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DVec<const D: usize> {
-    pub components: [f64; D],
+    pub components: [f32; D],
 }
 
 impl<const D: usize> Default for DVec<D> {
@@ -16,7 +16,7 @@ impl<const D: usize> Default for DVec<D> {
 }
 
 impl<const D: usize> DVec<D> {
-    pub const fn new(components: [f64; D]) -> Self {
+    pub const fn new(components: [f32; D]) -> Self {
         Self { components }
     }
 
@@ -44,7 +44,7 @@ impl<const D: usize> DVec<D> {
 
     pub fn from_fn<F>(f: F) -> Self
     where
-        F: FnMut(usize) -> f64,
+        F: FnMut(usize) -> f32,
     {
         Self {
             components: std::array::from_fn(f),
@@ -52,26 +52,26 @@ impl<const D: usize> DVec<D> {
     }
 
     // Euclidean/L2 norm
-    pub fn magnitude(&self) -> f64 {
-        self.components.iter().map(|&x| x * x).sum::<f64>().sqrt()
+    pub fn magnitude(&self) -> f32 {
+        self.components.iter().map(|&x| x * x).sum::<f32>().sqrt()
     }
 
-    pub fn magnitude_squared(&self) -> f64 {
+    pub fn magnitude_squared(&self) -> f32 {
         self.components.iter().map(|&x| x * x).sum()
     }
 
     // Manhattan/L1 norm
-    pub fn manhattan_norm(&self) -> f64 {
+    pub fn manhattan_norm(&self) -> f32 {
         self.components.iter().map(|&x| x.abs()).sum()
     }
 
     // Infinity/L∞ norm
-    pub fn infinity_norm(&self) -> f64 {
-        self.components.iter().map(|&x| x.abs()).fold(0.0, f64::max)
+    pub fn infinity_norm(&self) -> f32 {
+        self.components.iter().map(|&x| x.abs()).fold(0.0, f32::max)
     }
 
     // General Lp norm
-    pub fn lp_norm(&self, p: f64) -> f64 {
+    pub fn lp_norm(&self, p: f32) -> f32 {
         assert!(p > 0.0, "p must be positive for Lp norm");
         if p == 1.0 {
             return self.manhattan_norm();
@@ -86,7 +86,7 @@ impl<const D: usize> DVec<D> {
         self.components
             .iter()
             .map(|&x| x.abs().powf(p))
-            .sum::<f64>()
+            .sum::<f32>()
             .powf(1.0 / p)
     }
 
@@ -96,7 +96,7 @@ impl<const D: usize> DVec<D> {
         *self / mag
     }
 
-    pub fn dot(&self, other: &Self) -> f64 {
+    pub fn dot(&self, other: &Self) -> f32 {
         self.components
             .iter()
             .zip(other.components.iter())
@@ -105,26 +105,26 @@ impl<const D: usize> DVec<D> {
     }
 
     // Distance functions
-    pub fn distance(&self, other: &Self) -> f64 {
+    pub fn distance(&self, other: &Self) -> f32 {
         (*self - *other).magnitude()
     }
-    pub fn distance_squared(&self, other: &Self) -> f64 {
+    pub fn distance_squared(&self, other: &Self) -> f32 {
         (*self - *other).magnitude_squared()
     }
 
-    pub fn manhattan_distance(&self, other: &Self) -> f64 {
+    pub fn manhattan_distance(&self, other: &Self) -> f32 {
         (*self - *other).manhattan_norm()
     }
 
-    pub fn infinity_distance(&self, other: &Self) -> f64 {
+    pub fn infinity_distance(&self, other: &Self) -> f32 {
         (*self - *other).infinity_norm()
     }
 
-    pub fn lp_distance(&self, other: &Self, p: f64) -> f64 {
+    pub fn lp_distance(&self, other: &Self, p: f32) -> f32 {
         (*self - *other).lp_norm(p)
     }
 
-    pub fn angle(&self, other: &Self) -> f64 {
+    pub fn angle(&self, other: &Self) -> f32 {
         let dot_product = self.dot(other);
         let magnitudes = self.magnitude() * other.magnitude();
 
@@ -154,7 +154,7 @@ impl<const D: usize> DVec<D> {
     #[inline]
     pub fn map<F>(&self, mut f: F) -> Self
     where
-        F: FnMut(f64) -> f64,
+        F: FnMut(f32) -> f32,
     {
         let mut result = [0.0; D];
         for (item, component) in result.iter_mut().zip(self.components.into_iter()) {
@@ -172,6 +172,12 @@ impl<const D: usize> DVec<D> {
         result
     }
 
+    #[inline]
+    pub fn slice<const N: usize>(&self, offset: usize) -> DVec<N> {
+        let components = std::array::from_fn(|i| self.components[i + offset]);
+        DVec { components }
+    }
+
     pub fn abs(&self) -> Self {
         self.map(|x| x.abs())
     }
@@ -182,7 +188,7 @@ impl<const D: usize> DVec<D> {
             .zip(rounded.components.iter())
             .all(|(a, b)| a >= b)
     }
-    pub(crate) fn round_up_dist_squared(&self, rounded: DVec<D>) -> f64 {
+    pub(crate) fn round_up_dist_squared(&self, rounded: DVec<D>) -> f32 {
         self.components
             .iter()
             .zip(rounded.components.iter())
@@ -192,22 +198,22 @@ impl<const D: usize> DVec<D> {
 }
 
 // From implementations
-impl<const D: usize> From<[f64; D]> for DVec<D> {
-    fn from(components: [f64; D]) -> Self {
+impl<const D: usize> From<[f32; D]> for DVec<D> {
+    fn from(components: [f32; D]) -> Self {
         Self { components }
     }
 }
 
 // For 2D vector
-impl From<(f64, f64)> for DVec<2> {
-    fn from((x, y): (f64, f64)) -> Self {
+impl From<(f32, f32)> for DVec<2> {
+    fn from((x, y): (f32, f32)) -> Self {
         Self { components: [x, y] }
     }
 }
 
 // For 3D vector
-impl From<(f64, f64, f64)> for DVec<3> {
-    fn from((x, y, z): (f64, f64, f64)) -> Self {
+impl From<(f32, f32, f32)> for DVec<3> {
+    fn from((x, y, z): (f32, f32, f32)) -> Self {
         Self {
             components: [x, y, z],
         }
@@ -215,8 +221,8 @@ impl From<(f64, f64, f64)> for DVec<3> {
 }
 
 // For 4D vector
-impl From<(f64, f64, f64, f64)> for DVec<4> {
-    fn from((x, y, z, w): (f64, f64, f64, f64)) -> Self {
+impl From<(f32, f32, f32, f32)> for DVec<4> {
+    fn from((x, y, z, w): (f32, f32, f32, f32)) -> Self {
         Self {
             components: [x, y, z, w],
         }
@@ -264,10 +270,10 @@ impl<const D: usize> SubAssign for DVec<D> {
     }
 }
 
-impl<const D: usize> Mul<f64> for DVec<D> {
+impl<const D: usize> Mul<f32> for DVec<D> {
     type Output = Self;
 
-    fn mul(self, scalar: f64) -> Self::Output {
+    fn mul(self, scalar: f32) -> Self::Output {
         self.map(|x| x * scalar)
     }
 }
@@ -284,7 +290,7 @@ impl<const D: usize> Mul<DVec<D>> for DVec<D> {
     }
 }
 
-impl<const D: usize> Mul<DVec<D>> for f64 {
+impl<const D: usize> Mul<DVec<D>> for f32 {
     type Output = DVec<D>;
 
     fn mul(self, vector: DVec<D>) -> Self::Output {
@@ -292,26 +298,26 @@ impl<const D: usize> Mul<DVec<D>> for f64 {
     }
 }
 
-impl<const D: usize> MulAssign<f64> for DVec<D> {
-    fn mul_assign(&mut self, scalar: f64) {
+impl<const D: usize> MulAssign<f32> for DVec<D> {
+    fn mul_assign(&mut self, scalar: f32) {
         for i in 0..D {
             self.components[i] *= scalar;
         }
     }
 }
 
-impl<const D: usize> Div<f64> for DVec<D> {
+impl<const D: usize> Div<f32> for DVec<D> {
     type Output = Self;
 
-    fn div(self, scalar: f64) -> Self::Output {
+    fn div(self, scalar: f32) -> Self::Output {
         assert!(scalar != 0.0, "Division by zero");
         let divisor_recip = scalar.recip();
         self.map(|x| x * divisor_recip)
     }
 }
 
-impl<const D: usize> DivAssign<f64> for DVec<D> {
-    fn div_assign(&mut self, scalar: f64) {
+impl<const D: usize> DivAssign<f32> for DVec<D> {
+    fn div_assign(&mut self, scalar: f32) {
         assert!(scalar != 0.0, "Division by zero");
         for i in 0..D {
             self.components[i] /= scalar;
@@ -329,7 +335,7 @@ impl<const D: usize> Neg for DVec<D> {
 
 // Indexing
 impl<const D: usize> Index<usize> for DVec<D> {
-    type Output = f64;
+    type Output = f32;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.components[index]

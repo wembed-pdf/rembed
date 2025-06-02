@@ -31,10 +31,12 @@ fn main() -> io::Result<()> {
         println!("Updating positions");
         lsh.update_positions(&embedding.positions);
         println!("Query all nodes");
+        let mut sum = 0;
         for node in 0..embedding.positions.len() {
             let weight = embedding.weight(node);
             if weight < 1. {
                 let lsh_result = lsh.repelling_nodes(node);
+                sum += lsh_result.len();
                 continue;
                 let naive_result = embedding.repelling_nodes(node);
 
@@ -43,6 +45,7 @@ fn main() -> io::Result<()> {
                     if other_weight >= 1. {
                         continue;
                     }
+                    sum += 1;
                     if !lsh_result.contains(&naive_node) {
                         let p1 = *embedding.position(naive_node);
                         let p2 = *embedding.position(node);
@@ -66,6 +69,7 @@ fn main() -> io::Result<()> {
                 }
             }
         }
+        dbg!(sum);
         break;
     }
 

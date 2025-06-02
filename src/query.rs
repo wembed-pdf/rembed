@@ -29,7 +29,7 @@ pub trait Embedder<const D: usize>: Query + Update<D> + Graph + Position<D> {
         // todo consider graph edges
         let nn_count = result.len();
         result.retain(|&x| {
-            self.position(x).distance_squared(pos) < (weight * self.weight(x)).powi(2)
+            (self.position(x).distance_squared(pos) as f64) < (weight * self.weight(x)).powi(2)
         });
 
         // println!("nn_count: {nn_count}, filtered: {}", result.len());

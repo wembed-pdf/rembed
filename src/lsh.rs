@@ -16,7 +16,7 @@ const DIM_CHUNK_SIZE: usize = 2;
 #[derive(Clone)]
 pub enum Node<const D: usize> {
     Map(SpatialMap<D>, usize),
-    Leaf(Vec<NodeId>),
+    Leaf(Vec<NodeId>, [Vec<NodeId>; D]),
 }
 
 impl<const D: usize> Node<D> {
@@ -35,17 +35,17 @@ impl<const D: usize> Node<D> {
     fn level(&self) -> usize {
         match self {
             Node::Map(_hash_map, level) => *level,
-            Node::Leaf(_items) => D,
+            Node::Leaf(_items, _) => D,
         }
     }
     fn leaf(&self) -> Option<&Vec<NodeId>> {
-        let Node::Leaf(leaf) = self else {
+        let Node::Leaf(leaf, _) = self else {
             return None;
         };
         Some(leaf)
     }
     fn leaf_mut(&mut self) -> &mut Vec<NodeId> {
-        let Node::Leaf(leaf) = self else {
+        let Node::Leaf(leaf, _) = self else {
             panic!();
         };
         leaf
@@ -57,7 +57,7 @@ pub struct Lsh<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
     pub weight_threshold: f64,
-    pub map: SpatialMap<D>,
+    pub map: SpatialMap<DIM_CHUNK_SIZE>,
 }
 
 impl<'a, const D: usize> crate::query::Graph for Lsh<'a, D> {
@@ -92,8 +92,22 @@ impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
                     .map_mut();
                 for rounded_pos in point(pos, DIM_CHUNK_SIZE, DIM_CHUNK_SIZE) {
                     // dbg!(&rounded_pos);
-                    let inner_slot = map.entry(rounded_pos).or_insert(Node::Leaf(Vec::new()));
+                    let inner_slot = map
+                        .entry(rounded_pos)
+                        .or_insert(Node::Leaf(Vec::new(), std::array::from_fn(|_| Vec::new())));
                     inner_slot.leaf_mut().push(id);
+                }
+            }
+        }
+        for map in self.map.values_mut() {
+            for list in map.map_mut().values_mut() {
+                let Node::Leaf(list, sorted) = list else {
+                    panic!()
+                };
+                let mut sort_list = list.clone();
+                for d in 0..sorted.len() {
+                    sort_list.sort_by_key(|&x| (self.positions[x][d] * 100000000.) as i64);
+                    sorted[d] = sort_list.clone();
                 }
             }
         }
@@ -134,7 +148,7 @@ impl<'a, const D: usize> Lsh<'a, D> {
         for (i, (node, position)) in graph.nodes.iter().zip(positions.iter()).enumerate() {
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
-            if distance < weight.powi(2) * radius {
+            if (distance as f64) < weight.powi(2) * radius {
                 output.push(i);
             }
         }
@@ -146,6 +160,8 @@ impl<'a, const D: usize> Lsh<'a, D> {
         let mut neighbors = Vec::with_capacity(100);
         let spatial_maps =
             nbig_box(self.position(index), 0, DIM_CHUNK_SIZE).flat_map(|x| self.map.get(&x));
+        // let spatial_maps: Vec<_> = spatial_maps.collect();
+        // dbg!(spatial_maps.len());
         let own_pos = self.position(index);
         // dbg!(own_pos);
 
@@ -175,6 +191,9 @@ impl<'a, const D: usize> Lsh<'a, D> {
                 // dbg!(list.leaf());
                 for node in list.leaf().unwrap() {
                     // if dbg!(dbg!(own_pos).distance_squared(dbg!(self.position(*node)))) <= 1. {
+                    if node == &index {
+                        continue;
+                    }
                     if own_pos.distance_squared(self.position(*node)) <= 1. {
                         // neighbors.insert(*node);
                         neighbors.push(*node);
@@ -186,13 +205,23 @@ impl<'a, const D: usize> Lsh<'a, D> {
     }
 }
 
-fn point<const D: usize>(
+//// TODO:
+/// For each bucket, sort remaining elements on 1d line and use the distance from the center to narrow the query radius for the snn line. Potentially repeat with more dimension by using buckets.
+/// Track the distance to all of the buckets (but the center bucket) and reduce the query radius on the sorted line accordingly. Do this for multiple dimension reductions
+
+fn point<const D: usize, const N: usize>(
     pos: &DVec<D>,
     dim_offset: usize,
     dim_count: usize,
-) -> impl Iterator<Item = [i8; D]> {
+) -> impl Iterator<Item = [i8; N]> {
     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
-    std::iter::once(pos.mul(vec).map(|x| x.floor()).to_int_array())
+    let vec_offset = if N == D { 0 } else { dim_offset };
+    std::iter::once(
+        pos.mul(vec)
+            .map(|x| x.floor())
+            .slice(vec_offset)
+            .to_int_array(),
+    )
 }
 fn nbox<const D: usize>(
     pos: &DVec<D>,
@@ -212,29 +241,30 @@ fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i8; D] {
     (*pos + unit).map(|x| x.floor()).to_int_array()
 }
 
-fn nbig_box<const D: usize>(
+fn nbig_box<const D: usize, const N: usize>(
     pos: &DVec<D>,
     dim_offset: usize,
     dim_count: usize,
-) -> impl Iterator<Item = [i8; D]> {
+) -> impl Iterator<Item = [i8; N]> {
     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
     let pos = *pos * vec;
     let rounded = pos.map(|x| x.floor());
+    let diff = pos - rounded;
     let total = 3usize.pow(dim_count as u32);
+    let vec_offset = if N == D { 0 } else { dim_offset };
     (0..total).flat_map(move |i| {
-        let mut result = rounded;
+        let mut result = rounded.slice(vec_offset).to_int_array();
         let mut n = i;
-        for d in 0..dim_count {
+        let mut dist = 0.;
+        for d in dim_offset..(dim_offset + dim_count) {
             let offset = (n % 3) as i8 - 1;
             n /= 3;
-            let unit = DVec::unit(dim_offset + d);
-            result += unit * offset as f64;
+            if offset == 1 {
+                dist += (1. - diff[d]).powi(2);
+            }
+            result[d - vec_offset] += offset;
         }
-        if pos.round_up_dist_squared(result) < 1. {
-            Some(result.to_int_array())
-        } else {
-            None
-        }
+        if dist < 1. { Some(result) } else { None }
     })
 }
 
@@ -293,21 +323,25 @@ mod test {
         let p1 = point([
             3.89074, 1.63223, 3.89705, 3.22904, 2.2936, 2.76524, 2.58811, 1.69013,
         ]);
-        let boxes = nbig_box(&p1, 0, DIM_CHUNK_SIZE);
+        let boxes = nbig_box::<8, DIM_CHUNK_SIZE>(&p1, 0, DIM_CHUNK_SIZE);
         let p2 = point([
             3.99191, 1.21484, 3.99002, 2.95835, 2.89702, 2.70426, 2.83737, 1.67377,
         ]);
         eprintln!(
             "Testing\n{:?} vs:",
-            super::point(&p2, 0, DIM_CHUNK_SIZE).next().unwrap()
+            super::point::<8, DIM_CHUNK_SIZE>(&p2, 0, DIM_CHUNK_SIZE)
+                .next()
+                .unwrap()
         );
         for b in boxes {
             eprintln!("{:?}", b);
         }
-        let boxes = nbig_box(&p1, 2, DIM_CHUNK_SIZE);
+        let boxes = nbig_box::<8, DIM_CHUNK_SIZE>(&p1, 2, DIM_CHUNK_SIZE);
         eprintln!(
             "Testing\n{:?} vs:",
-            super::point(&p2, 2, DIM_CHUNK_SIZE).next().unwrap()
+            super::point::<8, DIM_CHUNK_SIZE>(&p2, 2, DIM_CHUNK_SIZE)
+                .next()
+                .unwrap()
         );
         for b in boxes {
             eprintln!("{:?}", b);
@@ -323,10 +357,10 @@ mod test {
         let lsh = Lsh::new(embedding);
         let list = dbg!(lsh.nearest_neighbors(0, 1.));
         assert!(list.contains(&1));
-        panic!();
+        // panic!();
     }
 
-    fn point(arr: [f64; 8]) -> DVec<8> {
+    fn point(arr: [f32; 8]) -> DVec<8> {
         DVec { components: arr }
     }
     fn create_graph(n: i8) -> Graph {
