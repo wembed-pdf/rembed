@@ -57,22 +57,7 @@ impl GraphGenerator {
                 for &n in &n_s {
                     let mut tx = pool.begin().await?;
                     // Insert graph record into database first to get graph_id
-                    let graph_id = sqlx::query_scalar!(
-                        r#"
-                        INSERT INTO graphs (n, deg, wseed, pseed, sseed, file_path, checksum)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7)
-                        RETURNING graph_id
-                        "#,
-                        n,
-                        avg_degree,
-                        seed.wseed,
-                        seed.pseed,
-                        seed.sseed,
-                        "", // temporary, will update after file generation
-                        ""  // temporary, will update after checksum calculation
-                    )
-                    .fetch_one(&mut *tx)
-                    .await;
+                    let graph_id = insert_temp_graph(&mut tx, n, avg_degree, &seed).await;
 
                     let graph_id: i64 = match graph_id {
                         Ok(graph_id) => graph_id,
@@ -86,6 +71,7 @@ impl GraphGenerator {
             
                                 Err(e) => return Err(e.into())
                     };
+                    pb.set_message(format!("Generating graph {}", graph_id));
 
                     // Generate filename with graph_id
                     let filename = format!(
@@ -94,52 +80,20 @@ impl GraphGenerator {
                     );
                     let file_path = format!("{}/{}", self.output_path, filename);
 
-                    pb.set_message(format!("Generating graph {}", graph_id));
 
                     // Generate the graph file
-                    let status = Command::new(&self.girgs_path)
-                        .stdout(std::process::Stdio::null())
-                        .arg("-n")
-                        .arg(n.to_string())
-                        .arg("-deg")
-                        .arg(avg_degree.to_string())
-                        .arg("-file")
-                        .arg(&file_path)
-                        .arg("-edge")
-                        .arg("1")
-                        .arg("-wseed")
-                        .arg(seed.wseed.to_string())
-                        .arg("-pseed")
-                        .arg(seed.pseed.to_string())
-                        .arg("-sseed")
-                        .arg(seed.sseed.to_string())
-                        .status()?;
+                    let status = self.run_girgs(&seed, avg_degree, n, &file_path)?;
                     let file_path = &format!("{}.txt", file_path);
 
                     if !status.success() {
                         // Delete the database record if generation failed
-                        sqlx::query!("DELETE FROM graphs WHERE graph_id = $1", graph_id)
-                            .execute(&mut *tx)
-                            .await?;
                         return Err(format!("Failed to generate graph {}", graph_id).into());
                     }
 
                     // Calculate checksum
                     let checksum = calculate_file_checksum(file_path)?;
 
-                    // Update database record with file path and checksum
-                    sqlx::query!(
-                        r#"
-                        UPDATE graphs 
-                        SET file_path = $1, checksum = $2
-                        WHERE graph_id = $3
-                        "#,
-                        file_path,
-                        checksum,
-                        graph_id,
-                    )
-                    .execute(&mut *tx)
-                    .await?;
+                    update_file_path_and_checksum(&mut tx, graph_id, file_path, &checksum).await?;
                     tx.commit().await.unwrap();
 
                     pb.inc(1);
@@ -153,6 +107,26 @@ impl GraphGenerator {
         self.sync_files().await?;
 
         Ok(())
+    }
+
+    fn run_girgs(&self, seed: &Seed, avg_degree: i32, n: i32, file_path: &String) -> Result<std::process::ExitStatus, std::io::Error> {
+        Command::new(&self.girgs_path)
+            .stdout(std::process::Stdio::null())
+            .arg("-n")
+            .arg(n.to_string())
+            .arg("-deg")
+            .arg(avg_degree.to_string())
+            .arg("-file")
+            .arg(file_path)
+            .arg("-edge")
+            .arg("1")
+            .arg("-wseed")
+            .arg(seed.wseed.to_string())
+            .arg("-pseed")
+            .arg(seed.pseed.to_string())
+            .arg("-sseed")
+            .arg(seed.sseed.to_string())
+            .status()
     }
 
     async fn sync_files(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -178,6 +152,42 @@ impl GraphGenerator {
         println!("File sync completed successfully");
         Ok(())
     }
+}
+
+
+async fn insert_temp_graph(tx: &mut sqlx::Transaction<'static, Postgres>, n: i32, avg_degree: i32, seed: &Seed) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+            INSERT INTO graphs (n, deg, wseed, pseed, sseed, file_path, checksum)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING graph_id
+            "#,
+        n,
+        avg_degree,
+        seed.wseed,
+        seed.pseed,
+        seed.sseed,
+        "", // temporary, will update after file generation
+        ""  // temporary, will update after checksum calculation
+    )
+    .fetch_one(&mut **tx)
+    .await
+}
+
+async fn update_file_path_and_checksum(tx: &mut sqlx::Transaction<'static, Postgres>, graph_id: i64, file_path: &str, checksum: &str) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE graphs 
+        SET file_path = $1, checksum = $2
+        WHERE graph_id = $3
+        "#,
+        file_path,
+        checksum,
+        graph_id,
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 fn calculate_file_checksum(file_path: &str) -> Result<String, Box<dyn std::error::Error>> {
