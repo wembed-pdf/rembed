@@ -2,7 +2,7 @@ use std::process::Command;
 use std::str::FromStr;
 use std::{collections::HashMap, io::Read};
 
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 
 pub struct Graph {
@@ -206,10 +206,6 @@ impl GraphGenerator {
                 .unwrap_or("unknown");
             for dim in generate_dim() {
                 for dim_hint in generate_dim_hint() {
-                    let output_file = format!(
-                        "{}/{}_dim-{}_dim_hint-{}.pos",
-                        self.output_path, graph_name, dim, dim_hint
-                    );
                     Command::new(&self.wembed_path)
                         .stdout(std::process::Stdio::null())
                         .arg("-i")

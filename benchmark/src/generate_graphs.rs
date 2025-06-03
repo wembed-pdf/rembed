@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 
 struct Seed {
     wseed: i32, // weight seed default 12
@@ -24,7 +24,7 @@ impl GraphGenerator {
     pub fn generate(&self) {
         println!("Generating graphs using GIRGs at: {}", self.girgs_path);
         println!("Output will be saved to: {}", self.output_path);
-        let n_s = half_log10(1000.0, 1000000.0);
+        let n_s = half_log10(1000.0, 1000005.0);
         let seeds = generate_seeds();
         let avg_degrees = generate_avg_degrees();
         let pb = ProgressBar::new(n_s.len() as u64 * seeds.len() as u64 * avg_degrees.len() as u64);
