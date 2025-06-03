@@ -36,6 +36,7 @@
             bacon
             samply
             toolchain
+            sqlx-cli
           ];
         };
       }
