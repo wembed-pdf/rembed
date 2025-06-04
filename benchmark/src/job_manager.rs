@@ -61,7 +61,9 @@ impl JobManager {
             RETURNING job_id, graph_id, embedding_dim, dim_hint, max_iterations, seed
             "#,
             self.hostname
-        ).fetch_optional(&mut *tx).await?;
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
 
         if let Some(job) = job {
             let graph_info = sqlx::query!(
@@ -88,7 +90,13 @@ impl JobManager {
         }
     }
 
-    pub async fn complete_job(&self, job_id: i64, file_path: &str, checksum: &str, actual_iterations: Option<i32>) -> Result<(), sqlx::Error> {
+    pub async fn complete_job(
+        &self,
+        job_id: i64,
+        file_path: &str,
+        checksum: &str,
+        actual_iterations: Option<i32>,
+    ) -> Result<(), sqlx::Error> {
         let mut tx = self.pool.begin().await?;
 
         // Get job details
@@ -110,7 +118,9 @@ impl JobManager {
         sqlx::query!(
             "UPDATE position_jobs SET status = 'completed', completed_at = NOW() WHERE job_id = $1",
             job_id
-        ).execute(&mut *tx).await?;
+        )
+        .execute(&mut *tx)
+        .await?;
 
         tx.commit().await?;
         Ok(())
@@ -119,13 +129,17 @@ impl JobManager {
     pub async fn fail_job(&self, job_id: i64, error: &str) -> Result<(), sqlx::Error> {
         sqlx::query!(
             "UPDATE position_jobs SET status = 'failed', error_message = $1 WHERE job_id = $2",
-            error, job_id
-        ).execute(&self.pool).await?;
+            error,
+            job_id
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
     pub async fn create_jobs_for_graph(&self, graph_id: i64) -> Result<i32, sqlx::Error> {
-        let dimensions = [2, 4, 8, 16, 32];
+        // let dimensions = [2, 4, 8, 16, 32];
+        let dimensions = [2, 4, 8];
         let dim_hint = 8;
         let max_iterations = 1000;
         let seed = 42; // Fixed seed for reproducibility
@@ -138,8 +152,14 @@ impl JobManager {
                 VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (graph_id, embedding_dim, dim_hint, max_iterations, seed) DO NOTHING
                 "#,
-                graph_id, embedding_dim, dim_hint, max_iterations, seed
-            ).execute(&self.pool).await?;
+                graph_id,
+                embedding_dim,
+                embedding_dim,
+                max_iterations,
+                seed
+            )
+            .execute(&self.pool)
+            .await?;
 
             if result.rows_affected() > 0 {
                 job_count += 1;
@@ -150,7 +170,9 @@ impl JobManager {
     }
 
     pub async fn create_missing_jobs(&self) -> Result<i32, sqlx::Error> {
-        let graphs = sqlx::query!("SELECT graph_id FROM graphs").fetch_all(&self.pool).await?;
+        let graphs = sqlx::query!("SELECT graph_id FROM graphs where n < 300000")
+            .fetch_all(&self.pool)
+            .await?;
         let mut total_created = 0;
         let pb = crate::create_progress_bar(graphs.len());
         for graph in graphs {
@@ -161,24 +183,32 @@ impl JobManager {
     }
 
     // Query methods for results
-    pub async fn get_results_for_graph(&self, graph_id: i64) -> Result<Vec<PositionResult>, sqlx::Error> {
+    pub async fn get_results_for_graph(
+        &self,
+        graph_id: i64,
+    ) -> Result<Vec<PositionResult>, sqlx::Error> {
         let results = sqlx::query!(
             "SELECT * FROM position_results WHERE graph_id = $1 ORDER BY embedding_dim",
             graph_id
-        ).fetch_all(&self.pool).await?;
+        )
+        .fetch_all(&self.pool)
+        .await?;
 
-        Ok(results.into_iter().map(|row| PositionResult {
-            result_id: row.result_id,
-            graph_id: row.graph_id,
-            embedding_dim: row.embedding_dim,
-            dim_hint: row.dim_hint,
-            max_iterations: row.max_iterations,
-            actual_iterations: row.actual_iterations,
-            seed: row.seed,
-            file_path: row.file_path,
-            checksum: row.checksum,
-            created_at: row.created_at.to_utc(),
-        }).collect())
+        Ok(results
+            .into_iter()
+            .map(|row| PositionResult {
+                result_id: row.result_id,
+                graph_id: row.graph_id,
+                embedding_dim: row.embedding_dim,
+                dim_hint: row.dim_hint,
+                max_iterations: row.max_iterations,
+                actual_iterations: row.actual_iterations,
+                seed: row.seed,
+                file_path: row.file_path,
+                checksum: row.checksum,
+                created_at: row.created_at.to_utc(),
+            })
+            .collect())
     }
 
     pub async fn get_job_stats(&self) -> Result<(i64, i64, i64, i64), sqlx::Error> {
@@ -191,7 +221,9 @@ impl JobManager {
                 COUNT(*) FILTER (WHERE status = 'failed') as failed
             FROM position_jobs
             "#
-        ).fetch_one(&self.pool).await?;
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
         Ok((
             result.pending.unwrap_or(0),

@@ -23,7 +23,7 @@ async fn sync_files() -> Result<(), Box<dyn std::error::Error>> {
     println!("Syncing files to: {}", sync_destination);
 
     let status = tokio::process::Command::new("rsync")
-        .arg("-rlvz").arg("--progress")
+        .arg("-rlvtcz").arg("--progress")
         .arg(sync_source).arg(&sync_destination)
         .status().await?;
 

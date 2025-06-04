@@ -39,8 +39,8 @@ impl PositionGenerator {
 
     async fn process_job(&self, job: PositionJob) -> Result<(), Box<dyn std::error::Error>> {
         let output_filename = format!(
-            "{}_graph-{}_dim-{}_seed-{}.log",
-            job.job_id, job.graph_id, job.embedding_dim, job.seed
+            "graph-{}_dim-{}_dim-hint-{}_seed-{}.log",
+            job.graph_id, job.embedding_dim, job.dim_hint, job.seed
         );
 let output_path = format!("{}/{}", self.output_path, output_filename);
         let temp_output = String::from("spatial_log_positions.log");
