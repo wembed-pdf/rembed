@@ -18,6 +18,7 @@ impl PositionGenerator {
     pub async fn run_daemon(&self) -> Result<(), Box<dyn std::error::Error>> {
         println!("Starting position generation daemon...");
         std::fs::create_dir_all(&self.output_path)?;
+        crate::pull_files().await?;
 
         loop {
             match self.job_manager.claim_next_job().await {
@@ -29,7 +30,7 @@ impl PositionGenerator {
                     }
                 }
                 Ok(None) => {sleep(Duration::from_secs(5)).await;
-                    crate::sync_files().await?;
+                    crate::push_files().await?;
                 },
                 Err(e) => {
                     eprintln!("Error claiming job: {}", e);

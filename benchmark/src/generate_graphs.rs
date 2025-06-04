@@ -222,7 +222,7 @@ impl GraphGenerator {
         }
 
         pb.finish_with_message("Graph generation complete");
-        crate::sync_files().await?;
+        crate::push_files().await?;
         Ok(())
     }
 
