@@ -222,7 +222,7 @@ impl GraphGenerator {
         }
 
         pb.finish_with_message("Graph generation complete");
-        self.sync_files().await?;
+        crate::sync_files().await?;
         Ok(())
     }
 
@@ -262,27 +262,7 @@ impl GraphGenerator {
             .arg("-pseed").arg(seed.pseed.to_string())
             .arg("-sseed").arg(seed.sseed.to_string())
             .status()
-    }
-
-    async fn sync_files(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let sync_destination = std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
-        let sync_source = std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
-
-        println!("Syncing files to: {}", sync_destination);
-
-        let status = tokio::process::Command::new("rsync")
-            .arg("-rlvz").arg("--progress")
-            .arg(sync_source).arg(&sync_destination)
-            .status().await?;
-
-        if !status.success() {
-            return Err("Rsync failed".into());
-        }
-
-        println!("File sync completed successfully");
-        Ok(())
-    }
-}
+    }}
 
 
 async fn check_existing_graph(

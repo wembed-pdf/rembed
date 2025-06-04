@@ -42,8 +42,8 @@ impl PositionGenerator {
             "{}_graph-{}_dim-{}_seed-{}.log",
             job.job_id, job.graph_id, job.embedding_dim, job.seed
         );
-        let output_path = String::from("spatial_log_positions.log");
-        // let output_path = format!("{}/{}", self.output_path, output_filename);
+let output_path = format!("{}/{}", self.output_path, output_filename);
+        let temp_output = String::from("spatial_log_positions.log");
 
         let status = Command::new(&self.wembed_path)
             .arg("-i").arg(&job.graph_file_path)
@@ -57,15 +57,18 @@ impl PositionGenerator {
             return Err(format!("WEmbed failed with exit code: {:?}", status.code()).into());
         }
 
-        if !std::path::Path::new(&output_path).exists() {
+        if !std::path::Path::new(&temp_output).exists() {
             return Err("WEmbed completed but output file was not created".into());
         }
+
+        std::fs::rename(temp_output, &output_path)?;
 
         let checksum = calculate_file_checksum(&output_path)?;
         
         // Parse actual iterations from log file if needed
         let actual_iterations = parse_actual_iterations(&output_path).unwrap_or(None);
 
+        crate::sync_files().await?;
         self.job_manager.complete_job(job.job_id, &output_path, &checksum, actual_iterations).await?;
         println!("Completed job {} - {}", job.job_id, output_filename);
         Ok(())
