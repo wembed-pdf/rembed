@@ -28,7 +28,9 @@ impl PositionGenerator {
                         let _ = self.job_manager.fail_job(job.job_id, &e.to_string()).await;
                     }
                 }
-                Ok(None) => sleep(Duration::from_secs(5)).await,
+                Ok(None) => {sleep(Duration::from_secs(5)).await;
+                    crate::sync_files().await?;
+                },
                 Err(e) => {
                     eprintln!("Error claiming job: {}", e);
                     sleep(Duration::from_secs(10)).await;
@@ -68,7 +70,6 @@ let output_path = format!("{}/{}", self.output_path, output_filename);
         // Parse actual iterations from log file if needed
         let actual_iterations = parse_actual_iterations(&output_path).unwrap_or(None);
 
-        crate::sync_files().await?;
         self.job_manager.complete_job(job.job_id, &output_path, &checksum, actual_iterations).await?;
         println!("Completed job {} - {}", job.job_id, output_filename);
         Ok(())
