@@ -9,6 +9,7 @@ data/
 **/*.rs.bk
 
 benchmark/.env
+benchmark/*.log
 
 # Samply
 profile.json.gz

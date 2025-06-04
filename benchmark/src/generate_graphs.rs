@@ -1,17 +1,18 @@
-use indicatif::{ProgressBar, ProgressIterator, ProgressStyle};
 use sha2::{Digest, Sha256};
-use sqlx::postgres::PgDatabaseError;
-use sqlx::{Pool, Postgres};
+use sqlx::Postgres;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
-use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
+use tracing::info;
+
+use crate::create_progress_bar;
+use crate::job_manager::JobManager;
 
 struct Seed {
-    wseed: i32, // weight seed default 12
-    pseed: i32, // position seed default 130
-    sseed: i32, // sampling seed default 1400
+    wseed: i32,
+    pseed: i32,
+    sseed: i32,
 }
 
 pub struct Graph {
@@ -44,7 +45,6 @@ impl Graph {
         let mut visited = vec![false; self.adjacency_list.len()];
         let mut component = Vec::new();
 
-        // Perform DFS to find the largest component
         for start in 0..self.adjacency_list.len() {
             if !visited[start] {
                 let mut stack = vec![start];
@@ -68,8 +68,6 @@ impl Graph {
             }
         }
 
-        // Create a new graph with the largest component
-        // map ids in the component to a new range
         let id_map: HashMap<i32, i32> = component
             .iter()
             .enumerate()
@@ -140,7 +138,6 @@ impl GraphGenerator {
     }
 
     pub async fn generate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Connect to database
         let database_url = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
         let pool = sqlx::PgPool::connect(&database_url).await?;
@@ -153,16 +150,8 @@ impl GraphGenerator {
         let avg_degrees = generate_avg_degrees();
         let total_graphs = n_s.len() * seeds.len() * avg_degrees.len();
 
-        let pb = ProgressBar::new(total_graphs as u64);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("{spinner:.green} [{bar:40.cyan/blue}] {pos:>7}/{len:7} {msg}")
-                .unwrap()
-                .progress_chars("#>-"),
-        );
+        let pb = create_progress_bar(total_graphs);
 
-        // Ensure output directory exists
-        println!("generating dir");
         std::fs::create_dir_all(&self.output_path)?;
 
         for seed in seeds {
@@ -170,7 +159,6 @@ impl GraphGenerator {
                 for &n in &n_s {
                     let mut tx = pool.begin().await?;
                     
-                    // Check if this graph already exists
                     let existing_graph_id = check_existing_graph(&mut tx, n, avg_degree, &seed).await?;
                     if existing_graph_id.is_some() {
                         pb.inc(1);
@@ -179,14 +167,12 @@ impl GraphGenerator {
 
                     pb.set_message(format!("Generating graph n={} deg={}", n, avg_degree));
 
-                    // Generate temporary filename for raw graph
                     let temp_filename = format!(
                         "temp_genhrg_n-{}_deg-{}_wseed-{}_pseed-{}_sseed-{}",
                         n, avg_degree, seed.wseed, seed.pseed, seed.sseed
                     );
                     let temp_file_path = format!("{}/{}", self.output_path, temp_filename);
 
-                    // Generate the raw graph file
                     let status = self.run_girgs(&seed, avg_degree, n, &temp_file_path)?;
                     let raw_file_path = format!("{}.txt", temp_file_path);
 
@@ -194,10 +180,8 @@ impl GraphGenerator {
                         return Err(format!("Failed to generate graph n={} deg={}", n, avg_degree).into());
                     }
 
-                    // Process the raw graph
                     let processed_graph = self.process_raw_graph(&raw_file_path)?;
                     
-                    // Insert graph record with processed metrics
                     let graph_id = insert_graph_with_metrics(
                         &mut tx,
                         n,
@@ -207,7 +191,6 @@ impl GraphGenerator {
                         processed_graph.avg_degree,
                     ).await?;
 
-                    // Generate final filename with graph_id and processed metrics
                     let final_filename = format!(
                         "{}_processed_n-{}_deg-{:.3}_wseed-{}_pseed-{}_sseed-{}.txt",
                         graph_id,
@@ -219,29 +202,27 @@ impl GraphGenerator {
                     );
                     let final_file_path = format!("{}/{}", self.output_path, final_filename);
 
-                    // Write processed graph to final location
                     std::fs::write(&final_file_path, processed_graph.to_sorted_edge_string())?;
-
-                    // Calculate checksum of processed file
                     let checksum = calculate_file_checksum(&final_file_path)?;
 
-                    // Update database record with final file path and checksum
                     update_file_path_and_checksum(&mut tx, graph_id, &final_file_path, &checksum).await?;
                     
-                    // Clean up temporary file
-                    let _ = std::fs::remove_file(raw_file_path);
-
                     tx.commit().await?;
+
+                    // Create position generation jobs using JobManager
+                    let job_manager = JobManager::new(pool.clone());
+                    let jobs_created = job_manager.create_jobs_for_graph(graph_id).await?;
+                    
+                    std::fs::remove_file(raw_file_path).ok();
+                    
+                    info!("Created graph {} with {} position generation jobs", graph_id, jobs_created);
                     pb.inc(1);
                 }
             }
         }
 
         pb.finish_with_message("Graph generation complete");
-
-        // Sync files using rsync
         self.sync_files().await?;
-
         Ok(())
     }
 
@@ -250,7 +231,6 @@ impl GraphGenerator {
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
 
-        // Parse edges, skipping the first two lines
         let edges: Vec<(i32, i32)> = contents
             .lines()
             .skip(2)
@@ -266,48 +246,34 @@ impl GraphGenerator {
             })
             .collect();
 
-        // Create graph and reduce to largest component
         let mut graph = Graph::new(edges, 0).reduce_to_largest_component();
         graph.compute_avg_degree();
-
         Ok(graph)
     }
 
     fn run_girgs(&self, seed: &Seed, avg_degree: i32, n: i32, file_path: &str) -> Result<std::process::ExitStatus, std::io::Error> {
         Command::new(&self.girgs_path)
             .stdout(std::process::Stdio::null())
-            .arg("-n")
-            .arg(n.to_string())
-            .arg("-deg")
-            .arg(avg_degree.to_string())
-            .arg("-file")
-            .arg(file_path)
-            .arg("-edge")
-            .arg("1")
-            .arg("-wseed")
-            .arg(seed.wseed.to_string())
-            .arg("-pseed")
-            .arg(seed.pseed.to_string())
-            .arg("-sseed")
-            .arg(seed.sseed.to_string())
+            .arg("-n").arg(n.to_string())
+            .arg("-deg").arg(avg_degree.to_string())
+            .arg("-file").arg(file_path)
+            .arg("-edge").arg("1")
+            .arg("-wseed").arg(seed.wseed.to_string())
+            .arg("-pseed").arg(seed.pseed.to_string())
+            .arg("-sseed").arg(seed.sseed.to_string())
             .status()
     }
 
     async fn sync_files(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let sync_destination =
-            std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
-        let sync_source =
-            std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
+        let sync_destination = std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
+        let sync_source = std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
 
         println!("Syncing files to: {}", sync_destination);
 
         let status = tokio::process::Command::new("rsync")
-            .arg("-rlvz")
-            .arg("--progress")
-            .arg(sync_source)
-            .arg(&sync_destination)
-            .status()
-            .await?;
+            .arg("-rlvz").arg("--progress")
+            .arg(sync_source).arg(&sync_destination)
+            .status().await?;
 
         if !status.success() {
             return Err("Rsync failed".into());
@@ -318,6 +284,7 @@ impl GraphGenerator {
     }
 }
 
+
 async fn check_existing_graph(
     tx: &mut sqlx::Transaction<'static, Postgres>,
     n: i32,
@@ -325,18 +292,9 @@ async fn check_existing_graph(
     seed: &Seed,
 ) -> Result<Option<i64>, sqlx::Error> {
     sqlx::query_scalar!(
-        r#"
-            SELECT graph_id FROM graphs
-            WHERE n = $1 AND deg = $2 AND wseed = $3 AND pseed = $4 AND sseed = $5
-            "#,
-        n,
-        avg_degree,
-        seed.wseed,
-        seed.pseed,
-        seed.sseed
-    )
-    .fetch_optional(&mut **tx)
-    .await
+        "SELECT graph_id FROM graphs WHERE n = $1 AND deg = $2 AND wseed = $3 AND pseed = $4 AND sseed = $5",
+        n, avg_degree, seed.wseed, seed.pseed, seed.sseed
+    ).fetch_optional(&mut **tx).await
 }
 
 async fn insert_graph_with_metrics(
@@ -349,22 +307,13 @@ async fn insert_graph_with_metrics(
 ) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(
         r#"
-            INSERT INTO graphs (n, deg, wseed, pseed, sseed, processed_n, processed_avg_degree, file_path, checksum)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING graph_id
-            "#,
-        original_n,
-        original_deg,
-        seed.wseed,
-        seed.pseed,
-        seed.sseed,
-        processed_n,
-        processed_avg_degree,
-        "", // temporary, will update after file generation
-        ""  // temporary, will update after checksum calculation
-    )
-    .fetch_one(&mut **tx)
-    .await
+        INSERT INTO graphs (n, deg, wseed, pseed, sseed, processed_n, processed_avg_degree, file_path, checksum)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING graph_id
+        "#,
+        original_n, original_deg, seed.wseed, seed.pseed, seed.sseed, 
+        processed_n, processed_avg_degree, "", ""
+    ).fetch_one(&mut **tx).await
 }
 
 async fn update_file_path_and_checksum(
@@ -374,17 +323,9 @@ async fn update_file_path_and_checksum(
     checksum: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        r#"
-        UPDATE graphs 
-        SET file_path = $1, checksum = $2
-        WHERE graph_id = $3
-        "#,
-        file_path,
-        checksum,
-        graph_id,
-    )
-    .execute(&mut **tx)
-    .await?;
+        "UPDATE graphs SET file_path = $1, checksum = $2 WHERE graph_id = $3",
+        file_path, checksum, graph_id
+    ).execute(&mut **tx).await?;
     Ok(())
 }
 
@@ -392,26 +333,23 @@ fn calculate_file_checksum(file_path: &str) -> Result<String, Box<dyn std::error
     let contents = std::fs::read(file_path)?;
     let mut hasher = Sha256::new();
     hasher.update(&contents);
-    let result = hasher.finalize();
-    Ok(format!("{:x}", result))
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn half_log10(start: f64, end: f64) -> Vec<i32> {
-    // Generate successive values by multiplying by √10 and rounding.
     (0..)
         .scan(start, |state, _| {
             if *state > end {
                 return None;
             }
             let current = *state as i32;
-            *state *= 10f64.powf(0.5); // multiply by √10 ≈ 3.16227766
+            *state *= 10f64.powf(0.5);
             Some(current)
         })
         .collect()
 }
 
 fn generate_seeds() -> Vec<Seed> {
-    // Generate seeds for the graphs
     let mut seeds = Vec::new();
     for i in 0..3 {
         seeds.push(Seed {
