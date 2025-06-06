@@ -343,7 +343,7 @@ fn generate_seeds() -> Vec<Seed> {
 
 fn generate_avg_degrees() -> Vec<i32> {
     let mut avg_degrees = Vec::new();
-    for i in (5..20).step_by(5) {
+    for i in (20..40).step_by(5) {
         avg_degrees.push(i);
     }
     avg_degrees
