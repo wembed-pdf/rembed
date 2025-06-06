@@ -10,6 +10,10 @@ fn main() -> io::Result<()> {
 
     let dim = 8;
     let dim_hint = 8;
+    let _ =
+        crate::parsing::parse_positions_file::<_, 4>("../../cpp/wembed/spatial_log_positions.log");
+
+    println!("test");
 
     let (graph, iterations) = load_graph(graph_name, dim, dim_hint)?;
     let embeddings: Vec<Embedding<8>> = iterations

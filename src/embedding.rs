@@ -47,7 +47,7 @@ impl<const D: usize> Query for Embedding<'_, D> {
             if i == index {
                 continue;
             }
-            if distance < weight.powi(2) * radius {
+            if (distance as f64) < weight.powi(2) * radius {
                 output.push(i);
             }
         }

@@ -54,7 +54,7 @@ impl PositionGenerator {
             job.graph_id, job.embedding_dim, job.dim_hint, job.seed
         );
         let output_path = format!("{}/{}", self.output_path, output_filename);
-        let temp_output = String::from("spatial_log_positions.log");
+        let iteration_logging_mod = 10;
 
         let status = Command::new(&self.wembed_path)
             .arg("-i")
@@ -67,17 +67,19 @@ impl PositionGenerator {
             .arg(job.max_iterations.to_string())
             .arg("--seed")
             .arg(job.seed.to_string()) // Add seed for reproducibility
+            .arg("--logging-output")
+            .arg(&output_path)
+            .arg("--iteration_logging_mod")
+            .arg(iteration_logging_mod.to_string())
             .status()?;
 
         if !status.success() {
             return Err(format!("WEmbed failed with exit code: {:?}", status.code()).into());
         }
 
-        if !std::path::Path::new(&temp_output).exists() {
+        if !std::path::Path::new(&output_path).exists() {
             return Err("WEmbed completed but output file was not created".into());
         }
-
-        std::fs::rename(temp_output, &output_path)?;
 
         let checksum = calculate_file_checksum(&output_path)?;
 

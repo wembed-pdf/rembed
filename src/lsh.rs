@@ -136,7 +136,7 @@ impl<'a, const D: usize> Lsh<'a, D> {
         for (i, (node, position)) in graph.nodes.iter().zip(positions.iter()).enumerate() {
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
-            if distance < weight.powi(2) * radius {
+            if (distance as f64) < weight.powi(2) * radius {
                 output.push(i);
             }
         }
