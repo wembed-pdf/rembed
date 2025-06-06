@@ -106,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::GenerateGraphs => {
             let generator = GraphGenerator::new(
                 env::var("GIRGS_PATH").unwrap_or("../../girgs/build/genhrg".to_string()),
-                env::var("GRAPHS_OUTPUT_PATH").unwrap_or("../data/generated/graphs".to_string()),
+                env::var("DATA_DIRECTORY").unwrap_or("../data/".to_string()),
             );
             generator.generate().await?;
         }
@@ -120,8 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let generator = PositionGenerator::new(
                 env::var("WEMBED_PATH")
                     .unwrap_or("../../wembed/release/bin/cli_wembed".to_string()),
-                env::var("POSITIONS_OUTPUT_PATH")
-                    .unwrap_or("../data/generated/positions".to_string()),
+                env::var("DATA_DIRECTORY").unwrap_or("../data/".to_string()),
                 job_manager,
             );
 

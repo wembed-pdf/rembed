@@ -53,12 +53,13 @@ impl PositionGenerator {
             "graph-{}_dim-{}_dim-hint-{}_seed-{}.log",
             job.graph_id, job.embedding_dim, job.dim_hint, job.seed
         );
-        let output_path = format!("{}/{}", self.output_path, output_filename);
+        let output_path_without_prefix = format!("generated/positions/{}", output_filename);
+        let output_path = format!("{}/{}", self.output_path, output_path_without_prefix);
         let iteration_logging_mod = 10;
 
         let status = Command::new(&self.wembed_path)
             .arg("-i")
-            .arg(&job.graph_file_path)
+            .arg(format!("{}/{}", self.output_path, job.graph_file_path))
             .arg("--dim-hint")
             .arg(job.dim_hint.to_string())
             .arg("--dim")
@@ -87,7 +88,12 @@ impl PositionGenerator {
         let actual_iterations = parse_actual_iterations(&output_path).unwrap_or(None);
 
         self.job_manager
-            .complete_job(job.job_id, &output_path, &checksum, actual_iterations)
+            .complete_job(
+                job.job_id,
+                &output_path_without_prefix,
+                &checksum,
+                actual_iterations,
+            )
             .await?;
         println!("Completed job {} - {}", job.job_id, output_filename);
         Ok(())

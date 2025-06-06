@@ -245,8 +245,10 @@ impl GraphGenerator {
                                     seed.pseed,
                                     seed.sseed
                                 );
-                                let final_file_path =
-                                    format!("{}/{}", self.output_path, final_filename);
+                                let final_file_path = format!(
+                                    "{}/generated/graphs/{}",
+                                    self.output_path, final_filename
+                                );
 
                                 std::fs::write(
                                     &final_file_path,
@@ -257,7 +259,7 @@ impl GraphGenerator {
                                 update_file_path_and_checksum(
                                     &mut tx,
                                     graph_id,
-                                    &final_file_path,
+                                    &format!("generated/graphs/{}", final_filename),
                                     &checksum,
                                 )
                                 .await?;

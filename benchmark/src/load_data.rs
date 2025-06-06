@@ -43,6 +43,7 @@ impl LoadData {
         .fetch_all(&mut *tx)
         .await?;
 
+        let data_directory = std::env::var("DATA_DIRECTORY").unwrap_or(String::from("../data/"));
         // check if the results exist
         for result in &position_results[..0] {
             let file_path = &result.pos_path;
