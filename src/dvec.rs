@@ -5,6 +5,7 @@ use std::ops::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(transparent)]
 pub struct DVec<const D: usize> {
     pub components: [f32; D],
 }

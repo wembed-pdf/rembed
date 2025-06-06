@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use rembed::{
     lsh::Lsh,
     query::{Embedder, Graph, Position, Update},
@@ -10,28 +12,30 @@ fn main() -> io::Result<()> {
 
     let dim = 8;
     let dim_hint = 8;
-    let _ =
-        crate::parsing::parse_positions_file::<_, 4>("../../cpp/wembed/spatial_log_positions.log");
+    let iterations =
+        crate::parsing::parse_positions_file::<_, 4>("../../cpp/wembed/spatial_log_positions.log")
+            .unwrap();
 
     println!("test");
 
-    let (graph, iterations) = load_graph(graph_name, dim, dim_hint)?;
-    let embeddings: Vec<Embedding<8>> = iterations
-        .iter()
-        .map(|x| Embedding {
-            positions: x.coordinates().collect(),
+    let graph_path = format!("data/{}/graph", graph_name);
+    let graph = graph::Graph::parse_from_edge_list_file(&graph_path, dim, dim_hint)?;
+    // let (graph, iterations) = load_graph(graph_name, dim, dim_hint)?;
+    println!("Parsed {} iterations", iterations.iterations().len());
+    let embeddings = || {
+        iterations.iterations().iter().map(|x| Embedding::<4> {
+            positions: x.positions.deref().clone(),
             graph: &graph,
         })
-        .collect();
+    };
 
     // Print summary
-    println!("Parsed {} iterations", iterations.len());
     println!("Total of  {} nodes", graph.nodes.len());
 
     println!("Building Data structure");
-    let mut lsh = Lsh::new(embeddings[35].clone());
+    let mut lsh = Lsh::new(embeddings().nth(35).unwrap().clone());
 
-    for embedding in embeddings.iter().skip(35) {
+    for embedding in embeddings().skip(35) {
         println!("Updating positions");
         // lsh.update_positions(&embedding.positions);
         println!("Query all nodes");
