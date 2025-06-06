@@ -1,3 +1,4 @@
+use benchmark::load_data::LoadData;
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
 use sqlx::PgPool;
@@ -81,20 +82,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
 
-            let job_manager = JobManager::new(pool);
+            let job_manager = JobManager::new(pool.clone());
 
             let n_range = match n {
                 Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
                 None => (0, 1000000), // TODO query max range from database
             };
 
-            let dim = match dim {
+            let dim_range = match dim {
                 Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
                 None => (0, 50), // TODO query max range from database
             };
 
-            // run_benchmarks(all_iterations, n_range, dim, job_manager)
-            //     .await?;
+            let load_data = LoadData {
+                pool,
+                hostname: String::new(),
+            };
+            load_data
+                .run_test_cases(only_last_iteration, n_range, dim_range)
+                .await?;
         }
 
         Commands::GenerateGraphs => {
@@ -174,17 +180,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn parse_range(s: &str) -> Result<(i32, i32), String> {
+fn parse_range(s: &str) -> Result<(usize, usize), String> {
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 2 {
         return Err("Range must be in format start-end".into());
     }
 
     let start = parts[0]
-        .parse::<i32>()
+        .parse::<usize>()
         .map_err(|_| "Invalid start of range")?;
     let end = parts[1]
-        .parse::<i32>()
+        .parse::<usize>()
         .map_err(|_| "Invalid end of range")?;
 
     Ok((start, end))

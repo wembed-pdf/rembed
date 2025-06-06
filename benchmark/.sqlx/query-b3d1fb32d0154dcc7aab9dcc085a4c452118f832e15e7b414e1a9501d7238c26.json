@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT file_path, processed_n, processed_avg_degree FROM graphs WHERE graph_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "processed_n",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "processed_avg_degree",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b3d1fb32d0154dcc7aab9dcc085a4c452118f832e15e7b414e1a9501d7238c26"
+}

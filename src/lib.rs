@@ -19,16 +19,12 @@ pub fn load_graph(
     load_graph_from_path(&format!("data/{}/graph", graph_name), dim, dim_hint)
 }
 pub fn load_graph_from_path(
-    graph_name: &str,
+    graph_path: &str,
     dim: usize,
     dim_hint: usize,
 ) -> Result<(graph::Graph, Vec<parsing::Iteration<8>>), io::Error> {
-    let graph = graph::Graph::parse_from_edge_list_file(
-        &format!("data/{}/graph", graph_name),
-        dim,
-        dim_hint,
-    )?;
-    let positions_path = format!("data/{}/positions_{}_{}.log", graph_name, dim, dim_hint);
+    let graph = graph::Graph::parse_from_edge_list_file(graph_path, dim, dim_hint)?;
+    let positions_path = format!("data/{}/positions_{}_{}.log", graph_path, dim, dim_hint);
     let iterations = parsing::parse_positions_file(positions_path)?;
     Ok((graph, iterations))
 }

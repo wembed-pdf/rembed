@@ -8,6 +8,9 @@ CREATE TABLE graphs (
     -- Original generation parameters
     n INTEGER NOT NULL CHECK (n > 0),
     deg INTEGER NOT NULL CHECK (deg > 0),
+    ple double precision NOT NULL CHECK (ple > 0),
+    dim INTEGER NOT NULL CHECK (dim > 1),
+    alpha double precision  NOT NULL,
     wseed INTEGER NOT NULL,
     pseed INTEGER NOT NULL,
     sseed INTEGER NOT NULL,
@@ -24,7 +27,7 @@ CREATE TABLE graphs (
     CONSTRAINT unique_file_path UNIQUE (file_path),
     
     -- Ensure parameter combinations are unique (prevent duplicate graphs)
-    CONSTRAINT unique_graph_params UNIQUE (n, deg, wseed, pseed, sseed)
+    CONSTRAINT unique_graph_params UNIQUE (n, deg, ple, dim, alpha, wseed, pseed, sseed)
 );
 
 -- Create indexes for common queries

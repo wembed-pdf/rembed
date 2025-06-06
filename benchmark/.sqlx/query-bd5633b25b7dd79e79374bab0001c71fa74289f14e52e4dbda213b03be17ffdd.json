@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT graph_id FROM graphs WHERE n = $1\n        AND deg = $2 AND dim = $3 AND ple = $4 AND alpha = $5\n        AND wseed = $6 AND pseed = $7 AND sseed = $8",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "graph_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Float8",
+        "Float8",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bd5633b25b7dd79e79374bab0001c71fa74289f14e52e4dbda213b03be17ffdd"
+}

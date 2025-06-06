@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM position_results WHERE graph_id = $1 ORDER BY embedding_dim",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "result_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "graph_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "embedding_dim",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "dim_hint",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_iterations",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "actual_iterations",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "file_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "checksum",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fca43e32cef9f96b730094eeeaaa0afb1140887bc91ae9773d3f2dd1baf6a3ce"
+}

@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE position_jobs \n            SET status = 'running', claimed_at = NOW(), claimed_by_hostname = $1\n            WHERE job_id = (\n                SELECT job_id FROM position_jobs \n                WHERE status = 'pending' \n                ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED\n            )\n            RETURNING job_id, graph_id, embedding_dim, dim_hint, max_iterations, seed\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "job_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "graph_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "embedding_dim",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "dim_hint",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_iterations",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "seed",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "06864ea3df5b8c486b9c19a696d96e263789b6d25ebaeeb6645b682b27be534a"
+}

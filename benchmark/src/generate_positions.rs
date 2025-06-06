@@ -12,7 +12,11 @@ pub struct PositionGenerator {
 
 impl PositionGenerator {
     pub fn new(wembed_path: String, output_path: String, job_manager: JobManager) -> Self {
-        Self { wembed_path, output_path, job_manager }
+        Self {
+            wembed_path,
+            output_path,
+            job_manager,
+        }
     }
 
     pub async fn run_daemon(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -23,15 +27,19 @@ impl PositionGenerator {
         loop {
             match self.job_manager.claim_next_job().await {
                 Ok(Some(job)) => {
-                    println!("Processing job {} - Graph {} Dim {}", job.job_id, job.graph_id, job.embedding_dim);
+                    println!(
+                        "Processing job {} - Graph {} Dim {}",
+                        job.job_id, job.graph_id, job.embedding_dim
+                    );
                     if let Err(e) = self.process_job(job.clone()).await {
                         eprintln!("Job {} failed: {}", job.job_id, e);
                         let _ = self.job_manager.fail_job(job.job_id, &e.to_string()).await;
                     }
                 }
-                Ok(None) => {sleep(Duration::from_secs(5)).await;
+                Ok(None) => {
+                    sleep(Duration::from_secs(5)).await;
                     crate::push_files().await?;
-                },
+                }
                 Err(e) => {
                     eprintln!("Error claiming job: {}", e);
                     sleep(Duration::from_secs(10)).await;
@@ -45,15 +53,20 @@ impl PositionGenerator {
             "graph-{}_dim-{}_dim-hint-{}_seed-{}.log",
             job.graph_id, job.embedding_dim, job.dim_hint, job.seed
         );
-let output_path = format!("{}/{}", self.output_path, output_filename);
+        let output_path = format!("{}/{}", self.output_path, output_filename);
         let temp_output = String::from("spatial_log_positions.log");
 
         let status = Command::new(&self.wembed_path)
-            .arg("-i").arg(&job.graph_file_path)
-            .arg("--dim-hint").arg(job.dim_hint.to_string())
-            .arg("--dim").arg(job.embedding_dim.to_string())
-            .arg("--iterations").arg(job.max_iterations.to_string())
-            .arg("--seed").arg(job.seed.to_string()) // Add seed for reproducibility
+            .arg("-i")
+            .arg(&job.graph_file_path)
+            .arg("--dim-hint")
+            .arg(job.dim_hint.to_string())
+            .arg("--dim")
+            .arg(job.embedding_dim.to_string())
+            .arg("--iterations")
+            .arg(job.max_iterations.to_string())
+            .arg("--seed")
+            .arg(job.seed.to_string()) // Add seed for reproducibility
             .status()?;
 
         if !status.success() {
@@ -67,18 +80,23 @@ let output_path = format!("{}/{}", self.output_path, output_filename);
         std::fs::rename(temp_output, &output_path)?;
 
         let checksum = calculate_file_checksum(&output_path)?;
-        
+
         // Parse actual iterations from log file if needed
         let actual_iterations = parse_actual_iterations(&output_path).unwrap_or(None);
 
-        self.job_manager.complete_job(job.job_id, &output_path, &checksum, actual_iterations).await?;
+        self.job_manager
+            .complete_job(job.job_id, &output_path, &checksum, actual_iterations)
+            .await?;
         println!("Completed job {} - {}", job.job_id, output_filename);
         Ok(())
     }
 
     pub async fn show_status(&self) -> Result<(), Box<dyn std::error::Error>> {
         let (pending, running, completed, failed) = self.job_manager.get_job_stats().await?;
-        println!("Jobs: {} pending, {} running, {} completed, {} failed", pending, running, completed, failed);
+        println!(
+            "Jobs: {} pending, {} running, {} completed, {} failed",
+            pending, running, completed, failed
+        );
         Ok(())
     }
 }

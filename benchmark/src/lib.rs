@@ -48,7 +48,7 @@ pub async fn pull_files() -> Result<(), Box<dyn std::error::Error>> {
     let sync_source =
         std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
 
-    println!("Syncing files to: {}", sync_destination);
+    println!("Syncing files from: {}", sync_destination);
 
     let status = tokio::process::Command::new("rsync")
         .arg("-rlvtz")

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                COUNT(*) FILTER (WHERE status = 'pending') as pending,\n                COUNT(*) FILTER (WHERE status = 'running') as running,\n                COUNT(*) FILTER (WHERE status = 'completed') as completed,\n                COUNT(*) FILTER (WHERE status = 'failed') as failed\n            FROM position_jobs\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pending",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "running",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "completed",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "failed",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "50f2122d07d310075741c7dd14c50b5d78e0430b68ba946326763cccc5db2c9e"
+}

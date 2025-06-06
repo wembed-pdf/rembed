@@ -1,31 +1,29 @@
-use rayon::result;
-use rembed::Embedding;
+use criterion::Criterion;
+use rembed::{Embedding, graph::Graph, parsing::Iteration};
 use sqlx::{Pool, Postgres};
 
 pub struct Testcase<'a, const D: usize> {
     pub iterations: Vec<Embedding<'a, D>>,
 }
 
-pub struct LoadData<const D: usize> {
-    pool: Pool<Postgres>,
-    hostname: String,
+pub struct LoadData {
+    pub pool: Pool<Postgres>,
+    pub hostname: String,
 }
 
-impl<const D: usize> LoadData<D> {
+impl LoadData {
     pub fn new(pool: Pool<Postgres>) -> Self {
         // let test_cases: Vec<_> = Vec::new();
         let hostname = gethostname::gethostname().to_string_lossy().to_string();
         LoadData { pool, hostname }
     }
 
-    pub async fn load_testcase(
+    pub async fn run_test_cases(
         &self,
         only_last_iteration: bool,
         n_range: (usize, usize),
         dim_range: (usize, usize),
-    ) -> Result<Vec<Testcase<D>>, Box<dyn std::error::Error>> {
-        let test_cases = Vec::new();
-
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
 
         // fetch all graphs
@@ -40,9 +38,8 @@ impl<const D: usize> LoadData<D> {
         .await?;
 
         // check if the results exist
-        for result in position_results {
-            let file_path = result.file_path;
-            let result_id = result.result_id;
+        for result in &position_results[..0] {
+            let file_path = &result.pos_path;
 
             let path = std::path::Path::new(&file_path);
             if !path.exists() {
@@ -53,7 +50,7 @@ impl<const D: usize> LoadData<D> {
                 .into());
             }
 
-            let graph_path = result.graph_path;
+            let graph_path = &result.graph_path;
             let graph_path = std::path::Path::new(&graph_path);
             if !graph_path.exists() {
                 return Err(format!(
@@ -64,36 +61,81 @@ impl<const D: usize> LoadData<D> {
             }
         }
 
+        let mut c = Criterion::default().sample_size(10).with_output_color(true);
+
         // load embeddings from files
-        for result in position_results {
+        for result in &position_results {
             // Get the graph
-            let graph = rembed::load_graph(
+            let graph = rembed::graph::Graph::parse_from_edge_list_file(
                 &result.graph_path,
                 result.embedding_dim as usize,
                 result.dim_hint as usize,
             )
             .map_err(|e| format!("Failed to load graph from {}: {}", result.graph_path, e))?;
 
-            // Load the embeddings from the file
-            let embeddings: Vec<Embedding<result.embedding_dim>> = iterations
-                .iter()
-                .map(|x| Embedding {
-                    positions: x.coordinates().collect(),
-                    graph: &graph,
-                })
-                .collect();
-
-            if only_last_iteration {
-                if let Some(last_embedding) = iterations.last() {
-                    test_cases.push(Testcase {
-                        iterations: vec![last_embedding.clone()],
-                    });
-                }
-            } else {
-                test_cases.push(Testcase { iterations });
-            }
+            load_and_run_dynamic(
+                result.embedding_dim as u8,
+                &graph,
+                result.result_id,
+                &result.pos_path,
+                only_last_iteration,
+                &mut c,
+            );
         }
 
-        Ok(test_cases)
+        Ok(())
     }
+}
+
+fn load_and_run_dynamic(
+    dim: u8,
+    graph: &Graph,
+    result_id: i64,
+    embedding_path: &str,
+    only_last_iteration: bool,
+    c: &mut Criterion,
+) {
+    match dim {
+        2 => load_and_run::<2>(graph, result_id, embedding_path, only_last_iteration, c),
+        4 => load_and_run::<4>(graph, result_id, embedding_path, only_last_iteration, c),
+        8 => load_and_run::<8>(graph, result_id, embedding_path, only_last_iteration, c),
+        16 => load_and_run::<16>(graph, result_id, embedding_path, only_last_iteration, c),
+        32 => load_and_run::<32>(graph, result_id, embedding_path, only_last_iteration, c),
+        _ => panic!("dim {dim} not covered"),
+    }
+}
+
+fn load_and_run<const D: usize>(
+    graph: &Graph,
+    result_id: i64,
+    embedding_path: &str,
+    only_last_iteration: bool,
+    c: &mut Criterion,
+) {
+    let iterations: Vec<Iteration<D>> =
+        rembed::parsing::parse_positions_file(embedding_path).unwrap();
+
+    // Load the embeddings from the file
+    let embeddings: Vec<Embedding<D>> = iterations
+        .iter()
+        .map(|x| Embedding {
+            positions: x.coordinates().collect(),
+            graph,
+        })
+        .collect();
+
+    assert!(only_last_iteration);
+    let mut group = c.benchmark_group(format!("result_{result_id}_dim-{D}"));
+
+    crate::runner::profile_datastructures(&embeddings[embeddings.len() - 1], &mut group);
+
+    // if only_last_iteration {
+    //     if let Some(last_embedding) = iterations.last() {
+    //         test_cases.push(Testcase {
+    //             iterations: vec![last_embedding.clone()],
+    //         });
+    //     }
+    // } else {
+    //     test_cases.push(Testcase { iterations });
+    // }
 }
