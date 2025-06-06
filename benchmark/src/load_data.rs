@@ -1,5 +1,11 @@
+use std::ops::Deref;
+
 use criterion::Criterion;
-use rembed::{Embedding, graph::Graph, parsing::Iteration};
+use rembed::{
+    Embedding,
+    graph::Graph,
+    parsing::{Iteration, Iterations},
+};
 use sqlx::{Pool, Postgres};
 
 pub struct Testcase<'a, const D: usize> {
@@ -112,22 +118,20 @@ fn load_and_run<const D: usize>(
     only_last_iteration: bool,
     c: &mut Criterion,
 ) {
-    let iterations: Vec<Iteration<D>> =
-        rembed::parsing::parse_positions_file(embedding_path).unwrap();
+    let iterations: Iterations<D> = rembed::parsing::parse_positions_file(embedding_path).unwrap();
 
     // Load the embeddings from the file
-    let embeddings: Vec<Embedding<D>> = iterations
-        .iter()
-        .map(|x| Embedding {
-            positions: x.coordinates().collect(),
+    let embeddings = || {
+        iterations.iterations().iter().map(|x| Embedding::<D> {
+            positions: x.positions.deref().clone(),
             graph,
         })
-        .collect();
+    };
 
     assert!(only_last_iteration);
     let mut group = c.benchmark_group(format!("result_{result_id}_dim-{D}"));
 
-    crate::runner::profile_datastructures(&embeddings[embeddings.len() - 1], &mut group);
+    crate::runner::profile_datastructures(&embeddings().next_back().unwrap(), &mut group);
 
     // if only_last_iteration {
     //     if let Some(last_embedding) = iterations.last() {
