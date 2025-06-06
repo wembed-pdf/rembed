@@ -100,6 +100,9 @@ impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
 }
 
 impl<const D: usize> Query for Lsh<'_, D> {
+    fn name(&self) -> String {
+        format!("lsh-{}", DIM_CHUNK_SIZE)
+    }
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         if self.weight(index) >= self.weight_threshold {
             self.heavy_nn(index, radius)

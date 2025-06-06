@@ -31,6 +31,9 @@ impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
 }
 
 impl<const D: usize> Query for Embedding<'_, D> {
+    fn name(&self) -> String {
+        String::from("brute-force")
+    }
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let mut output = Vec::new();
         let graph = self.graph;

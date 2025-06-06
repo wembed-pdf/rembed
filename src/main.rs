@@ -1,4 +1,4 @@
-use uwuembed::{
+use rembed::{
     lsh::Lsh,
     query::{Embedder, Graph, Position, Update},
     *,

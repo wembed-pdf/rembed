@@ -10,8 +10,13 @@ pub trait Position<const D: usize> {
     fn position(&self, index: NodeId) -> &DVec<D>;
 }
 
+pub trait Dimension {
+    const DIM: usize;
+}
+
 pub trait Query {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize>;
+    fn name(&self) -> String;
 }
 
 pub trait Update<const D: usize> {

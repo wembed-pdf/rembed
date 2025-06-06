@@ -3,9 +3,9 @@ use dotenv::dotenv;
 use sqlx::PgPool;
 use std::env;
 
-use benchmark::job_manager::JobManager;
-use benchmark::generate_positions::PositionGenerator;
 use benchmark::GraphGenerator;
+use benchmark::generate_positions::PositionGenerator;
+use benchmark::job_manager::JobManager;
 
 #[derive(Parser)]
 #[command(name = "benchmark")]
@@ -17,24 +17,34 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Pull files from remote directory
+    Pull,
+    /// Push files to remote directory
+    Push,
+    /// Run Benchmarks matching the specified parameters
+    Bench {
+        all_iterations: bool,
+        n: std::ops::Range<i32>,
+        dim: i8,
+    },
     /// Generate graphs using GIRGs
     GenerateGraphs,
-    
+
     /// Generate position embeddings (daemon mode)
     GeneratePositions,
-    
+
     /// Show job queue status
     Status,
-    
+
     /// Create position generation jobs for a graph
     CreateJobs {
         /// Graph ID to create jobs for
         graph_id: i64,
     },
-    
+
     /// Create missing position jobs for all graphs
     CreateMissingJobs,
-    
+
     /// Clean up stale jobs
     Cleanup {
         /// Timeout in hours for stale jobs (default: 2)
@@ -65,8 +75,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let job_manager = JobManager::new(pool);
 
             let generator = PositionGenerator::new(
-                env::var("WEMBED_PATH").unwrap_or("../../wembed/release/bin/cli_wembed".to_string()),
-                env::var("POSITIONS_OUTPUT_PATH").unwrap_or("../data/generated/positions".to_string()),
+                env::var("WEMBED_PATH")
+                    .unwrap_or("../../wembed/release/bin/cli_wembed".to_string()),
+                env::var("POSITIONS_OUTPUT_PATH")
+                    .unwrap_or("../data/generated/positions".to_string()),
                 job_manager,
             );
 
@@ -114,12 +126,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
 
-            let cleaned = sqlx::query_scalar!(
-                "SELECT cleanup_stale_jobs($1)",
-                timeout_hours
-            )
-            .fetch_one(&pool)
-            .await?;
+            let cleaned = sqlx::query_scalar!("SELECT cleanup_stale_jobs($1)", timeout_hours)
+                .fetch_one(&pool)
+                .await?;
 
             println!("Cleaned up {} stale jobs", cleaned.unwrap_or(0));
         }
@@ -127,4 +136,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
