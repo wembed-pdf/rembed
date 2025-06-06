@@ -2,6 +2,8 @@ mod generate_graphs;
 pub mod generate_positions;
 pub mod job_manager;
 
+mod runner;
+
 pub use generate_graphs::GraphGenerator;
 pub use generate_positions::PositionGenerator;
 use indicatif::{ProgressBar, ProgressStyle};

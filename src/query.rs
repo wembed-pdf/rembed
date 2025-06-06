@@ -1,4 +1,4 @@
-use crate::{NodeId, dvec::DVec};
+use crate::{Embedding, NodeId, dvec::DVec};
 
 pub trait Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool;
@@ -8,10 +8,9 @@ pub trait Graph {
 
 pub trait Position<const D: usize> {
     fn position(&self, index: NodeId) -> &DVec<D>;
-}
-
-pub trait Dimension {
-    const DIM: usize;
+    fn dim(&self) -> usize {
+        D
+    }
 }
 
 pub trait Query {
