@@ -16,16 +16,21 @@ fn create_progress_bar(total_graphs: usize) -> ProgressBar {
     );
     pb
 }
-async fn push_files() -> Result<(), Box<dyn std::error::Error>> {
-    let sync_destination = std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
-    let sync_source = std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
+pub async fn push_files() -> Result<(), Box<dyn std::error::Error>> {
+    let sync_destination =
+        std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
+    let sync_source =
+        std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
 
     println!("Syncing files to: {}", sync_destination);
 
     let status = tokio::process::Command::new("rsync")
-        .arg("-rlvtz").arg("--progress")
-        .arg(sync_source).arg(&sync_destination)
-        .status().await?;
+        .arg("-rlvtz")
+        .arg("--progress")
+        .arg(sync_source)
+        .arg(&sync_destination)
+        .status()
+        .await?;
 
     if !status.success() {
         return Err("Rsync failed".into());
@@ -34,16 +39,21 @@ async fn push_files() -> Result<(), Box<dyn std::error::Error>> {
     println!("File sync completed successfully");
     Ok(())
 }
-async fn pull_files() -> Result<(), Box<dyn std::error::Error>> {
-    let sync_destination = std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
-    let sync_source = std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
+pub async fn pull_files() -> Result<(), Box<dyn std::error::Error>> {
+    let sync_destination =
+        std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
+    let sync_source =
+        std::env::var("DATA_DIRECTORY").expect("Please set the DATA_DIRECTORY env var");
 
     println!("Syncing files to: {}", sync_destination);
 
     let status = tokio::process::Command::new("rsync")
-        .arg("-rlvtz").arg("--progress")
-        .arg(&sync_destination).arg(&sync_source)
-        .status().await?;
+        .arg("-rlvtz")
+        .arg("--progress")
+        .arg(&sync_destination)
+        .arg(&sync_source)
+        .status()
+        .await?;
 
     if !status.success() {
         return Err("Rsync failed".into());
