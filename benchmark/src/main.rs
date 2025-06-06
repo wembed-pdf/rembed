@@ -23,9 +23,13 @@ enum Commands {
     Push,
     /// Run Benchmarks matching the specified parameters
     Bench {
-        all_iterations: bool,
-        n: std::ops::Range<i32>,
-        dim: i8,
+        /// Only run the last iteration of the benchmark (default: false)
+        #[arg(long, default_value_t = false)]
+        only_last_iteration: bool,
+        /// Range graph sizes (node count) to benchmark (e.g. "100-1000")
+        n: Option<String>,
+        /// Range of dimensionality of the embeddings (e.g. "8-9")
+        dim: Option<String>,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -60,6 +64,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     match args.command {
+        Commands::Pull => {
+            benchmark::pull_files().await?;
+        }
+
+        Commands::Push => {
+            benchmark::push_files().await?;
+        }
+
+        Commands::Bench {
+            only_last_iteration,
+            n,
+            dim,
+        } => {
+            let database_url = env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
+            let pool = PgPool::connect(&database_url).await?;
+
+            let job_manager = JobManager::new(pool);
+
+            let n_range = match n {
+                Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 1000000), // TODO query max range from database
+            };
+
+            let dim = match dim {
+                Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 50), // TODO query max range from database
+            };
+
+            // run_benchmarks(all_iterations, n_range, dim, job_manager)
+            //     .await?;
+        }
+
         Commands::GenerateGraphs => {
             let generator = GraphGenerator::new(
                 env::var("GIRGS_PATH").unwrap_or("../../girgs/build/genhrg".to_string()),
@@ -135,4 +172,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn parse_range(s: &str) -> Result<(i32, i32), String> {
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 2 {
+        return Err("Range must be in format start-end".into());
+    }
+
+    let start = parts[0]
+        .parse::<i32>()
+        .map_err(|_| "Invalid start of range")?;
+    let end = parts[1]
+        .parse::<i32>()
+        .map_err(|_| "Invalid end of range")?;
+
+    Ok((start, end))
 }
