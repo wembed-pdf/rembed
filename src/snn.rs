@@ -89,7 +89,12 @@ impl<'a, const D: usize> Update<D> for SNN<'a, D> {
 
 impl<'a, const D: usize> Query for SNN<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        let query_radius = radius * self.weight(index).powi(2);
+        let query_radius = if self.weight(index) > 1.0 {
+            radius * self.weight(index).powi(4)
+            // TODO why though?
+        } else {
+            radius * self.weight(index).powi(2)
+        };
 
         let mut result = Vec::new();
 
@@ -115,22 +120,14 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
             .unwrap_or_else(|x| x);
 
         for i in start..end {
-            let pos = &self.positions[self.first_dim[i]];
-            if pos.distance_squared(&self.positions[index]) < radius as f32
-                && self.first_dim[i] != index
+            let other = self.first_dim[i];
+            let pos = &self.positions[other];
+            if pos.distance_squared(&self.positions[index]) < query_radius as f32 && other != index
             {
-                result.push(self.first_dim[i]);
-            } else if self.weight(index) > 1.0 {
-                // If the node has a weight greater than 1, we need to check the distance
-                let weight = self.weight(self.first_dim[i]);
-                let distance = pos.distance_squared(&self.positions[index]);
-                if distance < (weight * self.weight(index)).powi(2) as f32
-                    && self.first_dim[i] != index
-                {
-                    result.push(self.first_dim[i]);
-                }
+                result.push(other);
             }
         }
+
         result
     }
 
