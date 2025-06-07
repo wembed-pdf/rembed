@@ -4,27 +4,14 @@ use crate::{
     query::{self, Graph, Position, Update},
 };
 
-use nalgebra::{DMatrix, DVector, SMatrix, SquareMatrix};
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Mul,
-};
-
-fn compute_weight_class(graph: &impl Graph, index: usize) -> usize {
-    let weight = graph.neighbors(index).len();
-    let mut i = 0;
-    while (1 << i) <= weight {
-        i += 1;
-    }
-    i
-}
+use nalgebra::{DMatrix, SMatrix};
 
 #[derive(Clone)]
 pub struct SNN<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     graph: &'a crate::graph::Graph,
-    first_dim: Vec<usize>,
-    pub v: SMatrix<f64, D, D>,
+    projected: Vec<(usize, DVec<D>)>,
+    pub v: SMatrix<f32, D, D>,
     pub max_weights: Vec<f64>,
 }
 
@@ -33,10 +20,15 @@ impl<'a, const D: usize> SNN<'a, D> {
         Self {
             positions: embedding.positions.to_vec(),
             graph: embedding.graph,
-            first_dim: Vec::new(),
-            v: SMatrix::<f64, D, D>::identity(),
+            projected: Vec::new(),
+            v: SMatrix::<f32, D, D>::identity(),
             max_weights: Vec::new(),
         }
+    }
+
+    pub fn get_query_sequence(&self) -> Vec<usize> {
+        // Get the sequence of indices sorted by their first dimension in the projected space
+        self.projected.iter().map(|(i, _)| *i).collect()
     }
 }
 
@@ -62,28 +54,82 @@ impl<'a, const D: usize> Position<D> for SNN<'a, D> {
 
 impl<'a, const D: usize> Update<D> for SNN<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>]) {
-        self.v = SMatrix::<f64, D, D>::identity();
-        self.positions = positions.to_vec();
+        // self.v = SMatrix::<f64, D, D>::identity();
+        // self.positions = positions.to_vec();
 
-        self.first_dim.clear();
+        let x = DMatrix::<f32>::from_fn(positions.len(), D, |r, c| positions[r].components[c]);
 
-        // create a vector of the indices of the positions
-        let mut indices: Vec<usize> = (0..self.positions.len()).collect();
+        // Print the variance of the original positions
+        // let var_before = x.row_variance();
+        // println!("Variance BEFORE PCA : {:?}", var_before);
+
+        // // ---------------------------------------------------------------- center
+
+        let mean = x.row_mean();
+        let mean_mat = DMatrix::<f32>::from_fn(positions.len(), D, |_, c| mean[c]);
+        let centred = x.clone() - mean_mat;
+
+        // // ---------------------------------------------------------------- normalise
+
+        // Normalize each row (position) to unit length
+        // for r in 0..centred.nrows() {
+        //     let mut row = centred.row_mut(r);
+        //     let norm = row.norm();
+        //     if norm > f32::EPSILON {
+        //         row.scale_mut(1.0 / norm);
+        //     }
+        // }
+
+        // // ---------------------------------------------------------------- SVD
+        let svd = nalgebra::linalg::SVD::new(centred, false, true);
+        let v_t = svd
+            .v_t
+            .expect("requested V^T in SVD constructor but got None");
+
+        // let u = svd.u.expect("requested U in SVD constructor but got None");
+
+        // let scaling
+
+        // // let singulars = svd.singular_values; // already sorted ↓
+        // // println!("Singular values     : {:?}", singulars);
+
+        // // ---------------------------------------------------------------- project
+
+        // self.v = v_t.transpose(); // Store the transpose of V for later use
+
+        // // Transpose and save to self.v
+        for i in 0..D {
+            for j in 0..D {
+                self.v[(i, j)] = v_t[(j, i)];
+            }
+        }
+
+        // self.v = SMatrix::<f32, D, D>::identity();
+
+        let projected = &x * self.v;
+
+        self.projected = projected
+            .row_iter()
+            .enumerate()
+            .map(|(i, row)| {
+                let mut arr = [0.0f32; D];
+                for (j, v) in row.iter().enumerate() {
+                    arr[j] = *v;
+                }
+                (i, DVec::from(arr))
+            })
+            .collect();
+
         // sort the indices based on the first dimension of the positions
-        indices.sort_by(|&a, &b| {
-            self.positions[a][0]
-                .partial_cmp(&self.positions[b][0])
+        self.projected.sort_by(|&a, &b| {
+            a.1[0]
+                .partial_cmp(&b.1[0])
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        self.first_dim = indices;
-
-        //TODO
-        // let x = DMatrix::<f32>::from_fn(positions.len(), D, |r, c| positions[r].components[c]);
-
-        // // Print the variance of the original positions
-        // let var_before = x.row_variance();
-        // println!("Variance BEFORE PCA : {:?}", var_before);
+        // print variance of indices first dimension
+        // let var_after = projected.row_variance();
+        // println!("Variance AFTER PCA : {:?}", var_after);
     }
 }
 
@@ -98,33 +144,37 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
 
         let mut result = Vec::new();
 
-        let first_dim_lower = self.position(index)[0] - query_radius as f32;
-        let first_dim_upper = self.position(index)[0] + query_radius as f32;
+        // project the position of the index
+        let pos_vec =
+            nalgebra::SVector::<f32, D>::from_row_slice(&self.positions[index].components);
+        let projected_position_vec = pos_vec.transpose() * self.v;
+        let projected_position_array: [f32; D] = projected_position_vec.transpose().into();
+        let projected_position = DVec::from(projected_position_array);
+
+        let first_dim_lower = projected_position[0] - query_radius as f32;
+        let first_dim_upper = projected_position[0] + query_radius as f32;
 
         // find the range of indices in the first dimension using binary search
         let start = self
-            .first_dim
+            .projected
             .binary_search_by(|probe| {
-                self.positions[*probe][0]
+                probe.1[0]
                     .partial_cmp(&first_dim_lower)
                     .unwrap_or(std::cmp::Ordering::Greater)
             })
             .unwrap_or_else(|x| x);
         let end = self
-            .first_dim
+            .projected
             .binary_search_by(|probe| {
-                self.positions[*probe][0]
+                probe.1[0]
                     .partial_cmp(&first_dim_upper)
                     .unwrap_or(std::cmp::Ordering::Less)
             })
             .unwrap_or_else(|x| x);
 
-        for i in start..end {
-            let other = self.first_dim[i];
-            let pos = &self.positions[other];
-            if pos.distance_squared(&self.positions[index]) < query_radius as f32 && other != index
-            {
-                result.push(other);
+        for (i, pos) in &self.projected[start..end] {
+            if pos.distance_squared(&projected_position) < query_radius as f32 && i != &index {
+                result.push(*i);
             }
         }
 
