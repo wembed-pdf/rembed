@@ -69,8 +69,9 @@ impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
         let mut weight_classes: Vec<Vec<usize>> = Vec::new();
         let mut max_weights: Vec<f64> = Vec::new();
 
-        for (i, position) in positions.iter().enumerate() {
-            self.positions[i] = *position;
+        self.positions = positions.to_vec();
+
+        for i in 0..positions.len() {
             let weight_class = compute_weight_class(self, i);
             if weight_class >= weight_classes.len() {
                 weight_classes.resize(weight_class + 1, Vec::new());
@@ -78,6 +79,14 @@ impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
             }
             weight_classes[weight_class].push(i);
             max_weights[weight_class] = f64::max(max_weights[weight_class], self.weight(i));
+        }
+
+        // push to all hevier weight classes
+        for i in 0..positions.len() {
+            let weight_class = compute_weight_class(self, i);
+            for j in weight_class + 1..weight_classes.len() {
+                weight_classes[j].push(i);
+            }
         }
 
         self.max_weights = max_weights;
@@ -94,44 +103,45 @@ impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
 
 impl<'a, const D: usize> Query for WRTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        let own_position = self.positions[index].components;
+        let own_position = self.positions[index];
         let own_weight = self.weight(index);
-        let mut result = Vec::new();
+        // let mut result = Vec::new();
 
-        for weight_class in 0..self.rtrees.len() {
-            // Calculate the radius based on the maximum weight of the class
-            let radius = (own_weight * self.max_weights[weight_class]).powi(2);
+        // for weight_class in 0..self.rtrees.len() {
+        //     // Calculate the radius based on the maximum weight of the class
+        //     let radius = (own_weight * self.max_weights[weight_class]).powi(2);
 
-            result.extend(
-                self.rtrees[weight_class]
-                    .locate_within_distance(own_position, radius as f32)
-                    .map(|node| node.data)
-                    .collect::<Vec<_>>(),
-            );
-        }
+        //     result.extend(
+        //         self.rtrees[weight_class]
+        //             .locate_within_distance(own_position, radius as f32)
+        //             .map(|node| node.data)
+        //             .collect::<Vec<_>>(),
+        //     );
+        // }
 
-        result.retain(|&node| {
-            // Check the distance to the own node
-            let own_weight = self.weight(index);
-            let own_position = self.positions[index];
-            let distance = own_position.distance_squared(&self.positions[node]);
-            let weight = own_weight * self.weight(node);
-            distance < weight.powi(2) as f32 && node != index
+        // only query the own weight class
+        let weight_class = compute_weight_class(self, index);
+        let radius = radius * (own_weight * self.max_weights[weight_class]).powi(2);
+
+        let mut result = self.rtrees[weight_class]
+            .locate_within_distance(own_position.components, radius as f32)
+            .map(|node| node.data)
+            .collect::<Vec<_>>();
+        result.retain(|node| {
+            own_position.distance_squared(&self.positions[*node])
+                < (own_weight * self.weight(*node)).powi(2) as f32
+                && *node != index
         });
         result
-
-        // let query_radius =
-        //     radius * (self.weight(index) * self.max_weights[weight_class] as f64).powi(2);
-        // self.rtrees
-        //     .iter()
-        //     .flat_map(|tree| {
-        //         tree.locate_within_distance(pos, query_radius)
-        //             .map(|pt| pt.data)
-        //     })
-        //     .collect::<Vec<usize>>()
-        //     .into_iter()
-        //     .filter(|&id| id != index)
-        //     .collect()
+        // result.retain(|&node| {
+        //     // Check the distance to the own node
+        //     let own_weight = self.weight(index);
+        //     let own_position = self.positions[index];
+        //     let distance = own_position.distance_squared(&self.positions[node]);
+        //     let weight = own_weight * self.weight(node);
+        //     distance < weight.powi(2) as f32 && node != index
+        // });
+        // result
     }
 
     fn name(&self) -> String {
