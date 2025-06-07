@@ -139,7 +139,7 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
             radius * self.weight(index).powi(4)
             // TODO why though?
         } else {
-            radius * self.weight(index).powi(2)
+            radius * self.weight(index).powi(4)
         };
 
         let mut result = Vec::new();
