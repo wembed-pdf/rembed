@@ -7,6 +7,7 @@ fn data_structures<'a, const D: usize>(
     [
         Box::new(embedding.clone()) as Box<dyn Query + 'a>,
         Box::new(Lsh::<D>::new(embedding.clone())) as Box<dyn Query + 'a>,
+        Box::new(rembed::wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn Query + 'a>,
     ]
     .into_iter()
 }
