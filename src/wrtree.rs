@@ -28,7 +28,7 @@ impl RTreeParams for LargeNodeParameters {
 
 pub struct WRTree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
-    pub graph: &'a dyn Graph,
+    pub graph: &'a crate::graph::Graph,
     pub rtrees: Vec<RTree<PointPosition<D>, LargeNodeParameters>>,
     pub max_weights: Vec<f64>,
 }
