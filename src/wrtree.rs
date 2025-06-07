@@ -105,43 +105,29 @@ impl<'a, const D: usize> Query for WRTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
-        // let mut result = Vec::new();
 
-        // for weight_class in 0..self.rtrees.len() {
-        //     // Calculate the radius based on the maximum weight of the class
-        //     let radius = (own_weight * self.max_weights[weight_class]).powi(2);
-
-        //     result.extend(
-        //         self.rtrees[weight_class]
-        //             .locate_within_distance(own_position, radius as f32)
-        //             .map(|node| node.data)
-        //             .collect::<Vec<_>>(),
-        //     );
-        // }
-
-        // only query the own weight class
         let weight_class = compute_weight_class(self, index);
-        let radius = radius * (own_weight * self.max_weights[weight_class]).powi(2);
+        let radius = radius * own_weight.powi(4);
 
-        let mut result = self.rtrees[weight_class]
-            .locate_within_distance(own_position.components, radius as f32)
-            .map(|node| node.data)
-            .collect::<Vec<_>>();
-        result.retain(|node| {
-            own_position.distance_squared(&self.positions[*node])
-                < (own_weight * self.weight(*node)).powi(2) as f32
-                && *node != index
-        });
-        result
-        // result.retain(|&node| {
-        //     // Check the distance to the own node
-        //     let own_weight = self.weight(index);
-        //     let own_position = self.positions[index];
-        //     let distance = own_position.distance_squared(&self.positions[node]);
-        //     let weight = own_weight * self.weight(node);
-        //     distance < weight.powi(2) as f32 && node != index
-        // });
-        // result
+        let mut results = Vec::with_capacity(16);
+
+        for node in
+            self.rtrees[weight_class].locate_within_distance(own_position.components, radius as f32)
+        {
+            if node.data != index {
+                continue;
+            }
+
+            let node_weight = self.weight(node.data);
+
+            if own_position.distance_squared(&self.positions[node.data])
+                < (own_weight * node_weight).powi(2) as f32
+            {
+                results.push(node.data);
+            }
+        }
+
+        results
     }
 
     fn name(&self) -> String {
