@@ -8,6 +8,7 @@ pub mod graph;
 pub mod lsh;
 pub mod parsing;
 pub mod query;
+pub mod wrtree;
 
 type NodeId = usize;
 
