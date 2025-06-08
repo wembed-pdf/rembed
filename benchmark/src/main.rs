@@ -193,6 +193,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn parse_range(s: &str) -> Result<(usize, usize), String> {
+    let s = s.replace("_", ""); // Remove underscores for easier parsing
+
+    if !s.contains('-') {
+        // If no dash, treat as a single value range
+        let value = s
+            .parse::<usize>()
+            .map_err(|_| "Invalid value".to_string())?;
+        return Ok((value, value));
+    }
+
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 2 {
         return Err("Range must be in format start-end".into());
