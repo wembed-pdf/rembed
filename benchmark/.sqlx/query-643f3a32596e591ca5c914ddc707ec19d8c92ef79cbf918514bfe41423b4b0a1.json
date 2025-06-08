@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT code_state_id, repo_state_id, checksum, data_structure_name, created_at \n             FROM code_states WHERE checksum = $1 AND data_structure_name = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code_state_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_state_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "checksum",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "data_structure_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bpchar",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "643f3a32596e591ca5c914ddc707ec19d8c92ef79cbf918514bfe41423b4b0a1"
+}

@@ -1,8 +1,10 @@
 use benchmark::load_data::LoadData;
+use benchmark::runner::BenchmarkType;
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
 use sqlx::PgPool;
 use std::env;
+use std::str::FromStr;
 
 use benchmark::GraphGenerator;
 use benchmark::generate_positions::PositionGenerator;
@@ -28,9 +30,17 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         only_last_iteration: bool,
         /// Range graph sizes (node count) to benchmark (e.g. "100-1000")
+        #[arg(long, short)]
         n: Option<String>,
         /// Range of dimensionality of the embeddings (e.g. "8-9")
+        #[arg(long)]
         dim: Option<String>,
+        /// Store the results of this benchmark run to the database
+        #[arg(long)]
+        store: bool,
+        /// List of benchmarks to run
+        #[arg(long)]
+        benchmarks: Option<Vec<String>>,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -77,12 +87,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             only_last_iteration,
             n,
             dim,
+            store,
+            benchmarks,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
-
-            let job_manager = JobManager::new(pool.clone());
 
             let n_range = match n {
                 Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
@@ -94,12 +104,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => (0, 50), // TODO query max range from database
             };
 
-            let load_data = LoadData {
-                pool,
-                hostname: String::new(),
-            };
+            let load_data = LoadData::new(pool);
+            let benchmarks: Option<Vec<_>> = benchmarks.map(|x| {
+                x.iter()
+                    .map(|benchmark| BenchmarkType::from_str(benchmark).unwrap())
+                    .collect()
+            });
+
             load_data
-                .run_test_cases(only_last_iteration, n_range, dim_range)
+                .run_test_cases(only_last_iteration, n_range, dim_range, store, benchmarks)
                 .await?;
         }
 

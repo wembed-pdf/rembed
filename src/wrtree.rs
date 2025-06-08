@@ -3,7 +3,7 @@ use rstar::{RStarInsertionStrategy, RTree, RTreeParams, primitives::GeomWithData
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
-    query::{self, Graph, Position, Update},
+    query::{self, Graph, Position, SpatialIndex, Update},
 };
 
 type PointPosition<const D: usize> = GeomWithData<[f32; D], usize>;
@@ -17,6 +17,7 @@ fn compute_weight_class(graph: &impl Graph, index: usize) -> usize {
     i
 }
 
+#[derive(Clone)]
 pub struct LargeNodeParameters;
 
 impl RTreeParams for LargeNodeParameters {
@@ -26,6 +27,7 @@ impl RTreeParams for LargeNodeParameters {
     type DefaultInsertionStrategy = RStarInsertionStrategy;
 }
 
+#[derive(Clone)]
 pub struct WRTree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
@@ -35,12 +37,14 @@ pub struct WRTree<'a, const D: usize> {
 
 impl<'a, const D: usize> WRTree<'a, D> {
     pub fn new(embedding: Embedding<'a, D>) -> Self {
-        Self {
+        let mut tree = Self {
             positions: embedding.positions.to_vec(),
             graph: embedding.graph,
             rtrees: Vec::new(),
             max_weights: Vec::new(),
-        }
+        };
+        tree.update_positions(&embedding.positions);
+        tree
     }
 }
 
@@ -84,8 +88,8 @@ impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
         // push to all hevier weight classes
         for i in 0..positions.len() {
             let weight_class = compute_weight_class(self, i);
-            for j in weight_class + 1..weight_classes.len() {
-                weight_classes[j].push(i);
+            for class in weight_classes.iter_mut().skip(weight_class + 1) {
+                class.push(i);
             }
         }
 
@@ -129,9 +133,13 @@ impl<'a, const D: usize> Query for WRTree<'a, D> {
 
         results
     }
-
+}
+impl<'a, const D: usize> SpatialIndex<D> for WRTree<'a, D> {
     fn name(&self) -> String {
         "Weighted R-Tree".to_string()
+    }
+    fn implementation_string(&self) -> &'static str {
+        include_str!("wrtree.rs")
     }
 }
 

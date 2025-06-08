@@ -263,10 +263,7 @@ impl<const D: usize> Mul<DVec<D>> for DVec<D> {
     type Output = Self;
 
     fn mul(self, other: DVec<D>) -> Self::Output {
-        let mut result = [0.0; D];
-        for i in 0..D {
-            result[i] = self.components[i] * other.components[i];
-        }
+        let result = core::array::from_fn(|i| self.components[i] * other.components[i]);
         Self { components: result }
     }
 }

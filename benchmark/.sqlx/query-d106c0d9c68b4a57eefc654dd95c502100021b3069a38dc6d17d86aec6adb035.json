@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO measurements (\n                    code_state_id, result_id, iteration_number, sample_count,\n                    hostname, architecture, benchmark_type,\n                    wall_time_mean, wall_time_stddev, \n                    instruction_count_mean, instruction_count_stddev, cycles_mean, cycles_stddev\n                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d106c0d9c68b4a57eefc654dd95c502100021b3069a38dc6d17d86aec6adb035"
+}

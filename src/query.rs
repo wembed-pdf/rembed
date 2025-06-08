@@ -1,4 +1,4 @@
-use crate::{Embedding, NodeId, dvec::DVec};
+use crate::{NodeId, dvec::DVec};
 
 pub trait Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool;
@@ -12,10 +12,34 @@ pub trait Position<const D: usize> {
         D
     }
 }
+pub trait IndexClone<const D: usize>: SpatialIndex<D> {
+    fn clone_box<'a>(&'a self) -> Box<dyn SpatialIndex<D> + 'a>;
+}
+
+impl<const D: usize, T: Clone + Sized + SpatialIndex<D>> IndexClone<D> for T {
+    fn clone_box<'a>(&'a self) -> Box<dyn SpatialIndex<D> + 'a> {
+        Box::new(self.clone())
+    }
+}
+
+pub trait SpatialIndex<const D: usize>: Query + Update<D> {
+    fn name(&self) -> String;
+
+    /// Returns the source code implementation as a string for checksum calculation.
+    /// This should include all files that affect the performance of this data structure.
+    fn implementation_string(&self) -> &'static str;
+
+    fn checksum(&self) -> String {
+        use sha2::Digest;
+        let common_files = concat![include_str!("dvec.rs")];
+        let implementation = self.implementation_string();
+        let hasher = sha2::Sha256::new().chain_update(common_files);
+        format!("{:x}", hasher.chain_update(implementation).finalize())
+    }
+}
 
 pub trait Query {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize>;
-    fn name(&self) -> String;
 }
 
 pub trait Update<const D: usize> {
@@ -31,12 +55,10 @@ pub trait Embedder<const D: usize>: Query + Update<D> + Graph + Position<D> {
         let pos = self.position(index);
         let weight = self.weight(index);
         // todo consider graph edges
-        let nn_count = result.len();
         result.retain(|&x| {
             (self.position(x).distance_squared(pos) as f64) < (weight * self.weight(x)).powi(2)
         });
 
-        // println!("nn_count: {nn_count}, filtered: {}", result.len());
         result
     }
     fn attracting_nodes(&self, index: usize) -> Vec<usize> {

@@ -43,7 +43,7 @@ impl Graph {
     ) -> io::Result<Self> {
         let mut graph = Graph::new();
         graph.edges = read_to_string(file_path)
-            .unwrap()
+            .unwrap_or_else(|e| panic!("Tried to load file from {file_path}:\n {e:?}"))
             .lines()
             .map(|s| {
                 s.split_ascii_whitespace()

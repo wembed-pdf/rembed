@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO code_states (repo_state_id, checksum, data_structure_name)\n            VALUES ($1, $2, $3)\n            RETURNING code_state_id, repo_state_id, checksum, data_structure_name, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code_state_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_state_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "checksum",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "data_structure_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bpchar",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "209707a5d897114a3a0c532913c0dfb7f7186aee86f60a1087eaf336c857e9db"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT position_results.file_path as pos_path, graphs.file_path as graph_path, embedding_dim, dim_hint, result_id FROM position_results JOIN graphs USING (graph_id) WHERE embedding_dim >= $1 AND embedding_dim <= $2 AND processed_n >= $3 AND processed_n <= $4",
+  "query": "SELECT position_results.file_path as pos_path, graphs.file_path as graph_path, embedding_dim, dim_hint, result_id\n            FROM position_results\n            JOIN graphs USING (graph_id)\n            WHERE embedding_dim >= $1 AND embedding_dim <= $2\n                AND processed_n >= $3 AND processed_n <= $4",
   "describe": {
     "columns": [
       {
@@ -45,5 +45,5 @@
       false
     ]
   },
-  "hash": "4663bbf1e6cbb67b1c7c80c55d7aa92760f14e45cf62c19cd84261d77095f04c"
+  "hash": "72bce9262a8741e216074ac69f899eca78c81b548ad67837854d11b34d3be055"
 }

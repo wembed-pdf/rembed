@@ -1,7 +1,7 @@
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
-    query::{self, Graph, Position, Update},
+    query::{self, Graph, Position, SpatialIndex, Update},
 };
 
 use nalgebra::{DMatrix, SMatrix};
@@ -135,12 +135,7 @@ impl<'a, const D: usize> Update<D> for SNN<'a, D> {
 
 impl<'a, const D: usize> Query for SNN<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        let query_radius = if self.weight(index) > 1.0 {
-            radius * self.weight(index).powi(4)
-            // TODO why though?
-        } else {
-            radius * self.weight(index).powi(4)
-        };
+        let query_radius = radius * self.weight(index).powi(4);
 
         let mut result = Vec::new();
 
@@ -180,9 +175,13 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
 
         result
     }
-
+}
+impl<'a, const D: usize> SpatialIndex<D> for SNN<'a, D> {
     fn name(&self) -> String {
-        "Weighted R-Tree".to_string()
+        "SNN".to_string()
+    }
+    fn implementation_string(&self) -> &'static str {
+        include_str!("snn.rs")
     }
 }
 

@@ -1,4 +1,5 @@
 pub use embedding::Embedding;
+use query::IndexClone;
 pub use query::Query;
 pub use std::io;
 
@@ -11,7 +12,7 @@ pub mod query;
 pub mod snn;
 pub mod wrtree;
 
-type NodeId = usize;
+pub type NodeId = usize;
 
 pub fn load_graph(
     graph_name: &str,
@@ -29,4 +30,16 @@ pub fn load_graph_from_path(
     let positions_path = format!("data/{}/positions_{}_{}.log", graph_path, dim, dim_hint);
     let iterations = parsing::parse_positions_file(positions_path)?;
     Ok((graph, iterations))
+}
+
+pub fn data_structures<'a, const D: usize>(
+    embedding: &Embedding<'a, D>,
+) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
+    [
+        Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+    ]
+    .into_iter()
 }

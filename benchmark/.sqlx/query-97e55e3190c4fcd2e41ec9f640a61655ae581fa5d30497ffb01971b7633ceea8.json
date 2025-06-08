@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO repository_states (commit_hash, timestamp, commit_message )\n            VALUES ($1, $2, $3)\n            RETURNING repo_state_id, commit_hash, timestamp, commit_message, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "repo_state_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "commit_hash",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "commit_message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bpchar",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "97e55e3190c4fcd2e41ec9f640a61655ae581fa5d30497ffb01971b7633ceea8"
+}

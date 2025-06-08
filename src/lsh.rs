@@ -1,17 +1,14 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Mul,
-};
+use std::{collections::HashMap, ops::Mul};
 
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
-    query::{self, Graph, Position, Update},
+    query::{self, Graph, Position, SpatialIndex, Update},
 };
 // User smaller number to store in hashmap
 type SpatialMap<const D: usize> = HashMap<[i32; D], Node<D>>;
 
-const DIM_CHUNK_SIZE: usize = 3;
+const DIM_CHUNK_SIZE: usize = 2;
 
 #[derive(Clone)]
 pub enum Node<const D: usize> {
@@ -31,12 +28,6 @@ impl<const D: usize> Node<D> {
             panic!();
         };
         spatial_map
-    }
-    fn level(&self) -> usize {
-        match self {
-            Node::Map(_hash_map, level) => *level,
-            Node::Leaf(_items) => D,
-        }
     }
     fn leaf(&self) -> Option<&Vec<NodeId>> {
         let Node::Leaf(leaf) = self else {
@@ -100,15 +91,20 @@ impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
 }
 
 impl<const D: usize> Query for Lsh<'_, D> {
-    fn name(&self) -> String {
-        format!("lsh-{}", DIM_CHUNK_SIZE)
-    }
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         if self.weight(index) >= self.weight_threshold {
             self.heavy_nn(index, radius)
         } else {
             self.light_nn(index)
         }
+    }
+}
+impl<const D: usize> SpatialIndex<D> for Lsh<'_, D> {
+    fn name(&self) -> String {
+        format!("lsh-{}", DIM_CHUNK_SIZE)
+    }
+    fn implementation_string(&self) -> &'static str {
+        include_str!("lsh.rs")
     }
 }
 
@@ -194,23 +190,23 @@ fn point<const D: usize>(
     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
     std::iter::once(pos.mul(vec).map(|x| x.round()).to_int_array())
 }
-fn nbox<const D: usize>(
-    pos: &DVec<D>,
-    dim_offset: usize,
-    dim_count: usize,
-) -> impl Iterator<Item = [i32; D]> {
-    let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
-    (0..(1 << dim_count)).map(move |mask| round_to_dimensions(&(*pos * vec), mask << dim_offset))
-}
-fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i32; D] {
-    let mut unit = DVec::zero();
-    for i in 0..D {
-        if mask & 1 << i != 0 {
-            unit += DVec::unit(i);
-        }
-    }
-    (*pos + unit).map(|x| x.floor()).to_int_array()
-}
+// fn nbox<const D: usize>(
+//     pos: &DVec<D>,
+//     dim_offset: usize,
+//     dim_count: usize,
+// ) -> impl Iterator<Item = [i32; D]> {
+//     let vec = DVec::units(((1 << dim_count) - 1) << dim_offset);
+//     (0..(1 << dim_count)).map(move |mask| round_to_dimensions(&(*pos * vec), mask << dim_offset))
+// }
+// fn round_to_dimensions<const D: usize>(pos: &DVec<D>, mask: usize) -> [i32; D] {
+//     let mut unit = DVec::zero();
+//     for i in 0..D {
+//         if mask & 1 << i != 0 {
+//             unit += DVec::unit(i);
+//         }
+//     }
+//     (*pos + unit).map(|x| x.floor()).to_int_array()
+// }
 
 fn nbig_box<const D: usize>(
     pos: &DVec<D>,
@@ -314,7 +310,7 @@ mod test {
         assert!(list.contains(&1));
     }
 
-    fn point(arr: [f64; 8]) -> DVec<8> {
+    fn point(arr: [f32; 8]) -> DVec<8> {
         DVec { components: arr }
     }
     fn create_graph(n: i32) -> Graph {

@@ -37,13 +37,13 @@ fn main() -> io::Result<()> {
 
     for embedding in embeddings().skip(35) {
         println!("Updating positions");
-        // lsh.update_positions(&embedding.positions);
+        lsh.update_positions(&embedding.positions);
         println!("Query all nodes");
         for node in 0..embedding.positions.len() {
             let weight = embedding.weight(node);
             if weight < 1. {
                 let lsh_result = lsh.repelling_nodes(node);
-                continue;
+                // continue;
                 let naive_result = embedding.repelling_nodes(node);
 
                 for naive_node in naive_result {
@@ -71,7 +71,6 @@ fn main() -> io::Result<()> {
                 }
             }
         }
-        break;
     }
 
     Ok(())

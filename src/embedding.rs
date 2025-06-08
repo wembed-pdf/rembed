@@ -1,4 +1,8 @@
-use crate::{NodeId, Query, dvec::DVec, query};
+use crate::{
+    NodeId, Query,
+    dvec::DVec,
+    query::{self, SpatialIndex},
+};
 
 #[derive(Clone)]
 pub struct Embedding<'a, const D: usize> {
@@ -31,9 +35,6 @@ impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
 }
 
 impl<const D: usize> Query for Embedding<'_, D> {
-    fn name(&self) -> String {
-        String::from("brute-force")
-    }
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let mut output = Vec::new();
         let graph = self.graph;
@@ -52,6 +53,14 @@ impl<const D: usize> Query for Embedding<'_, D> {
             }
         }
         output
+    }
+}
+impl<const D: usize> SpatialIndex<D> for Embedding<'_, D> {
+    fn name(&self) -> String {
+        String::from("brute-force")
+    }
+    fn implementation_string(&self) -> &'static str {
+        include_str!("embedding.rs")
     }
 }
 

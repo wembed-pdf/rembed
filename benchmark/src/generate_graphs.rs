@@ -315,6 +315,7 @@ impl GraphGenerator {
         Ok(graph)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_girgs(
         &self,
         seed: &Seed,
@@ -377,6 +378,7 @@ async fn check_existing_graph(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn insert_graph_with_metrics(
     tx: &mut sqlx::Transaction<'static, Postgres>,
     original_n: i32,
@@ -439,9 +441,9 @@ fn generate_seeds() -> Vec<Seed> {
     let mut seeds = Vec::new();
     for i in 0..3 {
         seeds.push(Seed {
-            wseed: 12 + i as i32,
-            pseed: 130 + i as i32,
-            sseed: 1400 + i as i32,
+            wseed: 12 + i,
+            pseed: 130 + i,
+            sseed: 1400 + i,
         });
     }
     seeds
