@@ -137,7 +137,7 @@ impl<'a, const D: usize> Update<D> for SNN<'a, D> {
 
 impl<'a, const D: usize> Query for SNN<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        let query_radius = radius * self.weight(index).powi(4) + 0.1;
+        let query_radius = radius * self.weight(index).powi(2);
 
         let mut result = Vec::new();
 
@@ -169,8 +169,9 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
             })
             .unwrap_or_else(|x| x);
 
+        let query_radius = query_radius.powi(2) as f32;
         for (i, pos) in &self.projected[start..end] {
-            if pos.distance_squared(&projected_position) <= query_radius as f32 && i != &index {
+            if i != &index && pos.distance_squared(&projected_position) <= query_radius {
                 result.push(*i);
             }
         }

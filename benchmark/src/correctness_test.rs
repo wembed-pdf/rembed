@@ -458,15 +458,17 @@ impl CorrectnessTestManager {
             if expected.iter().any(|n| !actual.contains(n)) {
                 if errors == 0 {
                     println!(
-                        "\nError for node {node_id}\n  node_weight: {} pos: {:?}",
+                        "\nError for node {node_id}\n  node_weight: {:.2} pos: {:?}",
                         node_weight,
                         structure.position(node_id)
                     );
                     for &i in &expected {
                         println!(
-                            "\t- {i} weight: {} pos: {:?}",
+                            "\t- {i} weight: {:.2} pos: {:?} dist: {:.2}",
                             structure.weight(i),
-                            structure.position(i)
+                            structure.position(i),
+                            structure.position(i).distance(structure.position(node_id)) as f64
+                                / (structure.weight(i) * node_weight)
                         );
                     }
                     println!();
