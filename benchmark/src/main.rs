@@ -51,6 +51,9 @@ enum Commands {
         /// List of benchmarks to run
         #[arg(long)]
         benchmarks: Option<Vec<String>>,
+        /// List of datastructures to bench
+        #[arg(long)]
+        structures: Option<Vec<String>>,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -130,6 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alpha,
             store,
             benchmarks,
+            structures,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
@@ -178,6 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     alpha_range,
                     store,
                     benchmarks,
+                    structures,
                 )
                 .await?;
         }

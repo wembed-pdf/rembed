@@ -41,6 +41,7 @@ impl LoadData {
         alpha_range: (f64, f64),
         store: bool,
         benchmarks: Option<Vec<BenchmarkType>>,
+        structures: Option<Vec<String>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
 
@@ -149,6 +150,7 @@ impl LoadData {
                     embedding_path: &pos_path,
                     only_last_iteration,
                     benchmarks: &benchmarks,
+                    structures: &structures,
                 },
                 &mut c,
             );
@@ -225,6 +227,7 @@ struct BenchmarkArgs<'a> {
     embedding_path: &'a str,
     only_last_iteration: bool,
     benchmarks: &'a Option<Vec<BenchmarkType>>,
+    structures: &'a Option<Vec<String>>,
 }
 
 fn load_and_run_dynamic(dim: u8, args: BenchmarkArgs, c: &mut Criterion) -> Vec<BenchmarkResult> {
@@ -245,6 +248,7 @@ fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<B
         embedding_path,
         only_last_iteration,
         benchmarks,
+        structures,
     } = args;
     let iterations: Iterations<D> = rembed::parsing::parse_positions_file(embedding_path).unwrap();
 
@@ -261,7 +265,14 @@ fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<B
 
     let embedding = &embeddings().next_back().unwrap();
 
-    let structures: Vec<_> = rembed::data_structures(embedding).collect();
+    let data_structures = if let Some(structures) = structures {
+        rembed::data_structures(embedding)
+            .filter(|s| structures.contains(&s.name()))
+            .collect()
+    } else {
+        rembed::data_structures(embedding).collect::<Vec<_>>()
+    };
+
     let mut results = Vec::new();
 
     let process_results = |results: Vec<MeasurementResult>, ty: &BenchmarkType| {
@@ -283,7 +294,7 @@ fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<B
             crate::runner::profile_datastructure_query(
                 embedding,
                 &mut group,
-                &structures,
+                &data_structures,
                 &query_list,
                 *benchmark_type,
             ),
