@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use rembed::{
     lsh::Lsh,
     query::{Embedder, Graph, Position, Update},
@@ -22,12 +20,7 @@ fn main() -> io::Result<()> {
     let graph = graph::Graph::parse_from_edge_list_file(&graph_path, dim, dim_hint)?;
     // let (graph, iterations) = load_graph(graph_name, dim, dim_hint)?;
     println!("Parsed {} iterations", iterations.iterations().len());
-    let embeddings = || {
-        iterations.iterations().iter().map(|x| Embedding::<4> {
-            positions: x.positions.deref().clone(),
-            graph: &graph,
-        })
-    };
+    let embeddings = || convert_to_embeddings(&iterations, &graph);
 
     // Print summary
     println!("Total of  {} nodes", graph.nodes.len());

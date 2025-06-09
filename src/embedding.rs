@@ -1,7 +1,7 @@
 use crate::{
     NodeId, Query,
     dvec::DVec,
-    query::{self, SpatialIndex},
+    query::{self, Graph, Position, SpatialIndex},
 };
 
 #[derive(Clone)]
@@ -38,11 +38,10 @@ impl<const D: usize> Query for Embedding<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let mut output = Vec::new();
         let graph = self.graph;
-        let positions = &self.positions;
-        let own_weight = graph.nodes[index].weight;
-        let own_position = positions[index];
+        let own_weight = self.weight(index);
+        let own_position = self.position(index);
 
-        for (i, (node, position)) in graph.nodes.iter().zip(positions.iter()).enumerate() {
+        for (i, (node, position)) in graph.nodes.iter().zip(self.positions.iter()).enumerate() {
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
             if i == index {
