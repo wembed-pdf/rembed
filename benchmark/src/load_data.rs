@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use criterion::Criterion;
-use rembed::{Embedding, NodeId, embedding, graph::Graph, parsing::Iterations};
+use rembed::{Embedding, NodeId, graph::Graph, parsing::Iterations};
 use sqlx::{Pool, Postgres, Row};
 
 use crate::{

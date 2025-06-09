@@ -45,9 +45,6 @@ enum Commands {
         /// Range of alpha values (e.g. "0.1-0.9")
         #[arg(long)]
         alpha: Option<String>,
-        /// Type of benchmark to run (e.g. "construction", "embedding", "all")
-        #[arg(long)]
-        benchmark_type: String,
         /// Store the results of this benchmark run to the database
         #[arg(long)]
         store: bool,
@@ -131,7 +128,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             deg,
             ple,
             alpha,
-            benchmark_type,
             store,
             benchmarks,
         } => {
