@@ -1,3 +1,4 @@
+use benchmark::correctness_test::CorrectnessTestManager;
 use benchmark::load_data::LoadData;
 use benchmark::runner::BenchmarkType;
 use clap::{Parser, Subcommand};
@@ -6,9 +7,9 @@ use sqlx::PgPool;
 use std::env;
 use std::str::FromStr;
 
-use benchmark::GraphGenerator;
 use benchmark::generate_positions::PositionGenerator;
 use benchmark::job_manager::JobManager;
+use benchmark::{GraphGenerator, pull_files, push_files};
 
 #[derive(Parser)]
 #[command(name = "benchmark")]
@@ -77,6 +78,34 @@ enum Commands {
         /// Timeout in hours for stale jobs (default: 2)
         #[arg(long, default_value = "2")]
         timeout_hours: i32,
+    },
+
+    /// Generate correctness test file for a specific result
+    GenerateTest {
+        /// Result ID to generate test for
+        result_id: i64,
+    },
+
+    /// Run correctness tests (quick by default, extensive with options)
+    Test {
+        /// Test all iterations instead of just the last one
+        #[arg(long)]
+        all_iterations: bool,
+        /// Test all graphs instead of just small ones
+        #[arg(long)]
+        all_graphs: bool,
+        /// Filter by specific result ID
+        #[arg(long)]
+        result_id: Option<i64>,
+        /// Filter by specific graph ID
+        #[arg(long)]
+        graph_id: Option<i64>,
+        /// Filter by embedding dimension
+        #[arg(long)]
+        dim: Option<i32>,
+        /// Also run unit tests from main crate
+        #[arg(long)]
+        run_unit_tests: bool,
     },
 }
 
@@ -227,6 +256,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
 
             println!("Cleaned up {} stale jobs", cleaned.unwrap_or(0));
+        }
+
+        Commands::GenerateTest { result_id } => {
+            let database_url = env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
+            let pool = PgPool::connect(&database_url).await?;
+
+            let test_manager = CorrectnessTestManager::new(pool);
+            test_manager.generate_test(result_id).await?;
+            push_files().await?;
+        }
+
+        Commands::Test {
+            all_iterations,
+            all_graphs,
+            result_id,
+            graph_id,
+            dim,
+            run_unit_tests,
+        } => {
+            pull_files().await?;
+            let database_url = env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
+            let pool = PgPool::connect(&database_url).await?;
+
+            let test_manager = CorrectnessTestManager::new(pool);
+            test_manager
+                .run_tests(
+                    all_iterations,
+                    all_graphs,
+                    result_id,
+                    graph_id,
+                    dim,
+                    run_unit_tests,
+                )
+                .await?;
         }
     }
 

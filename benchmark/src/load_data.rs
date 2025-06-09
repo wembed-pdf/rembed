@@ -164,6 +164,13 @@ impl LoadData {
         &self,
         results: Vec<BenchmarkResult>,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if RepoCodeStateManager::git_dirty()? {
+            return Err(
+                "Repository is dirty Please commit changes before sumbitting a run"
+                    .to_string()
+                    .into(),
+            );
+        }
         for result in results {
             // Get or create code state for this data structure
             let code_state = self

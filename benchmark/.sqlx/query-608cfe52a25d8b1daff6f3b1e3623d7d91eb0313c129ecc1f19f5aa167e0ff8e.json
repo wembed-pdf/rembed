@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pr.*, g.file_path as graph_path FROM position_results pr \n             JOIN graphs g USING (graph_id) WHERE result_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "result_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "graph_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "embedding_dim",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "dim_hint",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_iterations",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "actual_iterations",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "file_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "checksum",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "graph_path",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "608cfe52a25d8b1daff6f3b1e3623d7d91eb0313c129ecc1f19f5aa167e0ff8e"
+}

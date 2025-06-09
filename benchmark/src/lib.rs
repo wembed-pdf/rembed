@@ -1,4 +1,5 @@
 pub mod code_state;
+pub mod correctness_test;
 mod generate_graphs;
 pub mod generate_positions;
 pub mod job_manager;
