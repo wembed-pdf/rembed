@@ -78,6 +78,9 @@ enum Commands {
         /// Timeout in hours for stale jobs (default: 2)
         #[arg(long, default_value = "2")]
         timeout_hours: i32,
+        /// Flag to clean up failed jobs
+        #[arg(long, action)]
+        failed: bool,
     },
 
     /// Generate correctness test file for a specific result
@@ -247,16 +250,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Created {} new jobs across all graphs", created);
         }
 
-        Commands::Cleanup { timeout_hours } => {
+        Commands::Cleanup {
+            timeout_hours,
+            failed,
+        } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
 
-            let cleaned = sqlx::query_scalar!("SELECT cleanup_stale_jobs($1)", timeout_hours)
-                .fetch_one(&pool)
+            if failed {
+                let cleaned = sqlx::query_scalar!(
+                    "UPDATE position_jobs 
+                     SET 
+                        status = 'pending', 
+                        claimed_at = NULL, 
+                        claimed_by_hostname = NULL, 
+                        error_message = COALESCE(error_message, '') || ' [Reset due to timeout]'
+                     WHERE status = 'failed' AND claimed_at < NOW() - INTERVAL '1 hour' * $1 RETURNING 1",
+                    timeout_hours as i32
+                )
+                .fetch_all(&pool)
                 .await?;
-
-            println!("Cleaned up {} stale jobs", cleaned.unwrap_or(0));
+                println!("Cleaned up {} failed jobs", cleaned.len());
+            } else {
+                let cleaned = sqlx::query_scalar!("SELECT cleanup_stale_jobs($1)", timeout_hours)
+                    .fetch_one(&pool)
+                    .await?;
+                println!("Cleaned up {} stale jobs", cleaned.unwrap_or(0));
+            }
         }
 
         Commands::GenerateTest { result_id } => {
