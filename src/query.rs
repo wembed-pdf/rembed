@@ -39,7 +39,24 @@ pub trait SpatialIndex<const D: usize>: Query + Update<D> + Graph + Position<D> 
 }
 
 pub trait Query {
+    /// Return the list of neighbors in a given radius. You are allowed to return results asymmetricallys e.g only nodes to the left of you
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize>;
+
+    /// Runs a batch of nn queries and makes the result symmetric
+    fn nearest_neighbors_batched(&self, indices: &[usize]) -> Vec<Vec<usize>> {
+        let mut results = vec![vec![]; indices.len()];
+        for &index in indices {
+            for other_node_id in self.nearest_neighbors(index, 1.) {
+                results[other_node_id].push(index);
+                results[index].push(other_node_id);
+            }
+        }
+        for vec in &mut results {
+            vec.sort_unstable();
+            vec.dedup();
+        }
+        results
+    }
 }
 
 pub trait Update<const D: usize> {

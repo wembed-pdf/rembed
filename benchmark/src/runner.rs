@@ -74,10 +74,10 @@ pub fn profile_datastructure_query<'a, const D: usize>(
         let warmup = Duration::from_secs(3);
         let measure = Duration::from_secs(5);
         let queries = query_list.len();
-        let sample_count = 20;
+        let sample_count = 10;
         c.warm_up_time(warmup);
         c.measurement_time(measure);
-        c.sampling_mode(criterion::SamplingMode::Linear);
+        c.sampling_mode(criterion::SamplingMode::Auto);
         c.sample_size(sample_count);
         let benchmark_id = format!("{}/{}", benchmark_type.as_str(), structure.name());
 

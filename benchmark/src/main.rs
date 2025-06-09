@@ -142,6 +142,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
 
+            let test_manager = CorrectnessTestManager::new(pool.clone());
+            test_manager
+                .run_tests(false, false, Some(1), None, None, true)
+                .await?;
+
             let n_range = match n {
                 Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
                 None => (0, 0),

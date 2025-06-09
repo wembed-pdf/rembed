@@ -445,15 +445,13 @@ impl CorrectnessTestManager {
     ) -> usize {
         let mut errors = 0;
 
-        for node_id in 0..ground_truth.len() {
-            let mut expected: HashSet<NodeId> = ground_truth[node_id].iter().cloned().collect();
-            let mut actual: HashSet<NodeId> = structure
-                .nearest_neighbors(node_id, 1.0)
-                .into_iter()
-                .collect();
+        let results =
+            structure.nearest_neighbors_batched(&(0..ground_truth.len()).collect::<Vec<_>>());
+        for (node_id, list) in results.into_iter().enumerate() {
+            let mut actual: HashSet<NodeId> = list.into_iter().collect();
+            let expected: HashSet<NodeId> = ground_truth[node_id].iter().cloned().collect();
             actual.retain(|x| x != &node_id);
             let node_weight = structure.weight(node_id);
-            expected.retain(|n| structure.weight(*n) <= node_weight);
 
             if expected.iter().any(|n| !actual.contains(n)) {
                 if errors == 0 {
