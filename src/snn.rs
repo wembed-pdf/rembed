@@ -17,13 +17,15 @@ pub struct SNN<'a, const D: usize> {
 
 impl<'a, const D: usize> SNN<'a, D> {
     pub fn new(embedding: Embedding<'a, D>) -> Self {
-        Self {
+        let mut snn = Self {
             positions: embedding.positions.to_vec(),
             graph: embedding.graph,
             projected: Vec::new(),
             v: SMatrix::<f32, D, D>::identity(),
             max_weights: Vec::new(),
-        }
+        };
+        snn.update_positions(&embedding.positions);
+        snn
     }
 
     pub fn get_query_sequence(&self) -> Vec<usize> {
@@ -135,7 +137,7 @@ impl<'a, const D: usize> Update<D> for SNN<'a, D> {
 
 impl<'a, const D: usize> Query for SNN<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        let query_radius = radius * self.weight(index).powi(4);
+        let query_radius = radius * self.weight(index).powi(4) + 0.1;
 
         let mut result = Vec::new();
 
@@ -168,7 +170,7 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
             .unwrap_or_else(|x| x);
 
         for (i, pos) in &self.projected[start..end] {
-            if pos.distance_squared(&projected_position) < query_radius as f32 && i != &index {
+            if pos.distance_squared(&projected_position) <= query_radius as f32 && i != &index {
                 result.push(*i);
             }
         }

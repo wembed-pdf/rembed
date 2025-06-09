@@ -22,7 +22,7 @@ impl<const D: usize, T: Clone + Sized + SpatialIndex<D>> IndexClone<D> for T {
     }
 }
 
-pub trait SpatialIndex<const D: usize>: Query + Update<D> {
+pub trait SpatialIndex<const D: usize>: Query + Update<D> + Graph + Position<D> {
     fn name(&self) -> String;
 
     /// Returns the source code implementation as a string for checksum calculation.

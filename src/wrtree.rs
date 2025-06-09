@@ -118,14 +118,14 @@ impl<'a, const D: usize> Query for WRTree<'a, D> {
         for node in
             self.rtrees[weight_class].locate_within_distance(own_position.components, radius as f32)
         {
-            if node.data != index {
+            if node.data == index {
                 continue;
             }
 
             let node_weight = self.weight(node.data);
 
             if own_position.distance_squared(&self.positions[node.data])
-                < (own_weight * node_weight).powi(2) as f32
+                <= (own_weight * node_weight).powi(2) as f32
             {
                 results.push(node.data);
             }

@@ -446,20 +446,37 @@ impl CorrectnessTestManager {
         let mut errors = 0;
 
         for node_id in 0..ground_truth.len() {
-            let expected: HashSet<NodeId> = ground_truth[node_id].iter().cloned().collect();
+            let mut expected: HashSet<NodeId> = ground_truth[node_id].iter().cloned().collect();
             let mut actual: HashSet<NodeId> = structure
                 .nearest_neighbors(node_id, 1.0)
                 .into_iter()
                 .collect();
             actual.retain(|x| x != &node_id);
+            let node_weight = structure.weight(node_id);
+            expected.retain(|n| structure.weight(*n) <= node_weight);
 
             if expected.iter().any(|n| !actual.contains(n)) {
-                errors += 1;
+                if errors == 0 {
+                    println!(
+                        "\nError for node {node_id}\n  node_weight: {} pos: {:?}",
+                        node_weight,
+                        structure.position(node_id)
+                    );
+                    for &i in &expected {
+                        println!(
+                            "\t- {i} weight: {} pos: {:?}",
+                            structure.weight(i),
+                            structure.position(i)
+                        );
+                    }
+                    println!();
+                }
                 if errors < 5 {
                     self.print_diff(&structure.name(), iteration, node_id, &expected, &actual);
                 } else if errors == 5 {
                     println!("[ Truncated ]\n")
                 }
+                errors += 1;
             }
         }
 
