@@ -35,6 +35,18 @@ enum Commands {
         /// Range of dimensionality of the embeddings (e.g. "8-9")
         #[arg(long)]
         dim: Option<String>,
+        /// Range of average node degrees (e.g. "10-100")
+        #[arg(long)]
+        deg: Option<String>,
+        /// Range of PLE values (e.g. "0.1-0.9")
+        #[arg(long)]
+        ple: Option<String>,
+        /// Range of alpha values (e.g. "0.1-0.9")
+        #[arg(long)]
+        alpha: Option<String>,
+        /// Type of benchmark to run (e.g. "construction", "embedding", "all")
+        #[arg(long)]
+        benchmark_type: String,
         /// Store the results of this benchmark run to the database
         #[arg(long)]
         store: bool,
@@ -87,6 +99,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             only_last_iteration,
             n,
             dim,
+            deg,
+            ple,
+            alpha,
+            benchmark_type,
             store,
             benchmarks,
         } => {
@@ -95,16 +111,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let pool = PgPool::connect(&database_url).await?;
 
             let n_range = match n {
-                Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
-                None => (0, 1000000), // TODO query max range from database
+                Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 0),
             };
 
             let dim_range = match dim {
-                Some(range) => parse_range(&range).map_err(|e| e.to_string())?,
-                None => (0, 50), // TODO query max range from database
+                Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 0),
+            };
+
+            let deg_range = match deg {
+                Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 0),
+            };
+
+            let ple_range = match ple {
+                Some(range) => parse_f64_range(&range).map_err(|e| e.to_string())?,
+                None => (0.0, 0.0),
+            };
+
+            let alpha_range = match alpha {
+                Some(range) => parse_f64_range(&range).map_err(|e| e.to_string())?,
+                None => (0.0, 0.0),
             };
 
             let load_data = LoadData::new(pool);
+
             let benchmarks: Option<Vec<_>> = benchmarks.map(|x| {
                 x.iter()
                     .map(|benchmark| BenchmarkType::from_str(benchmark).unwrap())
@@ -112,7 +144,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
 
             load_data
-                .run_test_cases(only_last_iteration, n_range, dim_range, store, benchmarks)
+                .run_test_cases(
+                    only_last_iteration,
+                    n_range,
+                    dim_range,
+                    deg_range,
+                    ple_range,
+                    alpha_range,
+                    store,
+                    benchmarks,
+                )
                 .await?;
         }
 
@@ -192,7 +233,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn parse_range(s: &str) -> Result<(usize, usize), String> {
+fn parse_usize_range(s: &str) -> Result<(usize, usize), String> {
     let s = s.replace("_", ""); // Remove underscores for easier parsing
 
     if !s.contains('-') {
@@ -213,6 +254,30 @@ fn parse_range(s: &str) -> Result<(usize, usize), String> {
         .map_err(|_| "Invalid start of range")?;
     let end = parts[1]
         .parse::<usize>()
+        .map_err(|_| "Invalid end of range")?;
+
+    Ok((start, end))
+}
+
+fn parse_f64_range(s: &str) -> Result<(f64, f64), String> {
+    let s = s.replace("_", ""); // Remove underscores for easier parsing
+
+    if !s.contains('-') {
+        // If no dash, treat as a single value range
+        let value = s.parse::<f64>().map_err(|_| "Invalid value".to_string())?;
+        return Ok((value, value));
+    }
+
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 2 {
+        return Err("Range must be in format start-end".into());
+    }
+
+    let start = parts[0]
+        .parse::<f64>()
+        .map_err(|_| "Invalid start of range")?;
+    let end = parts[1]
+        .parse::<f64>()
         .map_err(|_| "Invalid end of range")?;
 
     Ok((start, end))

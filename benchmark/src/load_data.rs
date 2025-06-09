@@ -1,8 +1,8 @@
 use std::ops::Deref;
 
 use criterion::Criterion;
-use rembed::{Embedding, NodeId, graph::Graph, parsing::Iterations};
-use sqlx::{Pool, Postgres};
+use rembed::{Embedding, NodeId, embedding, graph::Graph, parsing::Iterations};
+use sqlx::{Pool, Postgres, Row};
 
 use crate::{
     code_state::RepoCodeStateManager,
@@ -36,32 +36,72 @@ impl LoadData {
         only_last_iteration: bool,
         n_range: (usize, usize),
         dim_range: (usize, usize),
+        deg_range: (usize, usize),
+        ple_range: (f64, f64),
+        alpha_range: (f64, f64),
         store: bool,
         benchmarks: Option<Vec<BenchmarkType>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
 
-        // fetch all graphs
-        let position_results = sqlx::query!(
-            "SELECT position_results.file_path as pos_path, graphs.file_path as graph_path, embedding_dim, dim_hint, result_id
+        let query =
+            "SELECT position_results.file_path as pos_path, graphs.file_path as graph_path, 
+                   embedding_dim, dim_hint, result_id
             FROM position_results
-            JOIN graphs USING (graph_id)
-            WHERE embedding_dim >= $1 AND embedding_dim <= $2
-                AND processed_n >= $3 AND processed_n <= $4",
-            dim_range.0 as i32,
-            dim_range.1 as i32,
-            n_range.0 as i64,
-            n_range.1 as i64
-        )
-        .fetch_all(&mut *tx)
-        .await?;
+            JOIN graphs USING (graph_id)";
+
+        let position_results = {
+            if n_range.1 > 0
+                || dim_range.1 > 0
+                || deg_range.1 > 0
+                || ple_range.1 > 0.0
+                || alpha_range.1 > 0.0
+            {
+                let mut conditions = vec![];
+                if dim_range.1 > 0 {
+                    conditions.push(format!(
+                        "embedding_dim >= {} AND embedding_dim <= {}",
+                        dim_range.0, dim_range.1
+                    ));
+                }
+                if n_range.1 > 0 {
+                    conditions.push(format!(
+                        "processed_n >= {} AND processed_n <= {}",
+                        n_range.0, n_range.1
+                    ));
+                }
+                if deg_range.1 > 0 {
+                    conditions.push(format!(
+                        "degree >= {} AND degree <= {}",
+                        deg_range.0, deg_range.1
+                    ));
+                }
+                if ple_range.1 > 0.0 {
+                    conditions.push(format!("ple >= {} AND ple <= {}", ple_range.0, ple_range.1));
+                }
+                if alpha_range.1 > 0.0 {
+                    conditions.push(format!(
+                        "alpha >= '{}' AND alpha <= '{}'", //supports infinity
+                        alpha_range.0, alpha_range.1
+                    ));
+                }
+
+                let condition_str = conditions.join(" AND ");
+                let full_query = format!("{} WHERE {}", query, condition_str);
+                sqlx::query(&full_query).fetch_all(&mut *tx).await?
+            } else {
+                sqlx::query(query).fetch_all(&mut *tx).await?
+            }
+        };
 
         let data_directory = std::env::var("DATA_DIRECTORY").unwrap_or(String::from("../data/"));
 
         // check if the results exist
         for result in &position_results {
-            let pos_path = &format!("{data_directory}/{}", result.pos_path);
-            let graph_path = &format!("{data_directory}/{}", result.graph_path);
+            let pos_path: String = result.get::<String, _>("pos_path");
+            let pos_path = format!("{data_directory}/{}", pos_path);
+            let graph_path: String = result.get::<String, _>("graph_path");
+            let graph_path = format!("{data_directory}/{}", graph_path);
 
             let path = std::path::Path::new(&pos_path);
             if !path.exists() {
@@ -86,23 +126,27 @@ impl LoadData {
 
         // load embeddings from files
         for result in &position_results {
-            let pos_path = &format!("{data_directory}/{}", result.pos_path);
-            let graph_path = &format!("{data_directory}/{}", result.graph_path);
+            let pos_path: String = result.get::<String, _>("pos_path");
+            let pos_path = format!("{data_directory}/{}", pos_path);
+            let graph_path: String = result.get::<String, _>("graph_path");
+            let graph_path = format!("{data_directory}/{}", graph_path);
+            let embedding_dim: i32 = result.get("embedding_dim");
+            let dim_hint: i32 = result.get("dim_hint");
 
             // Get the graph
             let graph = rembed::graph::Graph::parse_from_edge_list_file(
-                graph_path,
-                result.embedding_dim as usize,
-                result.dim_hint as usize,
+                &graph_path,
+                embedding_dim as usize,
+                dim_hint as usize,
             )
             .map_err(|e| format!("Failed to load graph from {}: {}", graph_path, e))?;
 
             let results = load_and_run_dynamic(
-                result.embedding_dim as u8,
+                embedding_dim as u8,
                 BenchmarkArgs {
                     graph: &graph,
-                    result_id: result.result_id,
-                    embedding_path: pos_path,
+                    result_id: result.get("result_id"),
+                    embedding_path: &pos_path,
                     only_last_iteration,
                     benchmarks: &benchmarks,
                 },
