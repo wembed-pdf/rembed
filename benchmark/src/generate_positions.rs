@@ -1,5 +1,6 @@
 use crate::job_manager::{JobManager, PositionJob};
 use sha2::{Digest, Sha256};
+use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -75,7 +76,16 @@ impl PositionGenerator {
             .status()?;
 
         if !status.success() {
-            return Err(format!("WEmbed failed with exit code: {:?}", status.code()).into());
+            if let Some(code) = status.code() {
+                return Err(format!("WEmbed failed with exit code: {:?}", code).into());
+            }
+            if status.core_dumped() {
+                return Err("WEmbed dumped core".to_string().into());
+            }
+            if let Some(signal) = status.signal() {
+                return Err(format!("WEmbed received signal: {:?}", signal).into());
+            }
+            return Err("WEmbed terminated for an unknown reason".to_string().into());
         }
 
         if !std::path::Path::new(&output_path).exists() {
