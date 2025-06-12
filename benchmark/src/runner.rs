@@ -127,10 +127,10 @@ fn format_number(num: f64) -> String {
     if num < 1000. {
         format!("{:.2}", num)
     } else if num < 1_000_000. {
-        format!("{}K", num as u64 / 1000)
+        format!("{:.1}K", num / 1000.)
     } else if num < 1_000_000_000. {
-        format!("{}M", num as u64 / 1_000_000)
+        format!("{:.1}M", num / 1_000_000.)
     } else {
-        format!("{}G", num as u64 / 1_000_000_000)
+        format!("{:.1}G", num / 1_000_000_000.)
     }
 }

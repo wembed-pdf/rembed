@@ -54,11 +54,11 @@ impl<'a, const D: usize> query::Update<D> for LayeredLsh<'a, D> {
     }
 }
 
-const RESOLUTION: usize = 10;
+const RESOLUTION: usize = 2;
 
 impl Layer {
     fn new<const D: usize>(depth: usize, nodes: &[NodeId], positions: &[DVec<D>]) -> Self {
-        if nodes.len() < 100 {
+        if nodes.len() < 100 || depth == D - 1 {
             let mut nodes: Vec<_> = nodes.iter().map(|x| (*x, positions[*x][depth])).collect();
             nodes.sort_unstable_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap());
             return Self::Snn(nodes);
@@ -116,13 +116,17 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         match layer {
             Layer::Lsh(line_lsh) => {
                 let bucket_index = (pos - line_lsh.offset as f32) * RESOLUTION as f32;
-                for i in 0..(line_lsh.buckets.len()) {
+                let min_bucket =
+                    (bucket_index - dim_radius as f32 * RESOLUTION as f32).max(0.) as usize;
+                let max_bucket = ((bucket_index + dim_radius as f32 * RESOLUTION as f32) as usize)
+                    .min(line_lsh.buckets.len() - 1);
+                for i in min_bucket..=max_bucket {
                     let diff = if (i as f32) < bucket_index {
                         (bucket_index - i as f32 - 1.).min(0.)
                     } else {
                         i as f32 - bucket_index
                     };
-                    let diff = (diff / RESOLUTION as f32) as f64;
+                    let diff = (diff * (RESOLUTION as f32).recip()) as f64;
                     if diff < dim_radius {
                         let layer = &line_lsh.buckets[i];
                         self.query_recursive(
@@ -130,6 +134,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                             depth + 1,
                             layer,
                             dim_radius - diff.powi(2),
+                            // dim_radius - diff.powi(2),
                             original_radius,
                             results,
                         );
@@ -174,10 +179,12 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                         found += 1;
                     }
                 }
-                // dbg!(dim_radius, query_radius);
-                if found != 0 {
-                    dbg!(found, checked);
-                }
+                // if dim_radius < 0.8 {
+                //     dbg!(dim_radius, query_radius);
+                // }
+                // if found != 0 {
+                //     dbg!(found, checked);
+                // }
             }
         }
     }
@@ -186,7 +193,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
 impl<const D: usize> Query for LayeredLsh<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         if self.weight(index) < 1. {
-            return self.light_nn(index, radius * self.weight(index).powi(2));
+            return self.light_nn(index, radius);
         }
         let mut output = Vec::new();
         let graph = self.graph;
