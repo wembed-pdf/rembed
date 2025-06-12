@@ -8,24 +8,29 @@ use crate::{
 pub struct LayeredLsh<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
-    layer: Layer,
+    layer: Layer<D>,
 }
 
 #[derive(Clone)]
-struct LineLsh {
+struct LineLsh<const D: usize> {
     offset: i32,
-    buckets: Vec<Layer>,
+    buckets: Vec<Layer<D>>,
 }
 
-struct Snn {
+#[derive(Clone, Default)]
+struct Snn<const D: usize> {
     offset: i32,
     lut: Vec<usize>,
+    ids: Vec<NodeId>,
+    d_pos: Vec<f32>,
+    pos: Vec<DVec<D>>,
 }
 
 #[derive(Clone)]
-enum Layer {
-    Lsh(LineLsh),
-    Snn(Vec<(NodeId, f32)>),
+enum Layer<const D: usize> {
+    Lsh(LineLsh<D>),
+    Snn(Snn<D>),
+    Empty,
 }
 
 impl<'a, const D: usize> crate::query::Graph for LayeredLsh<'a, D> {
@@ -54,14 +59,39 @@ impl<'a, const D: usize> query::Update<D> for LayeredLsh<'a, D> {
     }
 }
 
-const RESOLUTION: usize = 2;
+const RESOLUTION: usize = 1;
 
-impl Layer {
-    fn new<const D: usize>(depth: usize, nodes: &[NodeId], positions: &[DVec<D>]) -> Self {
+impl<const D: usize> Layer<D> {
+    fn new(depth: usize, nodes: &[NodeId], positions: &[DVec<D>]) -> Self {
+        if nodes.is_empty() {
+            return Self::Empty;
+        }
         if nodes.len() < 100 || depth == D - 1 {
             let mut nodes: Vec<_> = nodes.iter().map(|x| (*x, positions[*x][depth])).collect();
             nodes.sort_unstable_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap());
-            return Self::Snn(nodes);
+            let ids: Vec<_> = nodes.iter().map(|(x, _)| *x).collect();
+            let d_pos: Vec<_> = nodes.iter().map(|(_, p)| *p).collect();
+            let pos = ids.iter().map(|i| positions[*i]).collect();
+
+            let mut lut = vec![];
+            let mut pos_idx = 0;
+            let min = d_pos[0].floor() as i32;
+            let max = d_pos.last().unwrap().ceil() as i32;
+            for i in 0..(min.abs() + max.abs()) {
+                while (i - min) as f32 > d_pos[pos_idx] {
+                    pos_idx = (pos_idx + 1).min(d_pos.len() - 1);
+                }
+                lut.push(pos_idx);
+            }
+
+            let snn = Snn {
+                offset: min,
+                lut,
+                ids,
+                d_pos,
+                pos,
+            };
+            return Self::Snn(snn);
         }
 
         let node_index = || {
@@ -92,7 +122,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         let mut line_lsh = LayeredLsh {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
-            layer: Layer::Snn(Vec::new()),
+            layer: Layer::Snn(Default::default()),
         };
         line_lsh.update_positions(&embedding.positions);
         line_lsh
@@ -106,7 +136,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         &self,
         index: usize,
         depth: usize,
-        layer: &Layer,
+        layer: &Layer<D>,
         dim_radius: f64,
         original_radius: f64,
         results: &mut Vec<NodeId>,
@@ -133,20 +163,25 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                             index,
                             depth + 1,
                             layer,
-                            dim_radius - diff.powi(2),
+                            // (dim_radius.powi(2) - diff.powi(2)).sqrt(),
                             // dim_radius - diff.powi(2),
+                            dim_radius,
                             original_radius,
                             results,
                         );
                     }
                 }
             }
-            Layer::Snn(items) => {
+            Layer::Snn(snn) => {
                 let min = pos - dim_radius as f32;
                 let max = pos + dim_radius as f32;
-                let mid = items
-                    .binary_search_by(|(_, x)| x.partial_cmp(&pos).unwrap())
-                    .unwrap_or_else(|x| x);
+                let idx = (pos.floor() as i32 - snn.offset)
+                    .max(0)
+                    .min(snn.lut.len() as i32 - 1);
+                let vec_idx = snn.lut[idx as usize];
+                // let mid = items
+                //     .binary_search_by(|(_, x)| x.partial_cmp(&pos).unwrap())
+                //     .unwrap_or_else(|x| x);
                 // let start = items
                 //     .binary_search_by(|(_, x)| x.partial_cmp(&min).unwrap())
                 //     .unwrap_or_else(|x| x);
@@ -159,23 +194,34 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 // }
                 let mut checked = 0;
                 let mut found = 0;
-                for (i, p) in &items[mid..] {
-                    if p > &max {
+                let mut min_i = vec_idx;
+                let mut max_i = vec_idx;
+                for i in vec_idx..(snn.d_pos.len()) {
+                    let p = snn.d_pos[i];
+                    if p > max {
                         break;
                     }
-                    checked += 1;
-                    if i != &index && full_pos.distance_squared(self.position(*i)) <= query_radius {
-                        results.push(*i);
-                        found += 1;
-                    }
+                    max_i = i;
                 }
-                for (i, p) in items[..mid].iter().rev() {
-                    if p < &min {
+                for i in (0..vec_idx).rev() {
+                    let p = snn.d_pos[i];
+                    if p < min {
                         break;
                     }
+                    min_i = i;
+                }
+                // dbg!(min_i, max_i);
+                for i in min_i..=max_i {
+                    // for i in 0..(snn.ids.len()) {
                     checked += 1;
-                    if i != &index && full_pos.distance_squared(self.position(*i)) <= query_radius {
-                        results.push(*i);
+
+                    let other_pos = snn.pos[i];
+                    if snn.ids[i] == index {
+                        continue;
+                    }
+                    if full_pos.distance_squared(&other_pos) <= query_radius {
+                        results.push(snn.ids[i]);
+                        // println!("found at i {i}");
                         found += 1;
                     }
                 }
@@ -186,6 +232,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 //     dbg!(found, checked);
                 // }
             }
+            Layer::Empty => (),
         }
     }
 }
