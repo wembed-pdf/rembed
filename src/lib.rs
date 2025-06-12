@@ -4,6 +4,7 @@ pub use query::Query;
 pub use std::io;
 use std::ops::Deref;
 
+pub mod dim_reduction;
 pub mod dvec;
 pub mod embedding;
 pub mod graph;
@@ -33,6 +34,7 @@ pub fn data_structures<'a, const D: usize>(
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     [
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
