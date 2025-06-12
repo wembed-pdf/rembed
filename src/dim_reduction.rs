@@ -74,13 +74,11 @@ impl<const D: usize> Layer<D> {
             let pos = ids.iter().map(|i| positions[*i]).collect();
 
             let mut lut = vec![];
-            let mut pos_idx = 0;
+            // let mut pos_idx = 0;
             let min = d_pos[0].floor() as i32;
             let max = d_pos.last().unwrap().ceil() as i32;
             for i in 0..(min.abs() + max.abs()) {
-                while (i - min) as f32 > d_pos[pos_idx] {
-                    pos_idx = (pos_idx + 1).min(d_pos.len() - 1);
-                }
+                let pos_idx = d_pos.iter().take_while(|&&x| x < (i + min) as f32).count();
                 lut.push(pos_idx);
             }
 
@@ -157,27 +155,27 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                         i as f32 - bucket_index
                     };
                     let diff = (diff * (RESOLUTION as f32).recip()) as f64;
-                    if diff < dim_radius {
-                        let layer = &line_lsh.buckets[i];
-                        self.query_recursive(
-                            index,
-                            depth + 1,
-                            layer,
-                            // (dim_radius.powi(2) - diff.powi(2)).sqrt(),
-                            // dim_radius - diff.powi(2),
-                            dim_radius,
-                            original_radius,
-                            results,
-                        );
-                    }
+                    // if diff.powi(2) < dim_radius {
+                    let layer = &line_lsh.buckets[i];
+                    self.query_recursive(
+                        index,
+                        depth + 1,
+                        layer,
+                        // (dim_radius.powi(2) - diff.powi(2)).sqrt(),
+                        // dim_radius - diff.powi(2),
+                        dim_radius,
+                        original_radius,
+                        results,
+                    );
+                    // }
                 }
             }
             Layer::Snn(snn) => {
                 let min = pos - dim_radius as f32;
                 let max = pos + dim_radius as f32;
                 let idx = (pos.floor() as i32 - snn.offset)
-                    .max(0)
-                    .min(snn.lut.len() as i32 - 1);
+                    .min(snn.lut.len() as i32 - 1)
+                    .max(0);
                 let vec_idx = snn.lut[idx as usize];
                 // let mid = items
                 //     .binary_search_by(|(_, x)| x.partial_cmp(&pos).unwrap())
@@ -188,29 +186,31 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 // let end = items
                 //     .binary_search_by(|(_, x)| x.partial_cmp(&max).unwrap())
                 //     .unwrap_or_else(|x| x);
-                let query_radius = original_radius.powi(2) as f32;
+                // let query_radius = original_radius.powi(2) as f32;
+                let query_radius = original_radius as f32;
                 // if start >= end {
                 //     return;
                 // }
                 let mut checked = 0;
                 let mut found = 0;
                 let mut min_i = vec_idx;
-                let mut max_i = vec_idx;
+                let mut max_i = (vec_idx + 1).min(snn.pos.len() - 1);
                 for i in vec_idx..(snn.d_pos.len()) {
                     let p = snn.d_pos[i];
-                    if p > max {
+                    if (p - pos).powi(2) > dim_radius as f32 {
                         break;
                     }
                     max_i = i;
                 }
                 for i in (0..vec_idx).rev() {
                     let p = snn.d_pos[i];
-                    if p < min {
+                    // if p < min {
+                    if (p - pos).powi(2) > dim_radius as f32 {
                         break;
                     }
                     min_i = i;
                 }
-                // dbg!(min_i, max_i);
+                // println!("min: {}, max: {}", min_i, max_i);
                 for i in min_i..=max_i {
                     // for i in 0..(snn.ids.len()) {
                     checked += 1;
@@ -222,6 +222,12 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                     if full_pos.distance_squared(&other_pos) <= query_radius {
                         results.push(snn.ids[i]);
                         // println!("found at i {i}");
+                        if i < min_i || i > max_i {
+                            println!(
+                                "dpos: {:?}\npos:{}, dim_radius:{}, vec_idx: {vec_idx} idx:{idx}\nlut{:?}",
+                                &snn.d_pos, pos, dim_radius, snn.lut
+                            );
+                        }
                         found += 1;
                     }
                 }
@@ -240,6 +246,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
 impl<const D: usize> Query for LayeredLsh<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         if self.weight(index) < 1. {
+            // return self.light_nn(index, radius * self.weight(index).powi(2));
             return self.light_nn(index, radius);
         }
         let mut output = Vec::new();
