@@ -1,5 +1,3 @@
-use ordered_float::NotNan;
-
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
@@ -19,10 +17,15 @@ struct LineLsh {
     buckets: Vec<Layer>,
 }
 
+struct Snn {
+    offset: i32,
+    lut: Vec<usize>,
+}
+
 #[derive(Clone)]
 enum Layer {
     Lsh(LineLsh),
-    Snn(Vec<NodeId>),
+    Snn(Vec<(NodeId, f32)>),
 }
 
 impl<'a, const D: usize> crate::query::Graph for LayeredLsh<'a, D> {
@@ -54,19 +57,10 @@ impl<'a, const D: usize> query::Update<D> for LayeredLsh<'a, D> {
 const RESOLUTION: usize = 10;
 
 impl Layer {
-    fn snn_mut(&mut self) -> &mut Vec<NodeId> {
-        let Self::Snn(vec) = self else { unreachable!() };
-        vec
-    }
-
     fn new<const D: usize>(depth: usize, nodes: &[NodeId], positions: &[DVec<D>]) -> Self {
-        if nodes.len() < 10 {
-            let mut nodes = nodes.to_vec();
-            nodes.sort_unstable_by(|x, y| {
-                positions[*x][depth]
-                    .partial_cmp(&positions[*y][depth])
-                    .unwrap()
-            });
+        if nodes.len() < 100 {
+            let mut nodes: Vec<_> = nodes.iter().map(|x| (*x, positions[*x][depth])).collect();
+            nodes.sort_unstable_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap());
             return Self::Snn(nodes);
         }
 
@@ -78,14 +72,14 @@ impl Layer {
         let min = node_index().min().unwrap_or(0);
         let max = node_index().max().unwrap_or(0);
 
-        let mut buckets = vec![Layer::Snn(Vec::new()); (-min) as usize + max as usize + 1];
+        let mut temp_buckets = vec![vec![]; (-min) as usize + max as usize + 1];
+        let mut buckets = Vec::with_capacity(temp_buckets.len());
         for (&node_id, bucket) in nodes.iter().zip(node_index()) {
-            buckets[(bucket - min) as usize].snn_mut().push(node_id);
+            temp_buckets[(bucket - min) as usize].push(node_id);
         }
 
-        for bucket in &mut buckets {
-            let nodes = std::mem::take(bucket.snn_mut());
-            *bucket = Self::new(depth + 1, &nodes, positions);
+        for nodes in temp_buckets {
+            buckets.push(Self::new(depth + 1, &nodes, positions));
         }
         Layer::Lsh(LineLsh {
             offset: min,
@@ -143,26 +137,46 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 }
             }
             Layer::Snn(items) => {
-                let min = NotNan::new(pos - dim_radius as f32).unwrap();
-                let max = NotNan::new(pos + dim_radius as f32).unwrap();
-                let start = items
-                    .binary_search_by_key(&min, |id| {
-                        NotNan::new(self.position(*id)[depth]).unwrap()
-                    })
+                let min = pos - dim_radius as f32;
+                let max = pos + dim_radius as f32;
+                let mid = items
+                    .binary_search_by(|(_, x)| x.partial_cmp(&pos).unwrap())
                     .unwrap_or_else(|x| x);
-                let end = items
-                    .binary_search_by_key(&max, |id| {
-                        NotNan::new(self.position(*id)[depth]).unwrap()
-                    })
-                    .unwrap_or_else(|x| x);
+                // let start = items
+                //     .binary_search_by(|(_, x)| x.partial_cmp(&min).unwrap())
+                //     .unwrap_or_else(|x| x);
+                // let end = items
+                //     .binary_search_by(|(_, x)| x.partial_cmp(&max).unwrap())
+                //     .unwrap_or_else(|x| x);
                 let query_radius = original_radius.powi(2) as f32;
-                if start >= end {
-                    return;
-                }
-                for i in &items[start..end] {
+                // if start >= end {
+                //     return;
+                // }
+                let mut checked = 0;
+                let mut found = 0;
+                for (i, p) in &items[mid..] {
+                    if p > &max {
+                        break;
+                    }
+                    checked += 1;
                     if i != &index && full_pos.distance_squared(self.position(*i)) <= query_radius {
                         results.push(*i);
+                        found += 1;
                     }
+                }
+                for (i, p) in items[..mid].iter().rev() {
+                    if p < &min {
+                        break;
+                    }
+                    checked += 1;
+                    if i != &index && full_pos.distance_squared(self.position(*i)) <= query_radius {
+                        results.push(*i);
+                        found += 1;
+                    }
+                }
+                // dbg!(dim_radius, query_radius);
+                if found != 0 {
+                    dbg!(found, checked);
                 }
             }
         }
@@ -172,7 +186,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
 impl<const D: usize> Query for LayeredLsh<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         if self.weight(index) < 1. {
-            return self.light_nn(index, radius);
+            return self.light_nn(index, radius * self.weight(index).powi(2));
         }
         let mut output = Vec::new();
         let graph = self.graph;
