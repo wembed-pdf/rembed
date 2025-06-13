@@ -5,6 +5,7 @@ pub use query::Query;
 pub use std::io;
 use std::ops::Deref;
 
+pub mod ball_tree;
 pub mod dim_reduction;
 pub mod dvec;
 pub mod embedding;
@@ -43,6 +44,7 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kd_tree::WKDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(ball_tree::WBallTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter()
 }
