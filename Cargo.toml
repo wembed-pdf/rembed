@@ -10,6 +10,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+ball-tree = "0.5.1"
+fnntw = "0.4.1"
 kiddo = "5.0.3"
 memmap = "0.7.0"
 nalgebra = "0.33.2"
