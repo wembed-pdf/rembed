@@ -98,21 +98,17 @@ impl<'a, const D: usize> Update<D> for WKDTree<'a, D> {
     }
 }
 
-fn squared_euclidean<const D: usize>(a: &[f32; D], b: &[f32; D]) -> f32 {
-    a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum()
-}
-
 impl<'a, const D: usize> Query for WKDTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
         let weight_class = compute_weight_class(self, index);
-        let scaled_radius_squared = (radius * own_weight.powi(4)).powi(2) as f32;
+        let scaled_radius_squared = (radius * own_weight.powi(4)) as f32;
 
         let mut results = Vec::with_capacity(16);
 
         self.kdtree_classes[weight_class]
-            .within::<SquaredEuclidean>(&own_position.components, scaled_radius_squared)
+            .within_unsorted::<SquaredEuclidean>(&own_position.components, scaled_radius_squared)
             .into_iter()
             .for_each(|nn| {
                 let data = nn.item as usize;
