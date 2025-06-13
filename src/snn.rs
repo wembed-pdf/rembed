@@ -52,6 +52,9 @@ impl<'a, const D: usize> Position<D> for SNN<'a, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
+    fn num_nodes(&self) -> usize {
+        self.positions.len()
+    }
 }
 
 impl<'a, const D: usize> Update<D> for SNN<'a, D> {

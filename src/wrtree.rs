@@ -66,6 +66,9 @@ impl<'a, const D: usize> Position<D> for WRTree<'a, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
+    fn num_nodes(&self) -> usize {
+        self.positions.len()
+    }
 }
 
 impl<'a, const D: usize> Update<D> for WRTree<'a, D> {

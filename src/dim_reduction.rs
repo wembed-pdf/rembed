@@ -50,6 +50,10 @@ impl<'a, const D: usize> query::Position<D> for LayeredLsh<'a, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
+
+    fn num_nodes(&self) -> usize {
+        self.positions.len()
+    }
 }
 impl<'a, const D: usize> query::Update<D> for LayeredLsh<'a, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
@@ -145,8 +149,11 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
             Layer::Lsh(line_lsh) => {
                 let bucket_index = (pos - line_lsh.offset as f32) * RESOLUTION as f32;
                 let min_bucket =
-                    (bucket_index - dim_radius as f32 * RESOLUTION as f32).max(0.) as usize;
-                let max_bucket = ((bucket_index + dim_radius as f32 * RESOLUTION as f32) as usize)
+                    (bucket_index - original_radius as f32 * RESOLUTION as f32).max(0.) as usize;
+                // (bucket_index - dim_radius as f32 * RESOLUTION as f32).max(0.) as usize;
+                // let max_bucket = ((bucket_index + dim_radius as f32 * RESOLUTION as f32) as usize)
+                let max_bucket = ((bucket_index + original_radius as f32 * RESOLUTION as f32)
+                    as usize)
                     .min(line_lsh.buckets.len() - 1);
                 for i in min_bucket..=max_bucket {
                     let diff = if (i as f32) < bucket_index {
@@ -161,9 +168,9 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                         index,
                         depth + 1,
                         layer,
-                        // (dim_radius.powi(2) - diff.powi(2)).sqrt(),
+                        (dim_radius.powi(2) - diff.powi(2)).sqrt(),
                         // dim_radius - diff.powi(2),
-                        dim_radius,
+                        // dim_radius,
                         original_radius,
                         results,
                     );
@@ -171,8 +178,8 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 }
             }
             Layer::Snn(snn) => {
-                let min = pos - dim_radius as f32;
-                let max = pos + dim_radius as f32;
+                // let min = pos - dim_radius as f32;
+                // let max = pos + dim_radius as f32;
                 let idx = (pos.floor() as i32 - snn.offset)
                     .min(snn.lut.len() as i32 - 1)
                     .max(0);
@@ -191,13 +198,13 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 // if start >= end {
                 //     return;
                 // }
-                let mut checked = 0;
-                let mut found = 0;
+                // let mut checked = 0;
+                // let mut found = 0;
                 let mut min_i = vec_idx;
                 let mut max_i = (vec_idx + 1).min(snn.pos.len() - 1);
                 for i in vec_idx..(snn.d_pos.len()) {
                     let p = snn.d_pos[i];
-                    if (p - pos).powi(2) > dim_radius as f32 {
+                    if (p - pos).powi(2) > original_radius as f32 {
                         break;
                     }
                     max_i = i;
@@ -205,7 +212,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 for i in (0..vec_idx).rev() {
                     let p = snn.d_pos[i];
                     // if p < min {
-                    if (p - pos).powi(2) > dim_radius as f32 {
+                    if (p - pos).powi(2) > original_radius as f32 {
                         break;
                     }
                     min_i = i;
@@ -213,7 +220,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 // println!("min: {}, max: {}", min_i, max_i);
                 for i in min_i..=max_i {
                     // for i in 0..(snn.ids.len()) {
-                    checked += 1;
+                    // checked += 1;
 
                     let other_pos = snn.pos[i];
                     if snn.ids[i] == index {
@@ -228,7 +235,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                                 &snn.d_pos, pos, dim_radius, snn.lut
                             );
                         }
-                        found += 1;
+                        // found += 1;
                     }
                 }
                 // if dim_radius < 0.8 {

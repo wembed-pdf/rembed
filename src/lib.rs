@@ -14,6 +14,8 @@ pub mod query;
 pub mod snn;
 pub mod wrtree;
 
+pub mod embedder;
+
 pub type NodeId = usize;
 
 pub fn convert_to_embeddings<'a, const D: usize>(

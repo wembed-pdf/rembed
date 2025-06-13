@@ -293,6 +293,14 @@ impl<const D: usize> Div<f32> for DVec<D> {
         self.map(|x| x * divisor_recip)
     }
 }
+impl<const D: usize> Div<DVec<D>> for DVec<D> {
+    type Output = Self;
+
+    fn div(self, other: DVec<D>) -> Self::Output {
+        let arr = core::array::from_fn(|i| self[i] / other[i]);
+        Self { components: arr }
+    }
+}
 
 impl<const D: usize> DivAssign<f32> for DVec<D> {
     fn div_assign(&mut self, scalar: f32) {

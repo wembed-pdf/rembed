@@ -68,6 +68,9 @@ impl<'a, const D: usize> query::Position<D> for Lsh<'a, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
+    fn num_nodes(&self) -> usize {
+        self.positions.len()
+    }
 }
 impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {

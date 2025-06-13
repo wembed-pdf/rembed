@@ -8,6 +8,7 @@ pub trait Graph {
 
 pub trait Position<const D: usize> {
     fn position(&self, index: NodeId) -> &DVec<D>;
+    fn num_nodes(&self) -> usize;
     fn dim(&self) -> usize {
         D
     }
@@ -73,7 +74,10 @@ pub trait Embedder<const D: usize>: Query + Update<D> + Graph + Position<D> {
         let weight = self.weight(index);
         // todo consider graph edges
         result.retain(|&x| {
-            (self.position(x).distance_squared(pos) as f64) < (weight * self.weight(x)).powi(2)
+            index != x
+                && !self.is_connected(index, x)
+                && (self.position(x).distance_squared(pos) as f64)
+                    < (weight * self.weight(x)).powi(2)
         });
 
         result
