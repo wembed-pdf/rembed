@@ -462,7 +462,7 @@ impl CorrectnessTestManager {
                     );
                     for &i in &expected {
                         println!(
-                            "\t- {i} weight: {:.2} pos: {:?} dist: {:.2}",
+                            "\t- {i} weight: {:.2} pos: {:?} weighted dist: {:.2}",
                             structure.weight(i),
                             structure.position(i),
                             structure.position(i).distance(structure.position(node_id)) as f64
