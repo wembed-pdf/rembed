@@ -6,20 +6,11 @@ use crate::{
     query::{self, Graph, Position, SpatialIndex, Update},
 };
 
-fn compute_weight_class(graph: &impl Graph, index: usize) -> usize {
-    let weight = graph.neighbors(index).len();
-    let mut i = 0;
-    while (1 << i) <= weight {
-        i += 1;
-    }
-    i
-}
-
 #[derive(Clone)]
 pub struct WKDTree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
-    pub kdtree_classes: Vec<KdTree<f32, D>>,
+    pub kdtree: KdTree<f32, D>,
     pub max_weights: Vec<f64>,
 }
 
@@ -28,7 +19,7 @@ impl<'a, const D: usize> WKDTree<'a, D> {
         let mut tree = Self {
             positions: embedding.positions.to_vec(),
             graph: embedding.graph,
-            kdtree_classes: Vec::new(),
+            kdtree: KdTree::new(),
             max_weights: Vec::new(),
         };
         tree.update_positions(&embedding.positions);
@@ -62,38 +53,10 @@ impl<'a, const D: usize> Position<D> for WKDTree<'a, D> {
 
 impl<'a, const D: usize> Update<D> for WKDTree<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>]) {
-        let mut weight_classes: Vec<Vec<usize>> = Vec::new();
-        let mut max_weights: Vec<f64> = Vec::new();
-
         self.positions = positions.to_vec();
-
-        for i in 0..positions.len() {
-            let weight_class = compute_weight_class(self, i);
-            if weight_class >= weight_classes.len() {
-                weight_classes.resize(weight_class + 1, Vec::new());
-                max_weights.resize(weight_class + 1, 0.0);
-            }
-            weight_classes[weight_class].push(i);
-            max_weights[weight_class] = f64::max(max_weights[weight_class], self.weight(i));
-        }
-
-        // push to all heavier weight classes
-        for i in 0..positions.len() {
-            let weight_class = compute_weight_class(self, i);
-            for class in weight_classes.iter_mut().skip(weight_class + 1) {
-                class.push(i);
-            }
-        }
-
-        self.max_weights = max_weights;
-        self.kdtree_classes.clear();
-
-        for class in weight_classes.iter() {
-            let mut tree = KdTree::new();
-            for &index in class {
-                tree.add(&positions[index].components, index as u64);
-            }
-            self.kdtree_classes.push(tree);
+        self.kdtree = KdTree::new();
+        for (i, pos) in self.positions.iter().enumerate() {
+            self.kdtree.add(&pos.components, i as u64);
         }
     }
 }
@@ -102,12 +65,11 @@ impl<'a, const D: usize> Query for WKDTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
-        let weight_class = compute_weight_class(self, index);
         let scaled_radius_squared = (radius * own_weight.powi(4)) as f32;
 
         let mut results = Vec::with_capacity(16);
 
-        self.kdtree_classes[weight_class]
+        self.kdtree
             .within_unsorted::<SquaredEuclidean>(&own_position.components, scaled_radius_squared)
             .into_iter()
             .for_each(|nn| {
