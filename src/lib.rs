@@ -1,4 +1,5 @@
 pub use embedding::Embedding;
+use kiddo::fixed::kdtree;
 use query::IndexClone;
 pub use query::Query;
 pub use std::io;
@@ -8,6 +9,7 @@ pub mod dim_reduction;
 pub mod dvec;
 pub mod embedding;
 pub mod graph;
+pub mod kd_tree;
 pub mod lsh;
 pub mod parsing;
 pub mod query;
@@ -40,6 +42,7 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(kd_tree::WKDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter()
 }
