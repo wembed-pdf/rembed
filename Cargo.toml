@@ -10,6 +10,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+kiddo = "5.0.3"
 memmap = "0.7.0"
 nalgebra = "0.33.2"
 rand = "0.9.1"
