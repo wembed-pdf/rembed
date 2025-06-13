@@ -146,8 +146,8 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         depth: usize,
         layer: &Layer<D>,
         // TODO: avoid numerical anihilation from adding small values to bigger number
-        dim_radius: f64,
-        original_radius: f64,
+        dim_radius_squared: f64,
+        original_radius_squared: f64,
         results: &mut Vec<NodeId>,
     ) {
         let full_pos = self.position(index);
@@ -155,10 +155,10 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         match layer {
             Layer::Lsh(line_lsh) => {
                 let bucket_index = (pos as f64 - line_lsh.offset as f64) * RESOLUTION as f64;
-                let min_bucket = (bucket_index - dim_radius * RESOLUTION as f64).max(0.) as usize;
-                // let min_bucket = (bucket_index - original_radius * RESOLUTION as f64).max(0.) as usize;
-                let max_bucket = ((bucket_index + dim_radius * RESOLUTION as f64) as usize)
-                    // let max_bucket = ((bucket_index + original_radius * RESOLUTION as f64) as usize)
+                let min_bucket =
+                    (bucket_index - dim_radius_squared * RESOLUTION as f64).max(0.) as usize;
+                let max_bucket = ((bucket_index + dim_radius_squared * RESOLUTION as f64).ceil()
+                    as usize)
                     .min(line_lsh.buckets.len() - 1);
                 for i in min_bucket..=max_bucket {
                     let diff = if (i as f64) < bucket_index {
@@ -167,45 +167,33 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                         i as f64 - bucket_index
                     };
                     let diff = (diff * (RESOLUTION as f64).recip());
-                    // if diff.powi(2) <= dim_radius {
-                    let layer = &line_lsh.buckets[i];
-                    self.query_recursive(
-                        index,
-                        depth + 1,
-                        layer,
-                        // (dim_radius.powi(2) - diff.powi(2))
-                        //     .sqrt()
-                        //     .min(dim_radius - diff.powi(2)),
-                        dim_radius - diff.powi(2),
-                        // dim_radius,
-                        original_radius,
-                        results,
-                    );
-                    // }
+                    let new_dim_radius = dim_radius_squared - diff.powi(2);
+                    if new_dim_radius > 0. {
+                        let layer = &line_lsh.buckets[i];
+                        self.query_recursive(
+                            index,
+                            depth + 1,
+                            layer,
+                            // (dim_radius.powi(2) - diff.powi(2))
+                            //     .sqrt()
+                            //     .min(dim_radius - diff.powi(2)),
+                            new_dim_radius,
+                            // dim_radius,
+                            original_radius_squared,
+                            results,
+                        );
+                    }
                 }
             }
             Layer::Snn(snn) => {
-                let radius_sqrt = (dim_radius as f32).sqrt();
-                let min = pos - radius_sqrt as f32;
-                let max = pos + radius_sqrt as f32;
+                let radius_sqrt = (dim_radius_squared as f32).sqrt();
+                let min = pos - radius_sqrt;
+                let max = pos + radius_sqrt;
                 let idx = (((pos - snn.offset as f32) * snn.resolution as f32).floor() as i32)
                     .min(snn.lut.len() as i32 - 1)
                     .max(0);
                 let vec_idx = snn.lut[idx as usize];
-                // let mid = items
-                //     .binary_search_by(|(_, x)| x.partial_cmp(&pos).unwrap())
-                //     .unwrap_or_else(|x| x);
-                // let start = items
-                //     .binary_search_by(|(_, x)| x.partial_cmp(&min).unwrap())
-                //     .unwrap_or_else(|x| x);
-                // let end = items
-                //     .binary_search_by(|(_, x)| x.partial_cmp(&max).unwrap())
-                //     .unwrap_or_else(|x| x);
-                // let query_radius = original_radius.powi(2) as f32;
-                let query_radius = original_radius as f32;
-                // if start >= end {
-                //     return;
-                // }
+                let query_radius = original_radius_squared as f32;
                 // let mut checked = 0;
                 // let mut found = 0;
                 let mut min_i = vec_idx;

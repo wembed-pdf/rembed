@@ -92,7 +92,7 @@ impl<'a, const D: usize> Query for WKDTree<'a, D> {
 
 impl<'a, const D: usize> SpatialIndex<D> for WKDTree<'a, D> {
     fn name(&self) -> String {
-        "Weighted KD-Tree".to_string()
+        "kd_tree".to_string()
     }
 
     fn implementation_string(&self) -> &'static str {

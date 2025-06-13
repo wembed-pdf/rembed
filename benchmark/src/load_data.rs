@@ -320,6 +320,7 @@ fn query_list_for_type<'a, const D: usize>(
     match ty {
         BenchmarkType::SparseQuery => query_sparse(embedding, 1000),
         BenchmarkType::LightNodes => query_light(embedding, 1000),
+        BenchmarkType::AllNodes => query_sparse(embedding, embedding.positions.len()),
         BenchmarkType::HeavyNodes => query_heavy(embedding, 1000),
         BenchmarkType::PositionUpdate => (0..embedding.positions.len()).collect(),
     }

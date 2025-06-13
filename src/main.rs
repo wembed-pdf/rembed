@@ -40,6 +40,8 @@ fn main() -> io::Result<()> {
     dbg!(embeddings().count());
     let embeddings: Vec<_> = embeddings().collect();
     let mut embedder = embedder::WEmbedder::new(lsh, options);
+    // takes wembed 03:04 for the first 100 iterations
+    embedder.embed();
     for slice in embeddings.windows(2) {
         embedder.calculate_step();
         let mut msa = 0.;

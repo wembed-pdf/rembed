@@ -184,6 +184,12 @@ impl<const D: usize> From<[f32; D]> for DVec<D> {
         Self { components }
     }
 }
+// From implementations
+impl<const D: usize> From<DVec<D>> for [f32; D] {
+    fn from(vec: DVec<D>) -> Self {
+        vec.components
+    }
+}
 
 // For 2D vector
 impl From<(f32, f32)> for DVec<2> {

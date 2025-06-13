@@ -11,6 +11,7 @@ pub enum BenchmarkType {
     SparseQuery,
     LightNodes,
     HeavyNodes,
+    AllNodes,
 }
 
 impl BenchmarkType {
@@ -20,6 +21,7 @@ impl BenchmarkType {
             BenchmarkType::SparseQuery => "sparse_query",
             BenchmarkType::LightNodes => "light_nodes",
             BenchmarkType::HeavyNodes => "heavy_nodes",
+            BenchmarkType::AllNodes => "all_nodes",
         }
     }
 
@@ -29,6 +31,7 @@ impl BenchmarkType {
             BenchmarkType::PositionUpdate,
             BenchmarkType::LightNodes,
             BenchmarkType::HeavyNodes,
+            BenchmarkType::AllNodes,
         ]
     }
 }
@@ -42,6 +45,7 @@ impl FromStr for BenchmarkType {
             "sparse_query" => BenchmarkType::SparseQuery,
             "light_nodes" => BenchmarkType::LightNodes,
             "heavy_nodes" => BenchmarkType::HeavyNodes,
+            "all_nodes" => BenchmarkType::AllNodes,
             _ => return Err("Invalid benchmark type".to_string()),
         })
     }
