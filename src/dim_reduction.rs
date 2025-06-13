@@ -71,7 +71,7 @@ impl<const D: usize> Layer<D> {
         if nodes.is_empty() {
             return Self::Empty;
         }
-        if nodes.len() < 100 || depth == D - 1 {
+        if nodes.len() < 200 || depth == D - 1 {
             let mut nodes: Vec<_> = nodes.iter().map(|x| (*x, positions[*x][depth])).collect();
             nodes.sort_unstable_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap());
             let ids: Vec<_> = nodes.iter().map(|(x, _)| *x).collect();
@@ -82,7 +82,7 @@ impl<const D: usize> Layer<D> {
             // let mut pos_idx = 0;
             let min = d_pos[0].floor() as i32;
             let max = d_pos.last().unwrap().ceil() as i32;
-            let resolution = 100. / (max - min) as f64;
+            let resolution = 50. / (max - min) as f64;
             for i in 0..(((max - min) as f64 * resolution) as i32) {
                 let pos_idx = d_pos
                     .iter()
@@ -185,8 +185,9 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 }
             }
             Layer::Snn(snn) => {
-                // let min = pos - dim_radius as f32;
-                // let max = pos + dim_radius as f32;
+                let radius_sqrt = (dim_radius as f32).sqrt();
+                let min = pos - radius_sqrt as f32;
+                let max = pos + radius_sqrt as f32;
                 let idx = (((pos - snn.offset as f32) * snn.resolution as f32).floor() as i32)
                     .min(snn.lut.len() as i32 - 1)
                     .max(0);
@@ -211,15 +212,15 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 let mut max_i = (vec_idx + 1).min(snn.pos.len() - 1);
                 for i in vec_idx..(snn.d_pos.len()) {
                     let p = snn.d_pos[i];
-                    if p > pos && (p - pos).powi(2) > dim_radius as f32 {
+                    if p > max {
                         break;
                     }
                     max_i = i;
                 }
                 for i in (0..vec_idx).rev() {
                     let p = snn.d_pos[i];
-                    // if p < min {
-                    if p < pos && (p - pos).powi(2) > dim_radius as f32 {
+                    if p < min {
+                        // if p < pos && (p - pos).powi(2) > dim_radius as f32 {
                         break;
                     }
                     min_i = i;
@@ -234,16 +235,16 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                     }
                     if full_pos.distance_squared(&other_pos) <= query_radius {
                         results.push(snn.ids[i]);
-                        if i < min_i || i > max_i {
-                            println!("min: {}, max: {}", min_i, max_i);
-                            println!("found at i {i}");
-                            println!(
-                                "pos:{}, dim_radius:{}, vec_idx: {vec_idx} idx:{idx}, offset: {}",
-                                pos, dim_radius, snn.offset
-                            );
-                            println!("lut{:?}", &snn.lut);
-                            println!("dpos: {:?}", &snn.d_pos);
-                        }
+                        // if i < min_i || i > max_i {
+                        //     println!("min: {}, max: {}", min_i, max_i);
+                        //     println!("found at i {i}");
+                        //     println!(
+                        //         "pos:{}, dim_radius:{}, vec_idx: {vec_idx} idx:{idx}, offset: {}",
+                        //         pos, dim_radius, snn.offset
+                        //     );
+                        //     println!("lut{:?}", &snn.lut);
+                        //     println!("dpos: {:?}", &snn.d_pos);
+                        // }
                         // found += 1;
                     }
                 }
@@ -261,10 +262,10 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
 
 impl<const D: usize> Query for LayeredLsh<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        if self.weight(index) < 1. {
-            return self.light_nn(index, radius * self.weight(index).powi(4));
-            // return self.light_nn(index, radius);
-        }
+        // if self.weight(index) < 1. {
+        return self.light_nn(index, radius * self.weight(index).powi(4));
+        // return self.light_nn(index, radius);
+        // }
         let mut output = Vec::new();
         let graph = self.graph;
         let own_weight = self.weight(index);
