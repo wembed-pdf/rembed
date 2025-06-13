@@ -3,6 +3,7 @@ use rembed::{
     embedder::EmbedderOptions,
     lsh::Lsh,
     query::{Embedder, Graph, Position, Update},
+    snn::SNN,
     *,
 };
 
@@ -27,14 +28,33 @@ fn main() -> io::Result<()> {
     println!("Total of  {} nodes", graph.nodes.len());
 
     println!("Building Data structure");
-    let embedding = &embeddings().next().unwrap();
-    // let lsh = LayeredLsh::new(embedding);
-    let lsh = Lsh::new(embedding.clone());
+    let embedding = &embeddings().nth(0).unwrap();
+    let lsh = LayeredLsh::new(embedding);
+    // let lsh = Lsh::new(embedding.clone());
     // let lsh = rembed::wrtree::WRTree::new(embedding.clone());
+    // let lsh = SNN::new(embedding.clone());
+    // let lsh = SNN::new(embedding.clone());
+    // let lsh = embedding.clone();
 
     let options = EmbedderOptions::default();
+    dbg!(embeddings().count());
+    let embeddings: Vec<_> = embeddings().collect();
     let mut embedder = embedder::WEmbedder::new(lsh, options);
-    embedder.embed();
+    for slice in embeddings.windows(2) {
+        embedder.calculate_step();
+        let mut msa = 0.;
+        for ((res, actual), prev) in embedder
+            .positions()
+            .iter()
+            .zip(slice[1].positions.iter())
+            .zip(slice[0].positions.iter())
+        {
+            // dbg!(res, actual, prev);
+            let dist = res.distance(actual) / actual.magnitude();
+            msa += dist;
+        }
+        println!("{}", msa / embedding.positions.len() as f32);
+    }
 
     // for embedding in embeddings().skip(35) {
     //     println!("Updating positions");

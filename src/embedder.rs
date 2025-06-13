@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use crate::{
     NodeId,
     dvec::DVec,
@@ -157,21 +159,7 @@ impl<SI: Query + Update<D> + Clone + Sync + Embedder<D>, const D: usize> WEmbedd
             println!("Iteration {}", self.iteration);
             self.iteration += 1;
 
-            // Save old positions
-            self.old_positions.clone_from(&self.positions);
-
-            // Clear forces
-            self.forces.iter_mut().for_each(|f| *f = DVec::zero());
-
-            // Update spatial index
-            self.update_spatial_index();
-
-            // Calculate forces
-            self.calculate_attraction_forces();
-            self.calculate_repulsion_forces();
-
-            // Update positions
-            self.optimizer.update(&mut self.positions, &self.forces);
+            self.calculate_step();
 
             // Check convergence
             if self.check_convergence() || self.iteration >= self.options.max_iterations {
@@ -180,6 +168,24 @@ impl<SI: Query + Update<D> + Clone + Sync + Embedder<D>, const D: usize> WEmbedd
         }
 
         self.positions.clone()
+    }
+
+    pub fn calculate_step(&mut self) {
+        // Save old positions
+        self.old_positions.clone_from(&self.positions);
+
+        // Clear forces
+        self.forces.iter_mut().for_each(|f| *f = DVec::zero());
+
+        // Update spatial index
+        self.update_spatial_index();
+
+        // Calculate forces
+        self.calculate_attraction_forces();
+        self.calculate_repulsion_forces();
+
+        // Update positions
+        self.optimizer.update(&mut self.positions, &self.forces);
     }
 
     fn update_spatial_index(&mut self) {
