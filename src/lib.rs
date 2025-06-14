@@ -1,5 +1,4 @@
 pub use embedding::Embedding;
-use kiddo::fixed::kdtree;
 use query::IndexClone;
 pub use query::Query;
 pub use std::io;
@@ -11,7 +10,9 @@ pub mod dvec;
 pub mod embedding;
 pub mod graph;
 pub mod kd_tree;
+pub mod kiddo;
 pub mod lsh;
+pub mod neighbourhood;
 pub mod parsing;
 pub mod query;
 pub mod snn;
@@ -43,8 +44,11 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(kd_tree::WKDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(kd_tree::KDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(ball_tree::WBallTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
+            as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter()
 }
