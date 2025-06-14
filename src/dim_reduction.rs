@@ -64,8 +64,6 @@ impl<'a, const D: usize> query::Update<D> for LayeredLsh<'a, D> {
     }
 }
 
-const RESOLUTION: usize = 1;
-
 impl<const D: usize> Layer<D> {
     fn new(depth: usize, nodes: &[NodeId], positions: &[DVec<D>]) -> Self {
         if nodes.is_empty() {
@@ -102,11 +100,7 @@ impl<const D: usize> Layer<D> {
             return Self::Snn(snn);
         }
 
-        let node_index = || {
-            nodes
-                .iter()
-                .map(|x| (positions[*x][depth] * RESOLUTION as f32).floor() as i32)
-        };
+        let node_index = || nodes.iter().map(|x| (positions[*x][depth]).floor() as i32);
         let min = node_index().min().unwrap_or(0);
         let max = node_index().max().unwrap_or(0);
 
@@ -153,11 +147,9 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         let pos = self.position(index)[depth];
         match layer {
             Layer::Lsh(line_lsh) => {
-                let bucket_index = (pos as f64 - line_lsh.offset as f64) * RESOLUTION as f64;
-                let min_bucket =
-                    (bucket_index - dim_radius_squared * RESOLUTION as f64).max(0.) as usize;
-                let max_bucket = ((bucket_index + dim_radius_squared * RESOLUTION as f64).ceil()
-                    as usize)
+                let bucket_index = pos as f64 - line_lsh.offset as f64;
+                let min_bucket = (bucket_index - dim_radius_squared) as usize;
+                let max_bucket = ((bucket_index + dim_radius_squared) as usize + 1)
                     .min(line_lsh.buckets.len() - 1);
                 for i in min_bucket..=max_bucket {
                     let diff = if (i as f64) < bucket_index {
@@ -165,7 +157,6 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                     } else {
                         i as f64 - bucket_index
                     };
-                    let diff = diff * (RESOLUTION as f64).recip();
                     let new_dim_radius = dim_radius_squared - diff.powi(2);
                     if new_dim_radius > 0. {
                         let layer = &line_lsh.buckets[i];
@@ -193,10 +184,10 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                     if p > max {
                         break;
                     }
-                    let other_pos = snn.pos[i];
                     if snn.ids[i] == index {
                         continue;
                     }
+                    let other_pos = snn.pos[i];
                     if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
                         results.push(snn.ids[i]);
                     }
