@@ -15,6 +15,7 @@ pub mod lsh;
 pub mod neighbourhood;
 pub mod parsing;
 pub mod query;
+pub mod sif;
 pub mod snn;
 pub mod wrtree;
 
@@ -49,6 +50,7 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
             as Box<dyn IndexClone<D> + 'a>,
+        Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter()
 }

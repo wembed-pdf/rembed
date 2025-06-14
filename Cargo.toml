@@ -22,6 +22,8 @@ rand = "0.9.1"
 rayon = "1.10.0"
 rstar = "0.12.2"
 sha2 = "0.10.9"
+sif-kdtree = "0.7.0"
+vec-vp-tree = "0.1.1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
