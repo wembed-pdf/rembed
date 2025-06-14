@@ -158,7 +158,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         self.optimizer.reset();
 
         loop {
-            println!("Iteration {}", self.iteration);
+            // println!("Iteration {}", self.iteration);
             self.iteration += 1;
 
             self.calculate_step();

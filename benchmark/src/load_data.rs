@@ -271,7 +271,6 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         load_data,
     } = args;
     let iterations: Iterations<D> = rembed::parsing::parse_positions_file(embedding_path).unwrap();
-    dbg!(iterations.iterations().len());
 
     // Load the embeddings from the file
     let embeddings = || {
