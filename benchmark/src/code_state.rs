@@ -162,13 +162,15 @@ impl RepoCodeStateManager {
     /// Get code state by ID
     pub async fn get_code_state(
         &self,
-        code_state_id: i64,
+        data_structure_name: &str,
+        checksum: &str,
     ) -> Result<Option<CodeState>, sqlx::Error> {
         sqlx::query_as!(
             CodeState,
             "SELECT code_state_id, repo_state_id, checksum, data_structure_name, created_at 
-             FROM code_states WHERE code_state_id = $1",
-            code_state_id
+             FROM code_states WHERE checksum = $1 AND data_structure_name = $2",
+            checksum,
+            data_structure_name
         )
         .fetch_optional(&self.pool)
         .await

@@ -65,7 +65,7 @@ pub struct MeasurementResult {
     pub measurement: PerfStatistics,
 }
 
-pub fn profile_datastructure_query<'a, const D: usize>(
+pub fn profile_datastructures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
     c: &mut BenchmarkGroup<WallTime>,
     data_structures: &[Box<dyn IndexClone<D> + 'a>],
@@ -74,57 +74,73 @@ pub fn profile_datastructure_query<'a, const D: usize>(
 ) -> Vec<MeasurementResult> {
     let mut results = Vec::with_capacity(data_structures.len());
     for structure in data_structures {
-        let mut samples = PerfMeasurements::new(1000);
-        let warmup = Duration::from_secs(1);
-        let measure = Duration::from_secs(8);
-        let queries = query_list.len();
-        let sample_count = 10;
-        c.warm_up_time(warmup);
-        c.measurement_time(measure);
-        c.sampling_mode(criterion::SamplingMode::Auto);
-        c.sample_size(sample_count);
-        let benchmark_id = format!("{}/{}", benchmark_type.as_str(), structure.name());
+        results.push(profile_datastructure_query(
+            embedding,
+            c,
+            query_list,
+            benchmark_type,
+            structure,
+        ));
+    }
+    results
+}
 
-        c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
-            b.iter_custom(|iters| {
-                let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
-                samples.start();
-                for mut structure in data_structures {
-                    match benchmark_type {
-                        BenchmarkType::PositionUpdate => {
-                            structure.update_positions(&embedding.positions);
-                        }
-                        _ => {
-                            for &i in query_list {
-                                let result = structure.nearest_neighbors(i, 1.);
-                                std::hint::black_box(result);
-                            }
+pub fn profile_datastructure_query<'a, const D: usize>(
+    embedding: &Embedding<'a, D>,
+    c: &mut BenchmarkGroup<WallTime>,
+    query_list: &[usize],
+    benchmark_type: BenchmarkType,
+    structure: &Box<dyn IndexClone<D> + 'a>,
+) -> MeasurementResult {
+    let mut samples = PerfMeasurements::new(1000);
+    let warmup = Duration::from_secs(1);
+    let measure = Duration::from_secs(8);
+    let queries = query_list.len();
+    let sample_count = 10;
+    c.warm_up_time(warmup);
+    c.measurement_time(measure);
+    c.sampling_mode(criterion::SamplingMode::Auto);
+    c.sample_size(sample_count);
+    let benchmark_id = format!("{}/{}", benchmark_type.as_str(), structure.name());
+
+    c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
+        b.iter_custom(|iters| {
+            let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
+            samples.start();
+            for mut structure in data_structures {
+                match benchmark_type {
+                    BenchmarkType::PositionUpdate => {
+                        structure.update_positions(&embedding.positions);
+                    }
+                    _ => {
+                        for &i in query_list {
+                            let result = structure.nearest_neighbors(i, 1.);
+                            std::hint::black_box(result);
                         }
                     }
                 }
-                samples.stop(iters) / queries as u32
-            });
+            }
+            samples.stop(iters) / queries as u32
         });
+    });
 
-        let statistics = samples.get_statistics(queries, warmup);
+    let statistics = samples.get_statistics(queries, warmup);
 
-        println!(
-            "Perf Counter:\n\tInstructions: {} σ: {}",
-            format_number(statistics.instructions_mean),
-            format_number(statistics.instructions_stddev)
-        );
-        println!(
-            "\tCycles: {} σ: {}\n",
-            format_number(statistics.cycles_mean),
-            format_number(statistics.cycles_stddev)
-        );
-        results.push(MeasurementResult {
-            data_structure_name: structure.name(),
-            sample_count: samples.num_samples(),
-            measurement: statistics,
-        })
+    println!(
+        "Perf Counter:\n\tInstructions: {} σ: {}",
+        format_number(statistics.instructions_mean),
+        format_number(statistics.instructions_stddev)
+    );
+    println!(
+        "\tCycles: {} σ: {}\n",
+        format_number(statistics.cycles_mean),
+        format_number(statistics.cycles_stddev)
+    );
+    MeasurementResult {
+        data_structure_name: structure.name(),
+        sample_count: samples.num_samples(),
+        measurement: statistics,
     }
-    results
 }
 
 fn format_number(num: f64) -> String {

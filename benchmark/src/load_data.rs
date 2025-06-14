@@ -17,6 +17,7 @@ pub struct LoadData {
     pub pool: Pool<Postgres>,
     pub hostname: String,
     pub repo_code_manager: RepoCodeStateManager,
+    pub store: bool,
 }
 
 impl LoadData {
@@ -28,6 +29,7 @@ impl LoadData {
             pool,
             hostname,
             repo_code_manager,
+            store: false,
         }
     }
 
@@ -39,7 +41,6 @@ impl LoadData {
         deg_range: (usize, usize),
         ple_range: (f64, f64),
         alpha_range: (f64, f64),
-        store: bool,
         benchmarks: Option<Vec<BenchmarkType>>,
         structures: Option<Vec<String>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -126,7 +127,7 @@ impl LoadData {
         let mut c = Criterion::default().with_output_color(true);
 
         // load embeddings from files
-        for result in &position_results {
+        for result in position_results {
             let pos_path: String = result.get::<String, _>("pos_path");
             let pos_path = format!("{data_directory}/{}", pos_path);
             let graph_path: String = result.get::<String, _>("graph_path");
@@ -142,7 +143,7 @@ impl LoadData {
             )
             .map_err(|e| format!("Failed to load graph from {}: {}", graph_path, e))?;
 
-            let results = load_and_run_dynamic(
+            load_and_run_dynamic(
                 embedding_dim as u8,
                 BenchmarkArgs {
                     graph: &graph,
@@ -151,20 +152,20 @@ impl LoadData {
                     only_last_iteration,
                     benchmarks: &benchmarks,
                     structures: &structures,
+                    load_data: self,
                 },
                 &mut c,
-            );
-            if store {
-                self.store_benchmark_results(results).await?;
-            }
+            )
+            .await;
         }
 
         Ok(())
     }
 
-    async fn store_benchmark_results(
+    async fn store_benchmark_result(
         &self,
-        results: Vec<BenchmarkResult>,
+        result: BenchmarkResult,
+        checksum: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if RepoCodeStateManager::git_dirty()? {
             return Err(
@@ -173,19 +174,15 @@ impl LoadData {
                     .into(),
             );
         }
-        for result in results {
-            // Get or create code state for this data structure
-            let code_state = self
-                .repo_code_manager
-                .get_or_create_code_state(
-                    &result.data_structure_name,
-                    "placeholder_checksum", // TODO: Get actual checksum from Query trait
-                )
-                .await?;
+        // Get or create code state for this data structure
+        let code_state = self
+            .repo_code_manager
+            .get_or_create_code_state(&result.data_structure_name, checksum)
+            .await?;
 
-            // Store measurement result
-            sqlx::query!(
-                r#"
+        // Store measurement result
+        sqlx::query!(
+            r#"
                 INSERT INTO measurements (
                     code_state_id, result_id, iteration_number, sample_count,
                     hostname, architecture, benchmark_type,
@@ -193,30 +190,29 @@ impl LoadData {
                     instruction_count_mean, instruction_count_stddev, cycles_mean, cycles_stddev
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 "#,
-                code_state.code_state_id,
-                result.result_id,
-                result.iteration_number as i32,
-                result.sample_count as i32,
-                self.hostname,
-                std::env::consts::ARCH,
-                result.benchmark_type.as_str(),
-                result.measurement.wall_time_mean.as_nanos() as i64,
-                result.measurement.wall_time_stddev.as_nanos() as i64,
-                result.measurement.instructions_mean,
-                result.measurement.instructions_stddev,
-                result.measurement.cycles_mean,
-                result.measurement.cycles_stddev,
-            )
-            .execute(&self.pool)
-            .await?;
+            code_state.code_state_id,
+            result.result_id,
+            result.iteration_number as i32,
+            result.sample_count as i32,
+            self.hostname,
+            std::env::consts::ARCH,
+            result.benchmark_type.as_str(),
+            result.measurement.wall_time_mean.as_nanos() as i64,
+            result.measurement.wall_time_stddev.as_nanos() as i64,
+            result.measurement.instructions_mean,
+            result.measurement.instructions_stddev,
+            result.measurement.cycles_mean,
+            result.measurement.cycles_stddev,
+        )
+        .execute(&self.pool)
+        .await?;
 
-            println!(
-                "Stored benchmark result: {} for result_id: {} iteration: {}",
-                result.benchmark_type.as_str(),
-                result.result_id,
-                result.iteration_number
-            );
-        }
+        println!(
+            "Stored benchmark result: {} for result_id: {} iteration: {}",
+            result.benchmark_type.as_str(),
+            result.result_id,
+            result.iteration_number
+        );
 
         Ok(())
     }
@@ -228,20 +224,21 @@ struct BenchmarkArgs<'a> {
     only_last_iteration: bool,
     benchmarks: &'a Option<Vec<BenchmarkType>>,
     structures: &'a Option<Vec<String>>,
+    load_data: &'a LoadData,
 }
 
-fn load_and_run_dynamic(dim: u8, args: BenchmarkArgs, c: &mut Criterion) -> Vec<BenchmarkResult> {
+async fn load_and_run_dynamic(dim: u8, args: BenchmarkArgs<'_>, c: &mut Criterion) {
     match dim {
-        2 => load_and_run::<2>(args, c),
-        4 => load_and_run::<4>(args, c),
-        8 => load_and_run::<8>(args, c),
-        16 => load_and_run::<16>(args, c),
-        32 => load_and_run::<32>(args, c),
+        2 => load_and_run::<2>(args, c).await,
+        4 => load_and_run::<4>(args, c).await,
+        8 => load_and_run::<8>(args, c).await,
+        16 => load_and_run::<16>(args, c).await,
+        32 => load_and_run::<32>(args, c).await,
         _ => panic!("dim {dim} not covered",),
     }
 }
 
-fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<BenchmarkResult> {
+async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion) {
     let BenchmarkArgs {
         graph,
         result_id,
@@ -249,6 +246,7 @@ fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<B
         only_last_iteration,
         benchmarks,
         structures,
+        load_data,
     } = args;
     let iterations: Iterations<D> = rembed::parsing::parse_positions_file(embedding_path).unwrap();
 
@@ -273,34 +271,48 @@ fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<B
         rembed::data_structures(embedding).collect::<Vec<_>>()
     };
 
-    let mut results = Vec::new();
-
-    let process_results = |results: Vec<MeasurementResult>, ty: &BenchmarkType| {
-        results
-            .into_iter()
-            .map(|m| BenchmarkResult {
-                benchmark_type: *ty,
-                data_structure_name: m.data_structure_name,
-                result_id,
-                iteration_number: iterations.iterations().last().unwrap().number,
-                sample_count: m.sample_count,
-                measurement: m.measurement,
-            })
-            .collect::<Vec<_>>()
+    let process_results = |m: MeasurementResult, ty: &BenchmarkType| BenchmarkResult {
+        benchmark_type: *ty,
+        data_structure_name: m.data_structure_name,
+        result_id,
+        iteration_number: iterations.iterations().last().unwrap().number,
+        sample_count: m.sample_count,
+        measurement: m.measurement,
     };
 
-    let mut run_benchmark_with_query_list = |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
-        results.extend(process_results(
-            crate::runner::profile_datastructure_query(
-                embedding,
-                &mut group,
-                &data_structures,
-                &query_list,
-                *benchmark_type,
-            ),
-            benchmark_type,
-        ));
-    };
+    let mut run_benchmark_with_query_list =
+        async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
+            for structure in &data_structures {
+                if load_data.store {
+                    if let Ok(Some(_)) = load_data
+                        .repo_code_manager
+                        .get_code_state(&structure.name(), &structure.checksum())
+                        .await
+                    {
+                        println!("skipping previously recorded run");
+                        continue;
+                    }
+                }
+                let result = process_results(
+                    crate::runner::profile_datastructure_query(
+                        embedding,
+                        &mut group,
+                        &query_list,
+                        *benchmark_type,
+                        structure,
+                    ),
+                    benchmark_type,
+                );
+                if load_data.store {
+                    let result = load_data
+                        .store_benchmark_result(result, &structure.checksum())
+                        .await;
+                    if let Err(e) = result {
+                        println!("encontered error while storing results {e}");
+                    }
+                }
+            }
+        };
 
     let benchmarks = benchmarks
         .as_ref()
@@ -308,9 +320,8 @@ fn load_and_run<const D: usize>(args: BenchmarkArgs, c: &mut Criterion) -> Vec<B
         .unwrap_or(BenchmarkType::all());
     for benchmark in benchmarks {
         let query_list = query_list_for_type(*benchmark, embedding);
-        run_benchmark_with_query_list(query_list, benchmark);
+        run_benchmark_with_query_list(query_list, benchmark).await;
     }
-    results
 }
 
 fn query_list_for_type<'a, const D: usize>(

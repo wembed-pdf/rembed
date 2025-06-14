@@ -172,7 +172,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => (0.0, 0.0),
             };
 
-            let load_data = LoadData::new(pool);
+            let mut load_data = LoadData::new(pool);
+            load_data.store = store;
 
             let benchmarks: Option<Vec<_>> = benchmarks.map(|x| {
                 x.iter()
@@ -188,7 +189,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     deg_range,
                     ple_range,
                     alpha_range,
-                    store,
                     benchmarks,
                     structures,
                 )
