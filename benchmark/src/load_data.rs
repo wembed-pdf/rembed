@@ -216,6 +216,28 @@ impl LoadData {
 
         Ok(())
     }
+    async fn measurement_exists(
+        &self,
+        result_id: i64,
+        code_state_id: i64,
+        benchmark_type: BenchmarkType,
+        iteration: u64,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        // Store measurement result
+        Ok(sqlx::query!(
+            r#"
+                SELECT measurement_id FROM measurements
+                WHERE code_state_id = $1 AND result_id = $2 AND iteration_number = $3 AND benchmark_type = $4 AND hostname = $5
+                "#,
+            code_state_id,
+            result_id,
+            iteration as i32,
+            benchmark_type.as_str(),
+            self.hostname,
+        )
+        .fetch_optional(&self.pool)
+        .await.map(|x|x.is_some())?)
+    }
 }
 struct BenchmarkArgs<'a> {
     graph: &'a Graph,
@@ -284,13 +306,24 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
             for structure in &data_structures {
                 if load_data.store {
-                    if let Ok(Some(_)) = load_data
+                    if let Ok(Some(code_state)) = load_data
                         .repo_code_manager
                         .get_code_state(&structure.name(), &structure.checksum())
                         .await
                     {
-                        println!("skipping previously recorded run");
-                        continue;
+                        if let Ok(true) = load_data
+                            .measurement_exists(
+                                result_id,
+                                code_state.code_state_id,
+                                *benchmark_type,
+                                iterations.iterations().len() as u64,
+                            )
+                            .await
+                        {
+                            // TODO: check if
+                            println!("skipping previously recorded run");
+                            continue;
+                        }
                     }
                 }
                 let result = process_results(
