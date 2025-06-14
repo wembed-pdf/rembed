@@ -1,11 +1,4 @@
-use rembed::{
-    dim_reduction::LayeredLsh,
-    embedder::EmbedderOptions,
-    lsh::Lsh,
-    query::{Embedder, Graph, Position, Update},
-    snn::SNN,
-    *,
-};
+use rembed::{dim_reduction::LayeredLsh, embedder::EmbedderOptions, *};
 
 fn main() -> io::Result<()> {
     let graph_name = "rel8";
@@ -28,7 +21,7 @@ fn main() -> io::Result<()> {
     println!("Total of  {} nodes", graph.nodes.len());
 
     println!("Building Data structure");
-    let embedding = &embeddings().nth(0).unwrap();
+    let embedding = &embeddings().next().unwrap();
     let lsh = LayeredLsh::new(embedding);
     // let lsh = Lsh::new(embedding.clone());
     // let lsh = rembed::wrtree::WRTree::new(embedding.clone());
@@ -45,7 +38,7 @@ fn main() -> io::Result<()> {
     for slice in embeddings.windows(2) {
         embedder.calculate_step();
         let mut msa = 0.;
-        for ((res, actual), prev) in embedder
+        for ((res, actual), _prev) in embedder
             .positions()
             .iter()
             .zip(slice[1].positions.iter())

@@ -8,7 +8,7 @@ use rembed::{Embedding, NodeId, query::IndexClone};
 #[derive(Debug, Clone, Copy)]
 pub enum BenchmarkType {
     PositionUpdate,
-    SparseQuery,
+    MixedNodes,
     LightNodes,
     HeavyNodes,
     AllNodes,
@@ -18,7 +18,7 @@ impl BenchmarkType {
     pub fn as_str(&self) -> &'static str {
         match self {
             BenchmarkType::PositionUpdate => "position_update",
-            BenchmarkType::SparseQuery => "sparse_query",
+            BenchmarkType::MixedNodes => "mixed_nodes",
             BenchmarkType::LightNodes => "light_nodes",
             BenchmarkType::HeavyNodes => "heavy_nodes",
             BenchmarkType::AllNodes => "all_nodes",
@@ -27,7 +27,7 @@ impl BenchmarkType {
 
     pub(crate) fn all() -> &'static [BenchmarkType] {
         &[
-            BenchmarkType::SparseQuery,
+            BenchmarkType::MixedNodes,
             BenchmarkType::PositionUpdate,
             BenchmarkType::LightNodes,
             BenchmarkType::HeavyNodes,
@@ -42,7 +42,7 @@ impl FromStr for BenchmarkType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "construction" => BenchmarkType::PositionUpdate,
-            "sparse_query" => BenchmarkType::SparseQuery,
+            "mixed_nodes" => BenchmarkType::MixedNodes,
             "light_nodes" => BenchmarkType::LightNodes,
             "heavy_nodes" => BenchmarkType::HeavyNodes,
             "all_nodes" => BenchmarkType::AllNodes,
@@ -75,8 +75,8 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     let mut results = Vec::with_capacity(data_structures.len());
     for structure in data_structures {
         let mut samples = PerfMeasurements::new(1000);
-        let warmup = Duration::from_secs(3);
-        let measure = Duration::from_secs(5);
+        let warmup = Duration::from_secs(1);
+        let measure = Duration::from_secs(8);
         let queries = query_list.len();
         let sample_count = 10;
         c.warm_up_time(warmup);

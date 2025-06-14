@@ -318,7 +318,7 @@ fn query_list_for_type<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> Vec<NodeId> {
     match ty {
-        BenchmarkType::SparseQuery => query_sparse(embedding, 1000),
+        BenchmarkType::MixedNodes => query_sparse(embedding, 1000),
         BenchmarkType::LightNodes => query_light(embedding, 1000),
         BenchmarkType::AllNodes => query_sparse(embedding, embedding.positions.len()),
         BenchmarkType::HeavyNodes => query_heavy(embedding, 1000),
@@ -328,7 +328,7 @@ fn query_list_for_type<'a, const D: usize>(
 
 fn query_sparse<'a, const D: usize>(embedding: &Embedding<'a, D>, n: usize) -> Vec<NodeId> {
     let total = embedding.positions.len();
-    (0..total).step_by(total / n).collect()
+    (0..total).step_by(total / n.min(total)).collect()
 }
 fn query_light<'a, const D: usize>(embedding: &Embedding<'a, D>, n: usize) -> Vec<NodeId> {
     let light_nodes: Vec<_> = embedding
@@ -340,7 +340,10 @@ fn query_light<'a, const D: usize>(embedding: &Embedding<'a, D>, n: usize) -> Ve
         .map(|(i, _)| i)
         .collect();
     let total = light_nodes.len();
-    light_nodes.into_iter().step_by(total / n).collect()
+    light_nodes
+        .into_iter()
+        .step_by(total / n.min(total))
+        .collect()
 }
 fn query_heavy<'a, const D: usize>(embedding: &Embedding<'a, D>, n: usize) -> Vec<NodeId> {
     let light_nodes: Vec<_> = embedding
@@ -352,5 +355,8 @@ fn query_heavy<'a, const D: usize>(embedding: &Embedding<'a, D>, n: usize) -> Ve
         .map(|(i, _)| i)
         .collect();
     let total = light_nodes.len();
-    light_nodes.into_iter().step_by(total / n).collect()
+    light_nodes
+        .into_iter()
+        .step_by(total / n.min(total))
+        .collect()
 }
