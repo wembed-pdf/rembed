@@ -1,6 +1,7 @@
 use crate::job_manager::{JobManager, PositionJob};
 use rembed::dim_reduction::LayeredLsh;
 use rembed::embedder::{EmbedderOptions, WEmbedder};
+use rembed::kiddo::Kiddo;
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -141,7 +142,7 @@ fn run_embedding<const D: usize>(
     options: EmbedderOptions,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut embedder: WEmbedder<LayeredLsh<D>, D> = WEmbedder::random(seed, graph, options);
+    let mut embedder: WEmbedder<Kiddo<D>, D> = WEmbedder::random(seed, graph, options);
     embedder.embed();
     let sparse_iterations: Vec<_> = embedder.history().iter().step_by(10).cloned().collect();
 
