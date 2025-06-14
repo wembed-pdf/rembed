@@ -225,4 +225,8 @@ fn nbig_box<const D: usize>(
     })
 }
 
-impl<'a, const D: usize> query::Embedder<D> for Lsh<'a, D> {}
+impl<'a, const D: usize> query::Embedder<'a, D> for Lsh<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        Self::new(embedding.clone())
+    }
+}

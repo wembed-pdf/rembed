@@ -69,4 +69,8 @@ impl<const D: usize> SpatialIndex<D> for Embedding<'_, D> {
     }
 }
 
-impl<'a, const D: usize> query::Embedder<D> for Embedding<'a, D> {}
+impl<'a, const D: usize> query::Embedder<'a, D> for Embedding<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        embedding.clone()
+    }
+}

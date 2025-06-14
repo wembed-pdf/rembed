@@ -181,7 +181,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 // for i in 0..(snn.ids.len()) {
                 for i in min_i..(snn.d_pos.len()) {
                     let p = snn.d_pos[i];
-                    if p > max {
+                    if p >= max {
                         break;
                     }
                     if snn.ids[i] == index {
@@ -212,7 +212,11 @@ impl<const D: usize> SpatialIndex<D> for LayeredLsh<'_, D> {
     }
 }
 
-impl<'a, const D: usize> query::Embedder<D> for LayeredLsh<'a, D> {}
+impl<'a, const D: usize> query::Embedder<'a, D> for LayeredLsh<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        Self::new(embedding)
+    }
+}
 
 #[cfg(test)]
 mod test {

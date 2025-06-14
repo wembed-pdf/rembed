@@ -68,3 +68,33 @@ impl<const D: usize> Iterations<D> {
         self.0.as_slice()
     }
 }
+
+pub fn write_test_file<const D: usize>(
+    file_path: &str,
+    iterations: &[(u64, Vec<DVec<D>>)],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{BufWriter, Write};
+    let file = File::create(file_path)?;
+    let mut writer = BufWriter::new(file);
+
+    // Write number of nodes
+    if let Some(first_iteration) = iterations.first() {
+        let num_nodes = first_iteration.1.len() as u64;
+        writer.write_all(&num_nodes.to_le_bytes())?;
+        writer.write_all(&(D as u64).to_le_bytes())?;
+    } else {
+        return Err("No iterations found".into());
+    }
+
+    // Write iterations
+    for (num, iteration) in iterations {
+        writer.write_all(&num.to_le_bytes())?;
+        for position in iteration {
+            // Write neighbor IDs as u32
+            for i in 0..D {
+                writer.write_all(&(position[i]).to_le_bytes())?;
+            }
+        }
+    }
+    Ok(())
+}

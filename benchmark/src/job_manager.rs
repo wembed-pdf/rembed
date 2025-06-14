@@ -138,8 +138,8 @@ impl JobManager {
     }
 
     pub async fn create_jobs_for_graph(&self, graph_id: i64) -> Result<i32, sqlx::Error> {
-        let dimensions = [2, 4, 8, 16, 32];
-        // let dimensions = [2, 4, 8];
+        // let dimensions = [2, 4, 8, 16, 32];
+        let dimensions = [2, 4, 8];
         let max_iterations = 1000;
         let seed = 42; // Fixed seed for reproducibility
         let mut job_count = 0;

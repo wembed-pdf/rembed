@@ -124,4 +124,8 @@ impl<'a, const D: usize> SpatialIndex<D> for Neihbourhood<'a, D> {
     }
 }
 
-impl<'a, const D: usize> query::Embedder<D> for Neihbourhood<'a, D> {}
+impl<'a, const D: usize> query::Embedder<'a, D> for Neihbourhood<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        Self::new(embedding.clone())
+    }
+}

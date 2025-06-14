@@ -102,4 +102,8 @@ impl<'a, const D: usize> SpatialIndex<D> for WBallTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> query::Embedder<D> for WBallTree<'a, D> {}
+impl<'a, const D: usize> query::Embedder<'a, D> for WBallTree<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        Self::new(embedding.clone())
+    }
+}

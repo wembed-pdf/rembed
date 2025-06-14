@@ -1,7 +1,7 @@
 use crate::job_manager::{JobManager, PositionJob};
+use rembed::dim_reduction::LayeredLsh;
+use rembed::embedder::{EmbedderOptions, WEmbedder};
 use sha2::{Digest, Sha256};
-use std::os::unix::process::ExitStatusExt;
-use std::process::Command;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -56,37 +56,21 @@ impl PositionGenerator {
         );
         let output_path_without_prefix = format!("generated/positions/{}", output_filename);
         let output_path = format!("{}/{}", self.output_path, output_path_without_prefix);
-        let iteration_logging_mod = 10;
+        let graph_path = format!("{}/{}", self.output_path, job.graph_file_path);
+        let graph = rembed::graph::Graph::parse_from_edge_list_file(
+            &graph_path,
+            job.embedding_dim as usize,
+            job.dim_hint as usize,
+        )?;
 
-        let status = Command::new(&self.wembed_path)
-            .arg("-i")
-            .arg(format!("{}/{}", self.output_path, job.graph_file_path))
-            .arg("--dim-hint")
-            .arg(job.dim_hint.to_string())
-            .arg("--dim")
-            .arg(job.embedding_dim.to_string())
-            .arg("--iterations")
-            .arg(job.max_iterations.to_string())
-            .arg("--seed")
-            .arg(job.seed.to_string()) // Add seed for reproducibility
-            .arg("--logging-output")
-            .arg(&output_path)
-            .arg("--iteration_logging_mod")
-            .arg(iteration_logging_mod.to_string())
-            .status()?;
-
-        if !status.success() {
-            if let Some(code) = status.code() {
-                return Err(format!("WEmbed failed with exit code: {:?}", code).into());
-            }
-            if status.core_dumped() {
-                return Err("WEmbed dumped core".to_string().into());
-            }
-            if let Some(signal) = status.signal() {
-                return Err(format!("WEmbed received signal: {:?}", signal).into());
-            }
-            return Err("WEmbed terminated for an unknown reason".to_string().into());
-        }
+        let options = EmbedderOptions::default();
+        run_embedding_dynamic(
+            job.seed as u64,
+            &graph,
+            options,
+            job.embedding_dim as usize,
+            &output_path,
+        )?;
 
         if !std::path::Path::new(&output_path).exists() {
             return Err("WEmbed completed but output file was not created".into());
@@ -134,4 +118,32 @@ fn parse_actual_iterations(file_path: &str) -> Result<Option<i32>, Box<dyn std::
         }
     }
     Ok(Some(max_iteration))
+}
+fn run_embedding_dynamic(
+    seed: u64,
+    graph: &rembed::graph::Graph,
+    options: EmbedderOptions,
+    dim: usize,
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    match dim {
+        2 => run_embedding::<2>(seed, graph, options, output_path),
+        4 => run_embedding::<4>(seed, graph, options, output_path),
+        8 => run_embedding::<8>(seed, graph, options, output_path),
+        16 => run_embedding::<16>(seed, graph, options, output_path),
+        32 => run_embedding::<32>(seed, graph, options, output_path),
+        _ => unreachable!("not compiled for dim {dim}"),
+    }
+}
+fn run_embedding<const D: usize>(
+    seed: u64,
+    graph: &rembed::graph::Graph,
+    options: EmbedderOptions,
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut embedder: WEmbedder<LayeredLsh<D>, D> = WEmbedder::random(seed, graph, options);
+    embedder.embed();
+    let sparse_iterations: Vec<_> = embedder.history().iter().step_by(10).cloned().collect();
+
+    rembed::parsing::write_test_file(output_path, sparse_iterations.as_slice())
 }

@@ -1,4 +1,4 @@
-use crate::{NodeId, dvec::DVec};
+use crate::{Embedding, NodeId, dvec::DVec};
 
 pub trait Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool;
@@ -64,7 +64,7 @@ pub trait Update<const D: usize> {
     fn update_positions(&mut self, postions: &[DVec<D>]);
 }
 
-pub trait Embedder<const D: usize>: Query + Update<D> + Graph + Position<D> {
+pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> {
     fn calculate_step(&mut self, dt: f64) {
         todo!("Not implemented yet {}", dt);
     }
@@ -84,5 +84,16 @@ pub trait Embedder<const D: usize>: Query + Update<D> + Graph + Position<D> {
     }
     fn attracting_nodes(&self, index: usize) -> Vec<usize> {
         self.neighbors(index).to_vec()
+    }
+
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self;
+    fn from_graph(graph: &'a crate::graph::Graph) -> Self
+    where
+        Self: Sized,
+    {
+        Self::new(&Embedding {
+            positions: Vec::new(),
+            graph,
+        })
     }
 }

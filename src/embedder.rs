@@ -1,9 +1,10 @@
 use crate::{
     NodeId,
     dvec::DVec,
-    query::{Embedder, Graph as GraphTrait, Query, Update},
+    graph::Graph,
+    query::{Embedder, Graph as GraphTrait, Query},
 };
-use rand::Rng;
+use rand::{Rng, rngs::SmallRng};
 use rayon::prelude::*;
 
 /// Configuration options for the embedder
@@ -97,6 +98,7 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     weights: Vec<f64>,
     forces: Vec<DVec<D>>,
     old_positions: Vec<DVec<D>>,
+    positions_log: Vec<(u64, Vec<DVec<D>>)>,
 
     // Spatial index
     spatial_index: SI,
@@ -109,12 +111,13 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     iteration: usize,
 }
 
-impl<SI: Query + Update<D> + Clone + Sync + Embedder<D>, const D: usize> WEmbedder<SI, D> {
-    pub fn random(mut spatial_index: SI, options: EmbedderOptions) -> Self {
-        let n = spatial_index.num_nodes();
+impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
+    pub fn random(seed: u64, graph: &'a Graph, options: EmbedderOptions) -> Self {
+        let mut spatial_index = SI::from_graph(graph);
+        let n = graph.nodes.len();
 
         // Initialize random positions
-        let mut rng = rand::rng();
+        let mut rng: SmallRng = rand::SeedableRng::seed_from_u64(seed);
         let cube_side = (n as f64).powf(1.0 / D as f64);
         let positions: Vec<DVec<D>> = (0..n)
             .map(|_| {
@@ -142,6 +145,7 @@ impl<SI: Query + Update<D> + Clone + Sync + Embedder<D>, const D: usize> WEmbedd
             weights,
             forces: vec![DVec::zero(); n],
             old_positions: vec![DVec::zero(); n],
+            positions_log: Vec::new(),
             spatial_index,
             optimizer: AdamOptimizer::new(n, learning_rate, cooling_factor),
             options,
@@ -171,6 +175,10 @@ impl<SI: Query + Update<D> + Clone + Sync + Embedder<D>, const D: usize> WEmbedd
     pub fn calculate_step(&mut self) {
         // Save old positions
         self.old_positions.clone_from(&self.positions);
+        if self.iteration % 10 == 0 {
+            self.positions_log
+                .push((self.iteration as u64, self.old_positions.clone()));
+        }
 
         // Clear forces
         self.forces.iter_mut().for_each(|f| *f = DVec::zero());
@@ -335,6 +343,11 @@ impl<SI: Query + Update<D> + Clone + Sync + Embedder<D>, const D: usize> WEmbedd
     /// Get the current positions
     pub fn positions(&self) -> &[DVec<D>] {
         &self.positions
+    }
+
+    /// Get the history of positions
+    pub fn history(&self) -> &[(u64, Vec<DVec<D>>)] {
+        &self.positions_log
     }
 
     /// Get the current iteration count
