@@ -297,7 +297,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         benchmark_type: *ty,
         data_structure_name: m.data_structure_name,
         result_id,
-        iteration_number: iterations.iterations().last().unwrap().number,
+        iteration_number: iterations.iterations().len() - 1,
         sample_count: m.sample_count,
         measurement: m.measurement,
     };
@@ -316,7 +316,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                                 result_id,
                                 code_state.code_state_id,
                                 *benchmark_type,
-                                iterations.iterations().len() as u64,
+                                iterations.iterations().len() as u64 - 1,
                             )
                             .await
                         {
