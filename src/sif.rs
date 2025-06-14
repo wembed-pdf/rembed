@@ -140,4 +140,8 @@ impl<'a, const D: usize> SpatialIndex<D> for SIF<'a, D> {
     }
 }
 
-impl<'a, const D: usize> query::Embedder<D> for SIF<'a, D> {}
+impl<'a, const D: usize> query::Embedder<'a, D> for SIF<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        Self::new(embedding.clone())
+    }
+}
