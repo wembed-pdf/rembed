@@ -133,6 +133,9 @@ impl<'a, const D: usize> Lsh<'a, D> {
         let own_position = positions[index];
 
         for (i, (node, position)) in graph.nodes.iter().zip(positions.iter()).enumerate() {
+            if own_weight < node.weight {
+                continue;
+            }
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
             if (distance as f64) < weight.powi(2) * radius {
@@ -203,21 +206,22 @@ fn nbig_box<const D: usize>(
     let pos = *pos * vec;
     let rounded = pos.map(|x| x.round()).to_int_array();
     let total = 3usize.pow(dim_count as u32);
-    (0..total).flat_map(move |i| {
+    (0..total).map(move |i| {
         let mut result = rounded;
         let mut n = i;
-        let mut skip = false;
+        // let mut skip = false;
         for d in 0..dim_count {
             let offset = (n % 3) as i32 - 1;
             n /= 3;
-            if d == 0 && offset == -1 {
-                skip = true;
-            }
+            // if d == 0 && offset == -1 {
+            //     skip = true;
+            // }
             if dim_offset + d < D {
                 result[dim_offset + d] += offset;
             }
         }
-        (!skip).then(|| result)
+        result
+        // (!skip).then(|| result)
     })
 }
 
