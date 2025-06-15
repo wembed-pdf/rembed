@@ -1,5 +1,4 @@
 use crate::job_manager::{JobManager, PositionJob};
-use rembed::dim_reduction::LayeredLsh;
 use rembed::embedder::{EmbedderOptions, WEmbedder};
 use rembed::kiddo::Kiddo;
 use sha2::{Digest, Sha256};

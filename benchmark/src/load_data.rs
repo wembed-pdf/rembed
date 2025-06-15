@@ -89,7 +89,7 @@ impl LoadData {
                 }
 
                 let condition_str = conditions.join(" AND ");
-                let full_query = format!("{} WHERE {}", query, condition_str);
+                let full_query = format!("{} WHERE {} AND result_id < 6000", query, condition_str);
                 sqlx::query(&full_query).fetch_all(&mut *tx).await?
             } else {
                 sqlx::query(query).fetch_all(&mut *tx).await?

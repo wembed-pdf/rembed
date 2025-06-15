@@ -188,7 +188,8 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                         continue;
                     }
                     let other_pos = snn.pos[i];
-                    if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
+                    if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 + 0.1
+                    {
                         results.push(snn.ids[i]);
                     }
                 }
