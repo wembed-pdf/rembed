@@ -12,6 +12,8 @@ pub mod graph;
 pub mod kd_tree;
 pub mod kiddo;
 pub mod lsh;
+#[cfg(feature = "nanoflann")]
+pub mod nanoflann;
 pub mod neighbourhood;
 pub mod parsing;
 pub mod query;
@@ -40,7 +42,7 @@ pub fn convert_to_embeddings<'a, const D: usize>(
 pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
-    [
+    let iter = [
         Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
@@ -54,5 +56,12 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
-    .into_iter()
+    .into_iter();
+
+    #[cfg(feature = "nanoflann")]
+    let iter = iter.chain(
+        Box::new(nanoflann::NanoflannIndexWrapper::<D>::new(embedding))
+            as Box<dyn IndexClone<D> + 'a>,
+    );
+    iter
 }

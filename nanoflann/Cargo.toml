@@ -1,0 +1,21 @@
+[package]
+name = "nanoflann"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+
+
+# Add to your existing Cargo.toml
+
+[build-dependencies]
+cc = "1.0"
+bindgen = "0.72"
+
+
+[package.metadata.docs.rs]
+# Disable bindgen on docs.rs since it won't have the C++ headers
+features = []
+rustdoc-args = ["--cfg", "docsrs"]
+

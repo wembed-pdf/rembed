@@ -7,7 +7,7 @@ use crate::{
     query::{self, Graph, Position, SpatialIndex, Update},
 };
 
-struct Data<const D: usize>(usize, [f64; D]);
+pub struct Data<const D: usize>(usize, [f64; D]);
 
 impl<const D: usize> Object for Data<D> {
     type Point = [f64; D];
@@ -110,7 +110,7 @@ impl<'a, const D: usize> Query for SIF<'a, D> {
         // Convert own_position to [f64; D]
         let own_position_f64: [f64; D] = own_position.components.map(|x| x as f64);
 
-        self.kdtree.look_up(
+        let _ = self.kdtree.look_up(
             &sif_kdtree::WithinDistance::new(own_position_f64, scaled_radius),
             |nn| {
                 let data = nn.0 as usize;

@@ -31,6 +31,8 @@
             gdb
             valgrind
             gnuplot
+            clang
+            pkgconf
 
             # Rust Development tools
             bacon
@@ -38,6 +40,12 @@
             toolchain
             sqlx-cli
           ];
+
+
+          NIX_ENFORCE_NO_NATIVE=false;
+
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.llvmPackages_latest.libclang.lib pkgs.stdenv.cc.cc.lib ];
+          LIBCLANG_PATH = pkgs.lib.makeLibraryPath [ pkgs.llvmPackages_latest.libclang.lib ];
         };
       }
     );
