@@ -45,9 +45,12 @@ enum Commands {
         /// Range of alpha values (e.g. "0.1-0.9")
         #[arg(long)]
         alpha: Option<String>,
-        /// Seed that was used to generate the graph
+        /// Seed that was used in the embedding
         #[arg(long)]
         seed: Option<String>,
+        /// Seed that was used to generate the graph
+        #[arg(long)]
+        wseed: Option<String>,
         /// Number of threads to use for the benchmark (default: 1) (0 for all available)
         #[arg(long, default_value_t = 1)]
         n_threads: usize,
@@ -141,6 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ple,
             alpha,
             seed,
+            wseed,
             n_threads,
             store,
             benchmarks,
@@ -185,6 +189,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => (0, 0),
             };
 
+            let wseed_range = match wseed {
+                Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 0),
+            };
+
             let mut load_data = LoadData::new(pool);
             load_data.store = store;
 
@@ -203,6 +212,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ple_range,
                     alpha_range,
                     seed_range,
+                    wseed_range,
                     n_threads,
                     benchmarks,
                     structures,

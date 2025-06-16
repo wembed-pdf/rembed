@@ -45,6 +45,7 @@ impl LoadData {
         ple_range: (f64, f64),
         alpha_range: (f64, f64),
         seed_range: (usize, usize),
+        wseed_range: (usize, usize),
         n_threads: usize,
         benchmarks: Option<Vec<BenchmarkType>>,
         structures: Option<Vec<String>>,
@@ -86,6 +87,13 @@ impl LoadData {
                         seed_range.0, seed_range.1
                     ));
                 }
+                if wseed_range.1 > 0 {
+                    conditions.push(format!(
+                        "wseed >= {} AND wseed <= {}",
+                        wseed_range.0, wseed_range.1
+                    ));
+                }
+
                 if ple_range.1 > 0.0 {
                     conditions.push(format!("ple >= {} AND ple <= {}", ple_range.0, ple_range.1));
                 }
