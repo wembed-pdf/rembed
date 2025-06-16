@@ -131,6 +131,10 @@ impl LoadData {
                 .into());
             }
         }
+        println!(
+            "Found {} graphs matching parameters",
+            position_results.len()
+        );
         let queue = crossbeam::queue::ArrayQueue::new(position_results.len());
         for result in position_results {
             queue.push(result).unwrap();
@@ -141,20 +145,23 @@ impl LoadData {
         } else {
             concurrency
         };
-        let queue = Arc::new(queue);
-        let mut threads = vec![];
 
-        for _ in 0..(concurrency - 1) {
+        let queue = Arc::new(queue);
+        let mut handles = Vec::new();
+
+        for _ in 0..concurrency {
             let queue = queue.clone();
             let benchmarks = benchmarks.clone();
             let structures = structures.clone();
             let data_directory = data_directory.clone();
             let load_data = self.clone();
-            let handle = std::thread::spawn(move || {
-                tokio::task::spawn_local(async move {
+
+            let handle = tokio::task::spawn_blocking(move || {
+                let handle = tokio::runtime::Handle::current();
+                let local = tokio::task::LocalSet::new();
+
+                handle.block_on(local.run_until(async move {
                     while let Some(result) = queue.pop() {
-                        // load embeddings from files
-                        // for result in position_results {
                         if let Err(e) = load_data
                             .bench_embedding(
                                 only_last_iteration,
@@ -168,15 +175,14 @@ impl LoadData {
                             println!("error while benchmarking {e}");
                         }
                     }
-                });
+                }));
             });
-            threads.push(handle);
+
+            handles.push(handle);
         }
-        for thread in threads {
-            if let Err(_) = thread.join() {
-                println!("error joining thread");
-            }
-        }
+
+        // Wait for all threads to complete
+        futures::future::join_all(handles).await;
 
         Ok(())
     }

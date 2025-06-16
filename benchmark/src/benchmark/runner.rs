@@ -126,12 +126,12 @@ pub fn profile_datastructure_query<'a, const D: usize>(
 
     let statistics = samples.get_statistics(queries, warmup);
 
-    println!(
+    eprintln!(
         "Perf Counter:\n\tInstructions: {} σ: {}",
         format_number(statistics.instructions_mean),
         format_number(statistics.instructions_stddev)
     );
-    println!(
+    eprintln!(
         "\tCycles: {} σ: {}\n",
         format_number(statistics.cycles_mean),
         format_number(statistics.cycles_stddev)
