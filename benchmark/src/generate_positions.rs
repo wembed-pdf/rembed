@@ -36,6 +36,7 @@ impl PositionGenerator {
                         eprintln!("Job {} failed: {}", job.job_id, e);
                         let _ = self.job_manager.fail_job(job.job_id, &e.to_string()).await;
                     }
+                    crate::push_files().await?;
                 }
                 Ok(None) => {
                     sleep(Duration::from_secs(5)).await;
