@@ -66,7 +66,8 @@ impl PositionGenerator {
             job.dim_hint as usize,
         )?;
 
-        let options = EmbedderOptions::default();
+        let mut options = EmbedderOptions::default();
+        options.max_iterations = job.max_iterations as usize;
         run_embedding_dynamic(
             job.seed as u64,
             &graph,
@@ -144,8 +145,13 @@ fn run_embedding<'a, const D: usize, SI: SpatialIndex<D> + Clone + Sync + Embedd
     options: EmbedderOptions,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let max_iterations = options.max_iterations;
     let mut embedder: WEmbedder<SI, D> = WEmbedder::random(seed, graph, options);
-    embedder.embed();
+    let progress_bar = crate::create_progress_bar(max_iterations);
+    embedder.embed_with_callback(|i| {
+        progress_bar.inc(1);
+        progress_bar.set_message(format!("Iteration {i}"));
+    });
     let sparse_iterations: Vec<_> = embedder.history().iter().step_by(10).cloned().collect();
 
     rembed::parsing::write_test_file(output_path, sparse_iterations.as_slice())

@@ -155,10 +155,14 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
     /// Run the embedding algorithm until convergence or max iterations
     pub fn embed(&mut self) -> Vec<DVec<D>> {
+        self.embed_with_callback(|_| {})
+    }
+    /// Run the embedding algorithm until convergence or max iterations
+    pub fn embed_with_callback(&mut self, mut callback: impl FnMut(usize)) -> Vec<DVec<D>> {
         self.optimizer.reset();
 
         loop {
-            // println!("Iteration {}", self.iteration);
+            callback(self.iteration);
             self.iteration += 1;
 
             self.calculate_step();

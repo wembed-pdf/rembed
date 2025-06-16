@@ -146,12 +146,16 @@ impl GraphGenerator {
         println!("Output will be saved to: {}", self.output_path);
 
         let seeds = generate_seeds();
-        let avg_degrees = [15, 20, 25];
-        let n_s = half_log10(1000.0, 100_005.0);
-        let dimensions = [2, 3, 4];
+        // let avg_degrees = [15, 20, 25];
+        let avg_degrees = [15];
+        let n_s = half_log10(1000.0, 1_000_005.0);
+        // let dimensions = [2, 3, 4];
+        let dimensions = [4];
         // let ples = [2.2, 2.5, 2.8, 8.];
-        let power_law_exponents = [2.2, 2.5, 2.8];
-        let alphas = [f64::INFINITY, 2., 1.1];
+        // let power_law_exponents = [2.2, 2.5, 2.8];
+        let power_law_exponents = [2.5];
+        // let alphas = [f64::INFINITY, 2., 1.1];
+        let alphas = [f64::INFINITY];
         let total_graphs = n_s.len()
             * seeds.len()
             * avg_degrees.len()
