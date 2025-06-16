@@ -44,6 +44,8 @@ impl LoadData {
         deg_range: (usize, usize),
         ple_range: (f64, f64),
         alpha_range: (f64, f64),
+        seed_range: (usize, usize),
+        n_threads: usize,
         benchmarks: Option<Vec<BenchmarkType>>,
         structures: Option<Vec<String>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -76,9 +78,12 @@ impl LoadData {
                     ));
                 }
                 if deg_range.1 > 0 {
+                    conditions.push(format!("deg >= {} AND deg <= {}", deg_range.0, deg_range.1));
+                }
+                if seed_range.1 > 0 {
                     conditions.push(format!(
-                        "degree >= {} AND degree <= {}",
-                        deg_range.0, deg_range.1
+                        "seed >= {} AND seed <= {}",
+                        seed_range.0, seed_range.1
                     ));
                 }
                 if ple_range.1 > 0.0 {
@@ -131,6 +136,11 @@ impl LoadData {
             queue.push(result).unwrap();
         }
         let concurrency: usize = std::thread::available_parallelism().unwrap().into();
+        let concurrency = if n_threads > 0 {
+            n_threads.min(concurrency)
+        } else {
+            concurrency
+        };
         let queue = Arc::new(queue);
         let mut threads = vec![];
 
