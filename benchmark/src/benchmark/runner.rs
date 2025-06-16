@@ -28,9 +28,9 @@ impl BenchmarkType {
     pub(crate) fn all() -> &'static [BenchmarkType] {
         &[
             BenchmarkType::MixedNodes,
-            BenchmarkType::PositionUpdate,
             BenchmarkType::LightNodes,
             BenchmarkType::HeavyNodes,
+            // BenchmarkType::PositionUpdate,
             // BenchmarkType::AllNodes,
         ]
     }
