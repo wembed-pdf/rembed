@@ -21,6 +21,7 @@ pub struct LoadData {
     pub hostname: String,
     pub repo_code_manager: RepoCodeStateManager,
     pub store: bool,
+    pub allow_dirty: bool,
 }
 
 impl LoadData {
@@ -33,6 +34,7 @@ impl LoadData {
             hostname,
             repo_code_manager,
             store: false,
+            allow_dirty: false,
         }
     }
 
@@ -239,7 +241,7 @@ impl LoadData {
         result: BenchmarkResult,
         checksum: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if RepoCodeStateManager::git_dirty()? {
+        if !self.allow_dirty && RepoCodeStateManager::git_dirty()? {
             return Err(
                 "Repository is dirty Please commit changes before sumbitting a run"
                     .to_string()

@@ -1,6 +1,8 @@
 use crate::job_manager::{JobManager, PositionJob};
+use rembed::Embedding;
 use rembed::embedder::{EmbedderOptions, WEmbedder};
 use rembed::kiddo::Kiddo;
+use rembed::query::{Embedder, SpatialIndex};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -128,21 +130,21 @@ fn run_embedding_dynamic(
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match dim {
-        2 => run_embedding::<2>(seed, graph, options, output_path),
-        4 => run_embedding::<4>(seed, graph, options, output_path),
-        8 => run_embedding::<8>(seed, graph, options, output_path),
-        16 => run_embedding::<16>(seed, graph, options, output_path),
-        32 => run_embedding::<32>(seed, graph, options, output_path),
+        2 => run_embedding::<2, Kiddo<2>>(seed, graph, options, output_path),
+        4 => run_embedding::<4, Kiddo<4>>(seed, graph, options, output_path),
+        8 => run_embedding::<8, Kiddo<8>>(seed, graph, options, output_path),
+        16 => run_embedding::<16, Embedding<16>>(seed, graph, options, output_path),
+        32 => run_embedding::<32, Embedding<32>>(seed, graph, options, output_path),
         _ => unreachable!("not compiled for dim {dim}"),
     }
 }
-fn run_embedding<const D: usize>(
+fn run_embedding<'a, const D: usize, SI: SpatialIndex<D> + Clone + Sync + Embedder<'a, D>>(
     seed: u64,
-    graph: &rembed::graph::Graph,
+    graph: &'a rembed::graph::Graph,
     options: EmbedderOptions,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut embedder: WEmbedder<Kiddo<D>, D> = WEmbedder::random(seed, graph, options);
+    let mut embedder: WEmbedder<SI, D> = WEmbedder::random(seed, graph, options);
     embedder.embed();
     let sparse_iterations: Vec<_> = embedder.history().iter().step_by(10).cloned().collect();
 

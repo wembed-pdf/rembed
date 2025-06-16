@@ -145,6 +145,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
     ) {
         let full_pos = self.position(index);
         let pos = self.position(index)[depth];
+        // TODO: Increase resolution for subsequent dimensions based on estimated radius reduction / switch to different metric
         match layer {
             Layer::Lsh(line_lsh) => {
                 let bucket_index = pos as f64 - line_lsh.offset as f64;

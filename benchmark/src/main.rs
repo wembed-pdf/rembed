@@ -57,6 +57,9 @@ enum Commands {
         /// Store the results of this benchmark run to the database
         #[arg(long)]
         store: bool,
+        /// Circumvent the repository dirtyness check for storing results. Use with caution
+        #[arg(long)]
+        allow_dirty: bool,
         /// List of benchmarks to run
         #[arg(long)]
         benchmarks: Option<Vec<String>>,
@@ -149,6 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             store,
             benchmarks,
             structures,
+            allow_dirty,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
@@ -196,6 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut load_data = LoadData::new(pool);
             load_data.store = store;
+            load_data.allow_dirty = allow_dirty;
 
             let benchmarks: Option<Vec<_>> = benchmarks.map(|x| {
                 x.iter()

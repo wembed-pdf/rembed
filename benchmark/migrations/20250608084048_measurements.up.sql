@@ -9,7 +9,7 @@ CREATE TABLE measurements (
     sample_count INTEGER NOT NULL,
     hostname TEXT NOT NULL,
     architecture TEXT NOT NULL,
-    benchmark_type TEXT NOT NULL CHECK (benchmark_type IN ('construction', 'sparse_query', 'light_nodes', 'heavy_nodes')),
+    benchmark_type TEXT NOT NULL,
     
     -- Performance measurements (mean values)
     wall_time_mean BIGINT NOT NULL, -- Nanoseconds
@@ -22,7 +22,7 @@ CREATE TABLE measurements (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
     -- Ensure we don't duplicate measurements for the same configuration
-    CONSTRAINT unique_measurement UNIQUE (code_state_id, result_id, iteration_number, benchmark_type)
+    CONSTRAINT unique_measurement UNIQUE (code_state_id, result_id, iteration_number, benchmark_type, hostname)
 );
 
 -- Create indexes for common queries
