@@ -1,7 +1,4 @@
-use acap::{
-    NearestNeighbors, Proximity,
-    vp::{self, FlatVpTree},
-};
+use acap::{NearestNeighbors, vp::FlatVpTree};
 
 use crate::{
     Embedding, NodeId, Query,
@@ -10,7 +7,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-struct DataPoint<const D: usize> {
+pub struct DataPoint<const D: usize> {
     index: usize,
     position: DVec<D>,
 }
