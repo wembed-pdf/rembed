@@ -344,80 +344,91 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         })
     };
 
-    assert!(only_last_iteration);
-    let mut group = c.benchmark_group(format!("result_{result_id}_dim-{D}"));
+    let embeddings: Vec<_> = embeddings().collect();
 
-    let embedding = &embeddings().next_back().unwrap();
-
-    let data_structures = if let Some(structures) = structures {
-        rembed::data_structures(embedding)
-            .filter(|s| structures.contains(&s.name()))
-            .collect()
+    let embeddings = if only_last_iteration {
+        &embeddings[(embeddings.len().max(2) - 2)..]
     } else {
-        rembed::data_structures(embedding).collect::<Vec<_>>()
+        embeddings.as_slice()
     };
+    if embeddings.is_empty() {
+        println!("Empty embedding, skipping");
+        return;
+    }
 
-    let process_results = |m: MeasurementResult, ty: &BenchmarkType| BenchmarkResult {
-        benchmark_type: *ty,
-        data_structure_name: m.data_structure_name,
-        result_id,
-        iteration_number: iterations.iterations().len() - 1,
-        sample_count: m.sample_count,
-        measurement: m.measurement,
-    };
+    for (iteration, embedding) in embeddings.iter().enumerate() {
+        let mut group = c.benchmark_group(format!("result_{result_id}@{iteration}_dim-{D}"));
 
-    let mut run_benchmark_with_query_list =
-        async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
-            for structure in &data_structures {
-                if load_data.store {
-                    if let Ok(Some(code_state)) = load_data
-                        .repo_code_manager
-                        .get_code_state(&structure.name(), &structure.checksum())
-                        .await
-                    {
-                        if let Ok(true) = load_data
-                            .measurement_exists(
-                                result_id,
-                                code_state.code_state_id,
-                                *benchmark_type,
-                                iterations.iterations().len() as u64 - 1,
-                            )
+        let data_structures = if let Some(structures) = structures {
+            rembed::data_structures(embedding)
+                .filter(|s| structures.contains(&s.name()))
+                .collect()
+        } else {
+            rembed::data_structures(embedding).collect::<Vec<_>>()
+        };
+
+        let process_results = |m: MeasurementResult, ty: &BenchmarkType| BenchmarkResult {
+            benchmark_type: *ty,
+            data_structure_name: m.data_structure_name,
+            result_id,
+            iteration_number: iteration,
+            sample_count: m.sample_count,
+            measurement: m.measurement,
+        };
+
+        let mut run_benchmark_with_query_list =
+            async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
+                for structure in &data_structures {
+                    if load_data.store {
+                        if let Ok(Some(code_state)) = load_data
+                            .repo_code_manager
+                            .get_code_state(&structure.name(), &structure.checksum())
                             .await
                         {
-                            // TODO: check if
-                            println!("skipping previously recorded run");
-                            continue;
+                            if let Ok(true) = load_data
+                                .measurement_exists(
+                                    result_id,
+                                    code_state.code_state_id,
+                                    *benchmark_type,
+                                    iteration as u64,
+                                )
+                                .await
+                            {
+                                // TODO: check if
+                                println!("skipping previously recorded run");
+                                continue;
+                            }
+                        }
+                    }
+                    let result = process_results(
+                        runner::profile_datastructure_query(
+                            embedding,
+                            &mut group,
+                            &query_list,
+                            *benchmark_type,
+                            structure,
+                        ),
+                        benchmark_type,
+                    );
+                    if load_data.store {
+                        let result = load_data
+                            .store_benchmark_result(result, &structure.checksum())
+                            .await;
+                        if let Err(e) = result {
+                            println!("encontered error while storing results {e}");
                         }
                     }
                 }
-                let result = process_results(
-                    runner::profile_datastructure_query(
-                        embedding,
-                        &mut group,
-                        &query_list,
-                        *benchmark_type,
-                        structure,
-                    ),
-                    benchmark_type,
-                );
-                if load_data.store {
-                    let result = load_data
-                        .store_benchmark_result(result, &structure.checksum())
-                        .await;
-                    if let Err(e) = result {
-                        println!("encontered error while storing results {e}");
-                    }
-                }
-            }
-        };
+            };
 
-    let benchmarks = benchmarks
-        .as_ref()
-        .map(|x| x.as_slice())
-        .unwrap_or(BenchmarkType::all());
-    for benchmark in benchmarks {
-        let query_list = query_list_for_type(*benchmark, embedding);
-        run_benchmark_with_query_list(query_list, benchmark).await;
+        let benchmarks = benchmarks
+            .as_ref()
+            .map(|x| x.as_slice())
+            .unwrap_or(BenchmarkType::all());
+        for benchmark in benchmarks {
+            let query_list = query_list_for_type(*benchmark, embedding);
+            run_benchmark_with_query_list(query_list, benchmark).await;
+        }
     }
 }
 

@@ -31,7 +31,7 @@ impl BenchmarkType {
             BenchmarkType::PositionUpdate,
             BenchmarkType::LightNodes,
             BenchmarkType::HeavyNodes,
-            BenchmarkType::AllNodes,
+            // BenchmarkType::AllNodes,
         ]
     }
 }
