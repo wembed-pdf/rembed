@@ -2,7 +2,7 @@
 members = [
     ".",
     "benchmark",
-    "nanoflann"
+    # "nanoflann"
 ]
 
 [package]

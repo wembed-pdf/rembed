@@ -1,6 +1,6 @@
+use benchmark::benchmark::LoadData;
+use benchmark::benchmark::runner::BenchmarkType;
 use benchmark::correctness_test::CorrectnessTestManager;
-use benchmark::load_data::LoadData;
-use benchmark::runner::BenchmarkType;
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
 use sqlx::PgPool;
@@ -182,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
 
             load_data
-                .run_test_cases(
+                .run_benchmarks(
                     only_last_iteration,
                     n_range,
                     dim_range,

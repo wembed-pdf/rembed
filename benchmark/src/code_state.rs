@@ -20,6 +20,7 @@ pub struct CodeState {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Clone)]
 pub struct RepoCodeStateManager {
     pool: Pool<Postgres>,
 }

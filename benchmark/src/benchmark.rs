@@ -1,18 +1,21 @@
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 use criterion::Criterion;
 use rembed::{Embedding, NodeId, graph::Graph, parsing::Iterations};
 use sqlx::{Pool, Postgres, Row};
 
-use crate::{
-    code_state::RepoCodeStateManager,
-    runner::{BenchmarkResult, BenchmarkType, MeasurementResult},
-};
+pub mod perf_measurement;
+
+pub mod runner;
+
+use crate::code_state::RepoCodeStateManager;
+use runner::{BenchmarkResult, BenchmarkType, MeasurementResult};
 
 pub struct Testcase<'a, const D: usize> {
     pub iterations: Vec<Embedding<'a, D>>,
 }
 
+#[derive(Clone)]
 pub struct LoadData {
     pub pool: Pool<Postgres>,
     pub hostname: String,
@@ -33,7 +36,7 @@ impl LoadData {
         }
     }
 
-    pub async fn run_test_cases(
+    pub async fn run_benchmarks(
         &self,
         only_last_iteration: bool,
         n_range: (usize, usize),
@@ -123,42 +126,87 @@ impl LoadData {
                 .into());
             }
         }
-
-        let mut c = Criterion::default().with_output_color(true);
-
-        // load embeddings from files
+        let queue = crossbeam::queue::ArrayQueue::new(position_results.len());
         for result in position_results {
-            let pos_path: String = result.get::<String, _>("pos_path");
-            let pos_path = format!("{data_directory}/{}", pos_path);
-            let graph_path: String = result.get::<String, _>("graph_path");
-            let graph_path = format!("{data_directory}/{}", graph_path);
-            let embedding_dim: i32 = result.get("embedding_dim");
-            let dim_hint: i32 = result.get("dim_hint");
+            queue.push(result).unwrap();
+        }
+        let concurrency: usize = std::thread::available_parallelism().unwrap().into();
+        let queue = Arc::new(queue);
+        let mut threads = vec![];
 
-            // Get the graph
-            let graph = rembed::graph::Graph::parse_from_edge_list_file(
-                &graph_path,
-                embedding_dim as usize,
-                dim_hint as usize,
-            )
-            .map_err(|e| format!("Failed to load graph from {}: {}", graph_path, e))?;
-
-            load_and_run_dynamic(
-                embedding_dim as u8,
-                BenchmarkArgs {
-                    graph: &graph,
-                    result_id: result.get("result_id"),
-                    embedding_path: &pos_path,
-                    only_last_iteration,
-                    benchmarks: &benchmarks,
-                    structures: &structures,
-                    load_data: self,
-                },
-                &mut c,
-            )
-            .await;
+        for _ in 0..(concurrency - 1) {
+            let queue = queue.clone();
+            let benchmarks = benchmarks.clone();
+            let structures = structures.clone();
+            let data_directory = data_directory.clone();
+            let load_data = self.clone();
+            let handle = std::thread::spawn(move || {
+                tokio::task::spawn_local(async move {
+                    while let Some(result) = queue.pop() {
+                        // load embeddings from files
+                        // for result in position_results {
+                        if let Err(e) = load_data
+                            .bench_embedding(
+                                only_last_iteration,
+                                &benchmarks,
+                                &structures,
+                                &data_directory,
+                                result,
+                            )
+                            .await
+                        {
+                            println!("error while benchmarking {e}");
+                        }
+                    }
+                });
+            });
+            threads.push(handle);
+        }
+        for thread in threads {
+            if let Err(_) = thread.join() {
+                println!("error joining thread");
+            }
         }
 
+        Ok(())
+    }
+
+    async fn bench_embedding(
+        &self,
+        only_last_iteration: bool,
+        benchmarks: &Option<Vec<BenchmarkType>>,
+        structures: &Option<Vec<String>>,
+        data_directory: &str,
+        result: sqlx::postgres::PgRow,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut c = Criterion::default().with_output_color(true);
+        let pos_path: String = result.get::<String, _>("pos_path");
+        let pos_path = format!("{data_directory}/{}", pos_path);
+        let graph_path: String = result.get::<String, _>("graph_path");
+        let graph_path = format!("{data_directory}/{}", graph_path);
+        let embedding_dim: i32 = result.get("embedding_dim");
+        let dim_hint: i32 = result.get("dim_hint");
+        let graph = rembed::graph::Graph::parse_from_edge_list_file(
+            &graph_path,
+            embedding_dim as usize,
+            dim_hint as usize,
+        )
+        .map_err(|e| format!("Failed to load graph from {}: {}", graph_path, e))?;
+
+        load_and_run_dynamic(
+            embedding_dim as u8,
+            BenchmarkArgs {
+                graph: &graph,
+                result_id: result.get("result_id"),
+                embedding_path: &pos_path,
+                only_last_iteration,
+                benchmarks: benchmarks,
+                structures: structures,
+                load_data: self,
+            },
+            &mut c,
+        )
+        .await;
         Ok(())
     }
 
@@ -327,7 +375,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                     }
                 }
                 let result = process_results(
-                    crate::runner::profile_datastructure_query(
+                    runner::profile_datastructure_query(
                         embedding,
                         &mut group,
                         &query_list,

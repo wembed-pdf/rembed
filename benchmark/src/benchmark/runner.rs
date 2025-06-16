@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::perf_measurement::{PerfMeasurements, PerfStatistics};
+use super::perf_measurement::{PerfMeasurements, PerfStatistics};
 use criterion::{BenchmarkGroup, measurement::WallTime};
 use rembed::{Embedding, NodeId, query::IndexClone};
 
