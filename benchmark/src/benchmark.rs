@@ -346,9 +346,14 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
 
     // Load the embeddings from the file
     let embeddings = || {
-        iterations.iterations().iter().map(|x| Embedding::<D> {
-            positions: x.positions.deref().clone(),
-            graph,
+        iterations.iterations().iter().map(|x| {
+            (
+                x.number,
+                Embedding::<D> {
+                    positions: x.positions.deref().clone(),
+                    graph,
+                },
+            )
         })
     };
 
@@ -364,7 +369,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         return;
     }
 
-    for (iteration, embedding) in embeddings.iter().enumerate() {
+    for &(iteration, ref embedding) in embeddings {
         let mut group = c.benchmark_group(format!("result_{result_id}@{iteration}_dim-{D}"));
 
         let data_structures = if let Some(structures) = structures {
