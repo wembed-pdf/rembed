@@ -75,10 +75,7 @@ impl LoadData {
                     ));
                 }
                 if n_range.1 > 0 {
-                    conditions.push(format!(
-                        "processed_n >= {} AND processed_n <= {}",
-                        n_range.0, n_range.1
-                    ));
+                    conditions.push(format!("n >= {} AND n <= {}", n_range.0, n_range.1));
                 }
                 if deg_range.1 > 0 {
                     conditions.push(format!("deg >= {} AND deg <= {}", deg_range.0, deg_range.1));
