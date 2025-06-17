@@ -223,6 +223,7 @@ impl CorrectnessTestManager {
         graph_id_filter: Option<i64>,
         dim_filter: Option<i32>,
         run_unit_tests: bool,
+        structures: Vec<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if run_unit_tests {
             println!("Running unit tests from main crate...");
@@ -314,6 +315,8 @@ impl CorrectnessTestManager {
                 filtered_results.into_iter().collect()
             };
 
+        let structures = &structures;
+
         for result in final_results {
             println!(
                 "Testing result_id {} (dim={}, n={})",
@@ -322,23 +325,23 @@ impl CorrectnessTestManager {
 
             match result.embedding_dim {
                 2 => {
-                    self.run_test_for_result::<2>(result.result_id, !all_iterations)
+                    self.run_test_for_result::<2>(result.result_id, !all_iterations, structures)
                         .await?
                 }
                 4 => {
-                    self.run_test_for_result::<4>(result.result_id, !all_iterations)
+                    self.run_test_for_result::<4>(result.result_id, !all_iterations, structures)
                         .await?
                 }
                 8 => {
-                    self.run_test_for_result::<8>(result.result_id, !all_iterations)
+                    self.run_test_for_result::<8>(result.result_id, !all_iterations, structures)
                         .await?
                 }
                 16 => {
-                    self.run_test_for_result::<16>(result.result_id, !all_iterations)
+                    self.run_test_for_result::<16>(result.result_id, !all_iterations, structures)
                         .await?
                 }
                 32 => {
-                    self.run_test_for_result::<32>(result.result_id, !all_iterations)
+                    self.run_test_for_result::<32>(result.result_id, !all_iterations, structures)
                         .await?
                 }
                 _ => println!("Skipping unsupported dimension: {}", result.embedding_dim),
@@ -352,6 +355,7 @@ impl CorrectnessTestManager {
         &self,
         result_id: i64,
         last_iteration_only: bool,
+        structure_selection: &[String],
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Get test file info
         let test_record = sqlx::query_as!(
@@ -416,6 +420,11 @@ impl CorrectnessTestManager {
             let data_structures = data_structures(embedding);
 
             for structure in data_structures {
+                if !structure_selection.is_empty()
+                    && !structure_selection.contains(&structure.name())
+                {
+                    continue; // Skip structures not in selection
+                }
                 let errors = self.test_structure(
                     structure.as_ref() as &dyn SpatialIndex<D>,
                     &ground_truth[iteration_idx],

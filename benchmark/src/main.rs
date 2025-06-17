@@ -121,6 +121,9 @@ enum Commands {
         /// Also run unit tests from main crate
         #[arg(long)]
         run_unit_tests: bool,
+        /// List of datastructures to bench (default: all)
+        #[arg(long)]
+        structures: Option<Vec<String>>,
     },
 }
 
@@ -160,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let test_manager = CorrectnessTestManager::new(pool.clone());
             test_manager
-                .run_tests(false, false, Some(1), None, None, true)
+                .run_tests(false, false, Some(1), None, None, true, Vec::new())
                 .await?;
 
             let n_range = match n {
@@ -332,8 +335,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             graph_id,
             dim,
             run_unit_tests,
+            structures,
         } => {
-            pull_files().await?;
+            // pull_files().await?;
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
@@ -347,6 +351,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     graph_id,
                     dim,
                     run_unit_tests,
+                    structures.unwrap_or_default(),
                 )
                 .await?;
         }
