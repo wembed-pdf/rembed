@@ -4,6 +4,7 @@ pub use query::Query;
 pub use std::io;
 use std::ops::Deref;
 
+pub mod atree;
 pub mod ball_tree;
 pub mod dim_reduction;
 pub mod dvec;
@@ -18,6 +19,7 @@ pub mod neighbourhood;
 pub mod parsing;
 pub mod query;
 pub mod sif;
+pub mod smartcore;
 pub mod snn;
 pub mod vptree;
 pub mod wrtree;
@@ -43,10 +45,12 @@ pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
+        Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(smartcore::CoverTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(wrtree::WRTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(wrtree::RTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kd_tree::KDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(ball_tree::WBallTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,

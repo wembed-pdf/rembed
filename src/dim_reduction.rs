@@ -210,7 +210,7 @@ impl<const D: usize> SpatialIndex<D> for LayeredLsh<'_, D> {
         String::from("line-lsh")
     }
     fn implementation_string(&self) -> &'static str {
-        include_str!("embedding.rs")
+        include_str!("dim_reduction.rs")
     }
 }
 
