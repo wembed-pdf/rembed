@@ -57,7 +57,7 @@ enum Layer {
 
 impl Layer {
     fn new<const D: usize>(nodes: &[NodeId], depth: usize, atree: &ATree<D>) -> Self {
-        if nodes.len() <= 100 || depth == D - 2 {
+        if nodes.len() <= 40 {
             return Self::Leaf(nodes.to_vec());
         }
 
