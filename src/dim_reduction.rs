@@ -148,15 +148,15 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         // TODO: Increase resolution for subsequent dimensions based on estimated radius reduction / switch to different metric
         match layer {
             Layer::Lsh(line_lsh) => {
-                let bucket_index = pos as f64 - line_lsh.offset as f64;
-                let min_bucket = (bucket_index - dim_radius_squared) as usize;
-                let max_bucket = ((bucket_index + dim_radius_squared) as usize + 1)
+                let offset_position = pos as f64 - line_lsh.offset as f64;
+                let min_bucket = (offset_position + (-(dim_radius_squared)).floor()) as usize;
+                let max_bucket = ((offset_position + dim_radius_squared) as usize + 1)
                     .min(line_lsh.buckets.len() - 1);
                 for i in min_bucket..=max_bucket {
-                    let diff = if (i as f64) < bucket_index {
-                        (bucket_index - i as f64 - 1.).max(0.)
+                    let diff = if (i as f64) < offset_position {
+                        (offset_position - i as f64 - 1.).max(0.)
                     } else {
-                        i as f64 - bucket_index
+                        i as f64 - offset_position
                     };
                     let new_dim_radius = dim_radius_squared - diff.powi(2);
                     if new_dim_radius > 0. {
@@ -182,15 +182,17 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 // for i in 0..(snn.ids.len()) {
                 for i in min_i..(snn.d_pos.len()) {
                     let p = snn.d_pos[i];
-                    if p >= max {
+                    if p > max {
                         break;
                     }
                     if snn.ids[i] == index {
                         continue;
                     }
                     let other_pos = snn.pos[i];
-                    if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 + 0.1
-                    {
+                    // if self.weight(snn.ids[i]) > self.weight(index) {
+                    //     continue;
+                    // }
+                    if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
                         results.push(snn.ids[i]);
                     }
                 }
