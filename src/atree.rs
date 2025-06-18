@@ -37,8 +37,8 @@ impl<const D: usize> query::Position<D> for ATree<'_, D> {
 impl<const D: usize> query::Update<D> for ATree<'_, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
         self.positions = postions.to_vec();
-        let node_ids: Vec<_> = (0..postions.len()).collect();
-        self.layer = Layer::new(node_ids.as_slice(), 0, self);
+        let mut node_ids: Vec<_> = (0..postions.len()).collect();
+        self.layer = Layer::new(node_ids.as_mut_slice(), 0, self);
     }
 }
 
@@ -56,7 +56,7 @@ enum Layer {
 }
 
 impl Layer {
-    fn new<const D: usize>(nodes: &[NodeId], depth: usize, atree: &ATree<D>) -> Self {
+    fn new<const D: usize>(nodes: &mut [NodeId], depth: usize, atree: &ATree<D>) -> Self {
         if nodes.len() <= 40 {
             return Self::Leaf(nodes.to_vec());
         }
@@ -66,6 +66,7 @@ impl Layer {
             .map(|&i| (i, atree.positions[i][depth]))
             .collect();
         sorted.sort_unstable_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
+        nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
 
         let mut split_pos = sorted.len() / 2;
 
@@ -74,11 +75,10 @@ impl Layer {
             split_pos -= 1;
         }
 
-        let a_ids: Vec<_> = sorted[..split_pos].iter().map(|(id, _)| *id).collect();
-        let b_ids: Vec<_> = sorted[split_pos..].iter().map(|(id, _)| *id).collect();
+        let (a_ids, b_ids) = nodes.split_at_mut(nodes.len() / 2);
 
-        let a = Layer::new(a_ids.as_slice(), (depth + 1) % D, atree);
-        let b = Layer::new(b_ids.as_slice(), (depth + 1) % D, atree);
+        let a = Layer::new(a_ids, (depth + 1) % D, atree);
+        let b = Layer::new(b_ids, (depth + 1) % D, atree);
 
         let node = Node {
             split,
