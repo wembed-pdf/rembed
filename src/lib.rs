@@ -19,7 +19,6 @@ pub mod neighbourhood;
 pub mod parsing;
 pub mod query;
 pub mod sif;
-pub mod smartcore;
 pub mod snn;
 pub mod vptree;
 pub mod wrtree;
@@ -46,15 +45,13 @@ pub fn data_structures<'a, const D: usize>(
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(smartcore::CoverTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(wrtree::RTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kd_tree::KDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(ball_tree::WBallTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
             as Box<dyn IndexClone<D> + 'a>,
         Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,

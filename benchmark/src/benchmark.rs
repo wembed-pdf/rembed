@@ -142,6 +142,9 @@ impl LoadData {
             "Found {} graphs matching parameters",
             position_results.len()
         );
+        if position_results.is_empty() {
+            return Ok(());
+        }
         let queue = crossbeam::queue::ArrayQueue::new(position_results.len());
         for result in position_results {
             queue.push(result).unwrap();

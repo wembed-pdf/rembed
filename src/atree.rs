@@ -65,11 +65,14 @@ impl Layer {
             .iter()
             .map(|&i| (i, atree.positions[i][depth]))
             .collect();
-        sorted.sort_unstable_by_key(|(_, f)| f.to_bits());
+        sorted.sort_unstable_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
 
-        let split_pos = sorted.len() / 2;
+        let mut split_pos = sorted.len() / 2;
 
         let split = sorted[split_pos].1;
+        while split_pos != 0 && sorted[split_pos - 1].1 == split {
+            split_pos -= 1;
+        }
 
         let a_ids: Vec<_> = sorted[..split_pos].iter().map(|(id, _)| *id).collect();
         let b_ids: Vec<_> = sorted[split_pos..].iter().map(|(id, _)| *id).collect();
@@ -102,7 +105,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             index,
             0,
             &self.layer,
-            (radius * self.weight(index)).powi(4) as f32,
+            (radius * self.weight(index).powi(2)).powi(2) as f32,
             radius,
             &mut results,
         );
@@ -127,6 +130,7 @@ impl<'a, const D: usize> ATree<'a, D> {
                 };
                 let dist_squared = (own_pos - node.split).powi(2);
                 if dist_squared < dim_radius_squared {
+                    // let reduced_radius = dim_radius_squared;
                     let reduced_radius = dim_radius_squared - dist_squared;
                     self.query_recursive(
                         index,
