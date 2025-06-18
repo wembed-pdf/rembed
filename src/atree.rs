@@ -57,7 +57,7 @@ enum Layer {
 
 impl Layer {
     fn new<const D: usize>(nodes: &[NodeId], depth: usize, atree: &ATree<D>) -> Self {
-        if nodes.len() <= 100 || depth == D - 1 {
+        if nodes.len() <= 100 || depth == D - 2 {
             return Self::Leaf(nodes.to_vec());
         }
 
@@ -77,8 +77,8 @@ impl Layer {
         let a_ids: Vec<_> = sorted[..split_pos].iter().map(|(id, _)| *id).collect();
         let b_ids: Vec<_> = sorted[split_pos..].iter().map(|(id, _)| *id).collect();
 
-        let a = Layer::new(a_ids.as_slice(), depth + 1, atree);
-        let b = Layer::new(b_ids.as_slice(), depth + 1, atree);
+        let a = Layer::new(a_ids.as_slice(), (depth + 1) % D, atree);
+        let b = Layer::new(b_ids.as_slice(), (depth + 1) % D, atree);
 
         let node = Node {
             split,
@@ -105,8 +105,9 @@ impl<'a, const D: usize> ATree<'a, D> {
             index,
             0,
             &self.layer,
-            (radius * self.weight(index).powi(2)).powi(2) as f32,
+            radius as f32,
             radius,
+            DVec::zero(),
             &mut results,
         );
         results
@@ -117,7 +118,8 @@ impl<'a, const D: usize> ATree<'a, D> {
         depth: usize,
         layer: &Layer,
         dim_radius_squared: f32,
-        original_radius: f64,
+        original_radius_squared: f64,
+        mut distances: DVec<D>,
         results: &mut Vec<NodeId>,
     ) {
         let own_pos = self.position(index)[depth];
@@ -128,36 +130,41 @@ impl<'a, const D: usize> ATree<'a, D> {
                 } else {
                     (&node.b, &node.a)
                 };
-                let dist_squared = (own_pos - node.split).powi(2);
-                if dist_squared < dim_radius_squared {
-                    // let reduced_radius = dim_radius_squared;
-                    let reduced_radius = dim_radius_squared - dist_squared;
+                let dist = own_pos - node.split;
+                let dist_squared = dist.powi(2);
+                if dist_squared < original_radius_squared as f32 {
+                    let d_2 = dist - distances[depth];
+                    let x = 2. * distances[depth] * d_2 + d_2.powi(2);
+                    let mut reduced_radius = dim_radius_squared;
+                    // if d_2 > 0. {
+                    distances[depth] += dist;
+                    reduced_radius -= x;
+                    // }
                     self.query_recursive(
                         index,
-                        depth + 1,
+                        (depth + 1) % D,
                         other,
                         reduced_radius,
-                        original_radius,
+                        original_radius_squared,
+                        distances,
                         results,
                     );
                 }
                 self.query_recursive(
                     index,
-                    depth + 1,
+                    (depth + 1) % D,
                     own,
                     dim_radius_squared,
-                    original_radius,
+                    original_radius_squared,
+                    distances,
                     results,
                 );
             }
             Layer::Leaf(items) => {
                 for &i in items {
                     let other_pos = self.position(i);
-                    let other_weight = self.weight(i);
                     let distance_squared = other_pos.distance_squared(self.position(index)) as f64;
-                    if distance_squared
-                        < (self.weight(index) * other_weight * original_radius).powi(2)
-                    {
+                    if distance_squared < original_radius_squared {
                         results.push(i);
                     }
                 }
@@ -168,7 +175,7 @@ impl<'a, const D: usize> ATree<'a, D> {
 
 impl<const D: usize> Query for ATree<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        self.light_nn(index, radius)
+        self.light_nn(index, (radius * self.weight(index).powi(2)).powi(2))
     }
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
