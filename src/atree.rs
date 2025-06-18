@@ -45,17 +45,18 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
         self.layer = Layer::new(node_ids.as_mut_slice(), 0, self, 0);
         self.node_ids = node_ids;
-        // let d = (self.positions.len() / LEAFSIZE).ilog2() as usize % D;
-        // self.position_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
-        // self.d_pos = self
-        //     .node_ids
-        //     .iter()
-        //     .map(|id| self.position(*id)[d])
-        //     .collect();
+        let d = (self.positions.len() / LEAFSIZE).ilog2() as usize % D;
+        self.position_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
+        self.d_pos = self
+            .node_ids
+            .iter()
+            .map(|id| self.position(*id)[d])
+            .collect();
+        // dbg!(&self.d_pos);
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Node {
     split: f32,
     a: Box<Layer>,
@@ -68,7 +69,7 @@ struct Snn {
     len: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Layer {
     Node(Node),
     Leaf(Snn),
@@ -81,6 +82,8 @@ impl Layer {
         atree: &ATree<D>,
         offset: usize,
     ) -> Self {
+        nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
+
         if nodes.len() <= LEAFSIZE {
             return Self::Leaf(Snn {
                 offset,
@@ -88,18 +91,10 @@ impl Layer {
             });
         }
 
-        nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
-
-        // nodes.sort_unstable_by(|a, b| {
-        //     atree.position(*a)[depth]
-        //         .partial_cmp(&atree.position(*b)[depth])
-        //         .unwrap()
-        // });
-
         let mut split_pos = nodes.len() / 2;
 
-        let split = atree.position(split_pos)[depth];
-        while split_pos != 0 && atree.position(split_pos - 1)[depth] == split {
+        let split = atree.position(nodes[split_pos])[depth];
+        while split_pos != 0 && atree.position(nodes[split_pos - 1])[depth] == split {
             split_pos -= 1;
         }
 
@@ -161,16 +156,25 @@ impl<'a, const D: usize> ATree<'a, D> {
                 } else {
                     (&node.b, &node.a)
                 };
+                self.query_recursive(
+                    index,
+                    (depth + 1) % D,
+                    own,
+                    dim_radius_squared,
+                    original_radius_squared,
+                    distances,
+                    results,
+                );
+                // dbg!(&node);
                 let dist = own_pos - node.split;
                 let dist_squared = dist.powi(2);
                 if dist_squared < original_radius_squared as f32 {
                     let d_2 = dist - distances[depth];
                     let x = 2. * distances[depth] * d_2 + d_2.powi(2);
                     let mut reduced_radius = dim_radius_squared;
-                    // if d_2 > 0. {
                     distances[depth] += dist;
                     reduced_radius -= x;
-                    // }
+
                     self.query_recursive(
                         index,
                         (depth + 1) % D,
@@ -181,19 +185,9 @@ impl<'a, const D: usize> ATree<'a, D> {
                         results,
                     );
                 }
-                self.query_recursive(
-                    index,
-                    (depth + 1) % D,
-                    own,
-                    dim_radius_squared,
-                    original_radius_squared,
-                    distances,
-                    results,
-                );
             }
-            Layer::Leaf(items) => {
-                dbg!(items);
-                for &i in self.node_ids[items.offset..items.offset + items.len].iter() {
+            Layer::Leaf(snn) => {
+                for &i in self.node_ids[snn.offset..snn.offset + snn.len].iter() {
                     let other_pos = self.position(i);
                     let distance_squared = other_pos.distance_squared(self.position(index)) as f64;
                     if distance_squared < original_radius_squared {
