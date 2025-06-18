@@ -4,9 +4,14 @@ use crate::{
     query::{self, Graph, Position, SpatialIndex, Update},
 };
 
+const LEAFSIZE: usize = 500;
+
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
+    pub position_sorted: Vec<DVec<D>>,
+    pub node_ids: Vec<usize>,
+    pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
     layer: Layer,
 }
@@ -38,7 +43,15 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
         self.positions = postions.to_vec();
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
-        self.layer = Layer::new(node_ids.as_mut_slice(), 0, self);
+        self.layer = Layer::new(node_ids.as_mut_slice(), 0, self, 0);
+        self.node_ids = node_ids;
+        // let d = (self.positions.len() / LEAFSIZE).ilog2() as usize % D;
+        // self.position_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
+        // self.d_pos = self
+        //     .node_ids
+        //     .iter()
+        //     .map(|id| self.position(*id)[d])
+        //     .collect();
     }
 }
 
@@ -49,36 +62,51 @@ struct Node {
     b: Box<Layer>,
 }
 
+#[derive(Clone, Debug)]
+struct Snn {
+    offset: usize,
+    len: usize,
+}
+
 #[derive(Clone)]
 enum Layer {
     Node(Node),
-    Leaf(Vec<NodeId>),
+    Leaf(Snn),
 }
 
 impl Layer {
-    fn new<const D: usize>(nodes: &mut [NodeId], depth: usize, atree: &ATree<D>) -> Self {
-        if nodes.len() <= 40 {
-            return Self::Leaf(nodes.to_vec());
+    fn new<const D: usize>(
+        nodes: &mut [NodeId],
+        depth: usize,
+        atree: &ATree<D>,
+        offset: usize,
+    ) -> Self {
+        if nodes.len() <= LEAFSIZE {
+            return Self::Leaf(Snn {
+                offset,
+                len: nodes.len(),
+            });
         }
 
-        let mut sorted: Vec<_> = nodes
-            .iter()
-            .map(|&i| (i, atree.positions[i][depth]))
-            .collect();
-        sorted.sort_unstable_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
         nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
 
-        let mut split_pos = sorted.len() / 2;
+        // nodes.sort_unstable_by(|a, b| {
+        //     atree.position(*a)[depth]
+        //         .partial_cmp(&atree.position(*b)[depth])
+        //         .unwrap()
+        // });
 
-        let split = sorted[split_pos].1;
-        while split_pos != 0 && sorted[split_pos - 1].1 == split {
+        let mut split_pos = nodes.len() / 2;
+
+        let split = atree.position(split_pos)[depth];
+        while split_pos != 0 && atree.position(split_pos - 1)[depth] == split {
             split_pos -= 1;
         }
 
-        let (a_ids, b_ids) = nodes.split_at_mut(nodes.len() / 2);
+        let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
 
-        let a = Layer::new(a_ids, (depth + 1) % D, atree);
-        let b = Layer::new(b_ids, (depth + 1) % D, atree);
+        let a = Layer::new(a_ids, (depth + 1) % D, atree, offset);
+        let b = Layer::new(b_ids, (depth + 1) % D, atree, offset + split_pos);
 
         let node = Node {
             split,
@@ -94,7 +122,10 @@ impl<'a, const D: usize> ATree<'a, D> {
         let mut line_lsh = ATree {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
-            layer: Layer::Leaf(Vec::new()),
+            layer: Layer::Leaf(Snn { offset: 0, len: 0 }),
+            position_sorted: Vec::new(),
+            node_ids: Vec::new(),
+            d_pos: Vec::new(),
         };
         line_lsh.update_positions(&embedding.positions);
         line_lsh
@@ -161,7 +192,8 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(items) => {
-                for &i in items {
+                dbg!(items);
+                for &i in self.node_ids[items.offset..items.offset + items.len].iter() {
                     let other_pos = self.position(i);
                     let distance_squared = other_pos.distance_squared(self.position(index)) as f64;
                     if distance_squared < original_radius_squared {
