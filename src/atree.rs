@@ -201,9 +201,9 @@ impl<'a, const D: usize> ATree<'a, D> {
                 for i in (snn.offset)..(snn.offset + snn.len) {
                     // for i in (min_i + snn.offset)..(snn.offset + snn.len) {
                     let p = self.d_pos[i];
-                    if p > max {
-                        break;
-                    }
+                    // if p > max {
+                    //     break;
+                    // }
                     if self.node_ids[i] == index {
                         continue;
                     }
