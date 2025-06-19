@@ -9,7 +9,7 @@ const LEAFSIZE: usize = 500;
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
-    pub position_sorted: Vec<DVec<D>>,
+    pub positions_sorted: Vec<DVec<D>>,
     pub node_ids: Vec<usize>,
     pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
@@ -46,13 +46,12 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         self.layer = Layer::new(node_ids.as_mut_slice(), 0, self, 0);
         self.node_ids = node_ids;
         let d = (self.positions.len() / LEAFSIZE).ilog2() as usize % D;
-        self.position_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
+        self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
         self.d_pos = self
             .node_ids
             .iter()
             .map(|id| self.position(*id)[d])
             .collect();
-        // dbg!(&self.d_pos);
     }
 }
 
@@ -118,7 +117,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
             layer: Layer::Leaf(Snn { offset: 0, len: 0 }),
-            position_sorted: Vec::new(),
+            positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
         };
@@ -165,7 +164,6 @@ impl<'a, const D: usize> ATree<'a, D> {
                     distances,
                     results,
                 );
-                // dbg!(&node);
                 let dist = own_pos - node.split;
                 let dist_squared = dist.powi(2);
                 if dist_squared < original_radius_squared as f32 {
@@ -174,6 +172,9 @@ impl<'a, const D: usize> ATree<'a, D> {
                     let mut reduced_radius = dim_radius_squared;
                     distances[depth] += dist;
                     reduced_radius -= x;
+                    if reduced_radius <= 0. {
+                        return;
+                    }
 
                     self.query_recursive(
                         index,
@@ -187,13 +188,42 @@ impl<'a, const D: usize> ATree<'a, D> {
                 }
             }
             Layer::Leaf(snn) => {
-                for &i in self.node_ids[snn.offset..snn.offset + snn.len].iter() {
-                    let other_pos = self.position(i);
-                    let distance_squared = other_pos.distance_squared(self.position(index)) as f64;
-                    if distance_squared < original_radius_squared {
-                        results.push(i);
+                let dim_diff_squared = distances[depth].powi(2);
+                let radius_sqrt = (dim_radius_squared as f32 + dim_diff_squared).sqrt();
+                // dbg!(dim_diff_squared, radius_sqrt);
+                let min = own_pos - radius_sqrt;
+                let max = own_pos + radius_sqrt;
+                let min_i = self.d_pos[snn.offset..(snn.offset + snn.len)]
+                    .binary_search_by(|a| min.partial_cmp(a).unwrap())
+                    .unwrap_or(0);
+
+                // for i in 0..(snn.ids.len()) {
+                for i in (snn.offset)..(snn.offset + snn.len) {
+                    // for i in (min_i + snn.offset)..(snn.offset + snn.len) {
+                    let p = self.d_pos[i];
+                    if p > max {
+                        break;
+                    }
+                    if self.node_ids[i] == index {
+                        continue;
+                    }
+                    let other_pos = self.positions_sorted[i];
+                    // if self.weight(snn.ids[i]) > self.weight(index) {
+                    //     continue;
+                    // }
+                    if self.position(index).distance_squared(&other_pos)
+                        <= original_radius_squared as f32
+                    {
+                        results.push(self.node_ids[i]);
                     }
                 }
+                // for i in snn.offset..(snn.offset + snn.len) {
+                //     let other_pos = self.positions_sorted[i];
+                //     let distance_squared = other_pos.distance_squared(self.position(index)) as f64;
+                //     if distance_squared < original_radius_squared {
+                //         results.push(self.node_ids[i]);
+                //     }
+                // }
             }
         }
     }
