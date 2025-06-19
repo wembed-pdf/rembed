@@ -47,6 +47,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         self.node_ids = node_ids;
         let d = (self.positions.len() / LEAFSIZE).ilog2() as usize % D;
         self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
+        println!("creating d_pos array with depth: {d}");
         self.d_pos = self
             .node_ids
             .iter()
@@ -214,6 +215,13 @@ impl<'a, const D: usize> ATree<'a, D> {
                     if self.position(index).distance_squared(&other_pos)
                         <= original_radius_squared as f32
                     {
+                        if p < min || p > max {
+                            println!("found {p} which is not in bounds {min}..{max}");
+                            println!("own_pos: {:?}", self.position(index));
+                            println!("other_pos: {other_pos:?}");
+                            println!("depth: {depth}");
+                            panic!();
+                        }
                         results.push(self.node_ids[i]);
                     }
                 }
