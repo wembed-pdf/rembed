@@ -58,10 +58,13 @@ struct Node {
     b: Box<Layer>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 struct Snn {
     offset: usize,
     len: usize,
+    lut: Vec<usize>,
+    min: f32,
+    resolution: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -87,9 +90,24 @@ impl Layer {
             {
                 *d_pos = pos[depth];
             }
+            let mut lut = vec![];
+            let min = d_pos[0].floor();
+            let max = d_pos.last().unwrap().ceil();
+            let resolution = 50. / (max - min) as f32;
+            for i in 0..(((max - min) as f32 * resolution) as i32) {
+                let pos_idx = d_pos
+                    .iter()
+                    .take_while(|&&x| x < ((i as f32 / resolution) + min) as f32)
+                    .count();
+                lut.push(pos_idx);
+            }
+
             return Self::Leaf(Snn {
                 offset,
                 len: nodes.len(),
+                lut,
+                min: d_pos[0].floor(),
+                resolution,
             });
         }
 
@@ -120,7 +138,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         let mut line_lsh = ATree {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
-            layer: Layer::Leaf(Snn { offset: 0, len: 0 }),
+            layer: Layer::Leaf(Snn::default()),
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
@@ -198,9 +216,12 @@ impl<'a, const D: usize> ATree<'a, D> {
                 // dbg!(dim_diff_squared, radius_sqrt);
                 let min = own_pos - radius_sqrt;
                 let max = own_pos + radius_sqrt;
-                let min_i = self.d_pos[snn.offset..(snn.offset + snn.len)]
-                    .binary_search_by(|a| min.partial_cmp(a).unwrap())
-                    .unwrap_or(0);
+                let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
+                let min_i = snn.lut[idx];
+
+                // let min_i = self.d_pos[snn.offset..(snn.offset + snn.len)]
+                //     .binary_search_by(|a| min.partial_cmp(a).unwrap())
+                //     .unwrap_or(0);
 
                 // for i in 0..(snn.ids.len()) {
                 // for i in (snn.offset)..(snn.offset + snn.len) {
