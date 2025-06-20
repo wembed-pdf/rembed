@@ -4,7 +4,7 @@ use crate::{
     query::{self, Graph, Position, SpatialIndex, Update},
 };
 
-const LEAFSIZE: usize = 500;
+const LEAFSIZE: usize = 50;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
@@ -209,23 +209,23 @@ impl<'a, const D: usize> ATree<'a, D> {
                     if p > max {
                         break;
                     }
-                    if self.node_ids[i] == index {
-                        continue;
-                    }
+                    // if p == own_pos && self.node_ids[i] == index {
+                    //     continue;
+                    // }
                     let other_pos = self.positions_sorted[i];
-                    // if self.weight(snn.ids[i]) > self.weight(index) {
+                    // if self.weight(self.node_ids[i]) > self.weight(index) {
                     //     continue;
                     // }
                     if self.position(index).distance_squared(&other_pos)
                         <= original_radius_squared as f32
                     {
-                        if p < min || p > max {
-                            println!("found {p} which is not in bounds {min}..{max}");
-                            println!("own_pos: {:?}", self.position(index));
-                            println!("other_pos: {other_pos:?}");
-                            println!("depth: {depth}");
-                            panic!();
-                        }
+                        // if p < min || p > max {
+                        //     println!("found {p} which is not in bounds {min}..{max}");
+                        //     println!("own_pos: {:?}", self.position(index));
+                        //     println!("other_pos: {other_pos:?}");
+                        //     println!("depth: {depth}");
+                        //     panic!();
+                        // }
                         results.push(self.node_ids[i]);
                     }
                 }
