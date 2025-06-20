@@ -43,16 +43,11 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
     fn update_positions(&mut self, postions: &[DVec<D>]) {
         self.positions = postions.to_vec();
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
-        self.layer = Layer::new(node_ids.as_mut_slice(), 0, self, 0);
+        let mut d_pos = vec![0.; node_ids.len()];
+        self.layer = Layer::new(node_ids.as_mut_slice(), d_pos.as_mut_slice(), 0, self, 0);
         self.node_ids = node_ids;
-        let d = (self.positions.len() / LEAFSIZE).ilog2() as usize % D;
         self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
-        println!("creating d_pos array with depth: {d}");
-        self.d_pos = self
-            .node_ids
-            .iter()
-            .map(|id| self.position(*id)[d])
-            .collect();
+        self.d_pos = d_pos;
     }
 }
 
@@ -78,6 +73,7 @@ enum Layer {
 impl Layer {
     fn new<const D: usize>(
         nodes: &mut [NodeId],
+        d_pos: &mut [f32],
         depth: usize,
         atree: &ATree<D>,
         offset: usize,
@@ -85,6 +81,12 @@ impl Layer {
         nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
 
         if nodes.len() <= LEAFSIZE {
+            for (d_pos, pos) in d_pos
+                .iter_mut()
+                .zip(nodes.iter().map(|id| atree.position(*id)))
+            {
+                *d_pos = pos[depth];
+            }
             return Self::Leaf(Snn {
                 offset,
                 len: nodes.len(),
@@ -99,9 +101,10 @@ impl Layer {
         }
 
         let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
+        let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos);
 
-        let a = Layer::new(a_ids, (depth + 1) % D, atree, offset);
-        let b = Layer::new(b_ids, (depth + 1) % D, atree, offset + split_pos);
+        let a = Layer::new(a_ids, a_dpos, (depth + 1) % D, atree, offset);
+        let b = Layer::new(b_ids, b_dpos, (depth + 1) % D, atree, offset + split_pos);
 
         let node = Node {
             split,
@@ -189,6 +192,7 @@ impl<'a, const D: usize> ATree<'a, D> {
                 }
             }
             Layer::Leaf(snn) => {
+                // dbg!(snn, depth);
                 let dim_diff_squared = distances[depth].powi(2);
                 let radius_sqrt = (dim_radius_squared as f32 + dim_diff_squared).sqrt();
                 // dbg!(dim_diff_squared, radius_sqrt);
@@ -199,12 +203,12 @@ impl<'a, const D: usize> ATree<'a, D> {
                     .unwrap_or(0);
 
                 // for i in 0..(snn.ids.len()) {
-                for i in (snn.offset)..(snn.offset + snn.len) {
-                    // for i in (min_i + snn.offset)..(snn.offset + snn.len) {
+                // for i in (snn.offset)..(snn.offset + snn.len) {
+                for i in (min_i + snn.offset)..(snn.offset + snn.len) {
                     let p = self.d_pos[i];
-                    // if p > max {
-                    //     break;
-                    // }
+                    if p > max {
+                        break;
+                    }
                     if self.node_ids[i] == index {
                         continue;
                     }
