@@ -66,6 +66,9 @@ enum Commands {
         /// List of datastructures to bench
         #[arg(long)]
         structures: Option<Vec<String>>,
+        /// Skip running of unit tests
+        #[arg(long)]
+        skip_test: bool,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -156,15 +159,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             benchmarks,
             structures,
             allow_dirty,
+            skip_test,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
 
-            let test_manager = CorrectnessTestManager::new(pool.clone());
-            test_manager
-                .run_tests(false, false, Some(1), None, None, true, Vec::new())
-                .await?;
+            if !skip_test {
+                let test_manager = CorrectnessTestManager::new(pool.clone());
+                test_manager
+                    .run_tests(false, false, Some(1), None, None, true, Vec::new())
+                    .await?;
+            }
 
             let n_range = match n {
                 Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
