@@ -1,4 +1,8 @@
-use std::{ops::Deref, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+    sync::Arc,
+};
 
 use criterion::Criterion;
 use rembed::{Embedding, NodeId, graph::Graph, parsing::Iterations};
@@ -315,6 +319,32 @@ impl LoadData {
         .fetch_optional(&self.pool)
         .await.map(|x|x.is_some())?)
     }
+    async fn skip_list(
+        &self,
+        result_id: i64,
+        code_state_id: i64,
+    ) -> Result<HashSet<Measurement>, sqlx::Error> {
+        // Store measurement result
+        sqlx::query_as!(
+            Measurement,
+            r#"
+                SELECT benchmark_type, iteration_number as iteration FROM measurements
+                WHERE code_state_id = $1 AND result_id = $2 AND hostname = $3
+                "#,
+            code_state_id,
+            result_id,
+            self.hostname,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map(|x| x.into_iter().collect())
+    }
+}
+
+#[derive(Hash, PartialEq, Eq)]
+struct Measurement {
+    benchmark_type: String,
+    iteration: i32,
 }
 struct BenchmarkArgs<'a> {
     graph: &'a Graph,
@@ -373,17 +403,35 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         println!("Empty embedding, skipping");
         return;
     }
+    let mut data_structures = if let Some(structures) = structures {
+        rembed::data_structures(&embeddings[0].1)
+            .filter(|s| structures.contains(&s.name()))
+            .collect()
+    } else {
+        rembed::data_structures(&embeddings[0].1).collect::<Vec<_>>()
+    };
+    let mut code_states = HashMap::new();
+    for structure in &mut data_structures {
+        if let Ok(Some(code_state)) = load_data
+            .repo_code_manager
+            .get_code_state(&structure.name(), &structure.checksum())
+            .await
+        {
+            let Ok(skiplist) = load_data
+                .skip_list(result_id, code_state.code_state_id)
+                .await
+            else {
+                continue;
+            };
+            code_states.insert(structure.name(), (code_state, skiplist));
+        }
+    }
 
     for &(iteration, ref embedding) in embeddings {
+        for structure in &mut data_structures {
+            structure.update_positions(&embedding.positions);
+        }
         let mut group = c.benchmark_group(format!("result_{result_id}@{iteration}_dim-{D}"));
-
-        let data_structures = if let Some(structures) = structures {
-            rembed::data_structures(embedding)
-                .filter(|s| structures.contains(&s.name()))
-                .collect()
-        } else {
-            rembed::data_structures(embedding).collect::<Vec<_>>()
-        };
 
         let process_results = |m: MeasurementResult, ty: &BenchmarkType| BenchmarkResult {
             benchmark_type: *ty,
@@ -398,22 +446,11 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
             async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
                 for structure in &data_structures {
                     if load_data.store {
-                        if let Ok(Some(code_state)) = load_data
-                            .repo_code_manager
-                            .get_code_state(&structure.name(), &structure.checksum())
-                            .await
-                        {
-                            if let Ok(true) = load_data
-                                .measurement_exists(
-                                    result_id,
-                                    code_state.code_state_id,
-                                    *benchmark_type,
-                                    iteration as u64,
-                                )
-                                .await
-                            {
-                                // TODO: check if
-                                // println!("skipping previously recorded run");
+                        if let Some((code_state, skiplist)) = code_states.get(&structure.name()) {
+                            if skiplist.contains(&Measurement {
+                                benchmark_type: benchmark_type.as_str().to_owned(),
+                                iteration: iteration as i32,
+                            }) {
                                 continue;
                             }
                         }
