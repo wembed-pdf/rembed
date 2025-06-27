@@ -178,7 +178,6 @@ impl LoadData {
 
                 handle.block_on(local.run_until(async move {
                     while let Some(result) = queue.pop() {
-                        prog.inc(1);
                         if let Err(e) = load_data
                             .bench_embedding(
                                 only_last_iteration,
@@ -191,6 +190,7 @@ impl LoadData {
                         {
                             println!("error while benchmarking {e}");
                         }
+                        prog.inc(1);
                     }
                 }));
             });
