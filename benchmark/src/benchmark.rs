@@ -205,7 +205,7 @@ impl LoadData {
         data_directory: &str,
         result: sqlx::postgres::PgRow,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut c = Criterion::default().with_output_color(true);
+        let mut c = Criterion::default().with_output_color(true).without_plots();
         let pos_path: String = result.get::<String, _>("pos_path");
         let pos_path = format!("{data_directory}/{}", pos_path);
         let graph_path: String = result.get::<String, _>("graph_path");
@@ -226,8 +226,8 @@ impl LoadData {
                 result_id: result.get("result_id"),
                 embedding_path: &pos_path,
                 only_last_iteration,
-                benchmarks: benchmarks,
-                structures: structures,
+                benchmarks,
+                structures,
                 load_data: self,
             },
             &mut c,
