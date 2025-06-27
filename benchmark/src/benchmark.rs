@@ -155,6 +155,7 @@ impl LoadData {
         } else {
             concurrency
         };
+        let prog = crate::create_progress_bar(queue.len());
 
         let queue = Arc::new(queue);
         let mut handles = Vec::new();
@@ -165,6 +166,7 @@ impl LoadData {
             let structures = structures.clone();
             let data_directory = data_directory.clone();
             let load_data = self.clone();
+            let prog = prog.clone();
 
             let handle = tokio::task::spawn_blocking(move || {
                 let handle = tokio::runtime::Handle::current();
@@ -172,6 +174,7 @@ impl LoadData {
 
                 handle.block_on(local.run_until(async move {
                     while let Some(result) = queue.pop() {
+                        prog.inc(1);
                         if let Err(e) = load_data
                             .bench_embedding(
                                 only_last_iteration,
@@ -410,7 +413,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                                 .await
                             {
                                 // TODO: check if
-                                println!("skipping previously recorded run");
+                                // println!("skipping previously recorded run");
                                 continue;
                             }
                         }
