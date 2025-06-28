@@ -174,7 +174,7 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
 
         let query_radius = query_radius.powi(2) as f32;
         for (i, pos) in &self.projected[start..end] {
-            if i != &index && pos.distance_squared(&projected_position) <= query_radius {
+            if i != &index && pos.distance_squared(&projected_position) <= query_radius + 0.0001 {
                 result.push(*i);
             }
         }
