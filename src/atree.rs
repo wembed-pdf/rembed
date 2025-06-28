@@ -143,7 +143,9 @@ impl<'a, const D: usize> ATree<'a, D> {
             node_ids: Vec::new(),
             d_pos: Vec::new(),
         };
-        line_lsh.update_positions(&embedding.positions);
+        if !line_lsh.positions.is_empty() {
+            line_lsh.update_positions(&embedding.positions);
+        }
         line_lsh
     }
     fn light_nn(&self, index: usize, radius: f64) -> Vec<usize> {
@@ -217,6 +219,9 @@ impl<'a, const D: usize> ATree<'a, D> {
                 let min = own_pos - radius_sqrt;
                 let max = own_pos + radius_sqrt;
                 let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
+                if snn.lut.is_empty() {
+                    return;
+                }
                 let min_i = snn.lut[idx];
 
                 // let min_i = self.d_pos[snn.offset..(snn.offset + snn.len)]

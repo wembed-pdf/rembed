@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use benchmark::generate_positions::PositionGenerator;
 use benchmark::job_manager::JobManager;
-use benchmark::{GraphGenerator, pull_files, push_files};
+use benchmark::{GraphGenerator, push_files};
 
 #[derive(Parser)]
 #[command(name = "benchmark")]

@@ -19,6 +19,18 @@ pub struct CorrectnessTestManager {
     pool: Pool<Postgres>,
     data_directory: String,
 }
+macro_rules! dispatch_dim {
+    ($self:ident, $dim:expr, $graph:ident, $pos_path:ident, dims: [ $($c_dim:literal,)* ]) => {
+        match  $dim {
+            $($c_dim => $self.generate_test_dynamic::<$c_dim>(&$graph, &$pos_path).await?,)*
+            _ => {
+                return Err(
+                    format!("Unsupported embedding dimension: {}", $dim).into(),
+                );
+            }
+        }
+    };
+}
 
 impl CorrectnessTestManager {
     pub fn new(pool: Pool<Postgres>) -> Self {
@@ -50,18 +62,13 @@ impl CorrectnessTestManager {
             result.dim_hint as usize,
         )?;
 
-        let iterations = match result.embedding_dim {
-            2 => self.generate_test_dynamic::<2>(&graph, &pos_path).await?,
-            4 => self.generate_test_dynamic::<4>(&graph, &pos_path).await?,
-            8 => self.generate_test_dynamic::<8>(&graph, &pos_path).await?,
-            16 => self.generate_test_dynamic::<16>(&graph, &pos_path).await?,
-            32 => self.generate_test_dynamic::<32>(&graph, &pos_path).await?,
-            _ => {
-                return Err(
-                    format!("Unsupported embedding dimension: {}", result.embedding_dim).into(),
-                );
-            }
-        };
+        let iterations = dispatch_dim!(
+            self,
+            result.embedding_dim,
+            graph,
+            pos_path,
+            dims: [2, 3,4,5,6,7,8,9,10,11,12,13,14,15,16,32,]
+        );
 
         // Generate test file path
         let test_filename = format!("test_result_{}.bin", result_id);

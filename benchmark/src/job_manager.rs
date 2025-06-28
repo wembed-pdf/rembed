@@ -141,7 +141,8 @@ impl JobManager {
         // let dimensions = [2, 4, 8, 16, 32];
         // let dimensions = [2, 4, 8];
         // let dimensions = [2, 4, 8, 16];
-        let dimensions = [2, 4, 8, 16, 32];
+        // let dimensions = [2, 4, 8, 16, 32];
+        let dimensions = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let max_iterations = 1000;
         let seed = 42; // Fixed seed for reproducibility
         let mut job_count = 0;
@@ -171,9 +172,11 @@ impl JobManager {
     }
 
     pub async fn create_missing_jobs(&self) -> Result<i32, sqlx::Error> {
-        let graphs = sqlx::query!("SELECT graph_id FROM graphs where n < 300000")
-            .fetch_all(&self.pool)
-            .await?;
+        let graphs = sqlx::query!(
+            "SELECT graph_id FROM graphs where  deg = 15 AND ple = 2.5 and alpha > 1000"
+        )
+        .fetch_all(&self.pool)
+        .await?;
         let mut total_created = 0;
         let pb = crate::create_progress_bar(graphs.len());
         for graph in graphs {

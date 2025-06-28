@@ -297,28 +297,6 @@ impl LoadData {
 
         Ok(())
     }
-    async fn measurement_exists(
-        &self,
-        result_id: i64,
-        code_state_id: i64,
-        benchmark_type: BenchmarkType,
-        iteration: u64,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
-        // Store measurement result
-        Ok(sqlx::query!(
-            r#"
-                SELECT measurement_id FROM measurements
-                WHERE code_state_id = $1 AND result_id = $2 AND iteration_number = $3 AND benchmark_type = $4 AND hostname = $5
-                "#,
-            code_state_id,
-            result_id,
-            iteration as i32,
-            benchmark_type.as_str(),
-            self.hostname,
-        )
-        .fetch_optional(&self.pool)
-        .await.map(|x|x.is_some())?)
-    }
     async fn skip_list(
         &self,
         result_id: i64,
@@ -356,15 +334,19 @@ struct BenchmarkArgs<'a> {
     load_data: &'a LoadData,
 }
 
+macro_rules! dispatch_dim {
+    ($dim:ident, $args:ident, $c:ident, $($c_dim:literal,)*) => {
+        match  $dim {
+            $($c_dim => load_and_run::<$c_dim>($args, $c).await,)*
+            _ => panic!("dim {} not covered",$dim),
+        }
+    };
+}
+
 async fn load_and_run_dynamic(dim: u8, args: BenchmarkArgs<'_>, c: &mut Criterion) {
-    match dim {
-        2 => load_and_run::<2>(args, c).await,
-        4 => load_and_run::<4>(args, c).await,
-        8 => load_and_run::<8>(args, c).await,
-        16 => load_and_run::<16>(args, c).await,
-        32 => load_and_run::<32>(args, c).await,
-        _ => panic!("dim {dim} not covered",),
-    }
+    dispatch_dim!(
+        dim, args, c, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 32,
+    )
 }
 
 async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion) {
@@ -446,7 +428,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
             async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
                 for structure in &data_structures {
                     if load_data.store {
-                        if let Some((code_state, skiplist)) = code_states.get(&structure.name()) {
+                        if let Some((_, skiplist)) = code_states.get(&structure.name()) {
                             if skiplist.contains(&Measurement {
                                 benchmark_type: benchmark_type.as_str().to_owned(),
                                 iteration: iteration as i32,
