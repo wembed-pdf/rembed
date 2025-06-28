@@ -177,6 +177,9 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
                 let min = pos - radius_sqrt;
                 let max = pos + radius_sqrt;
                 let idx = (((min - snn.offset) * snn.resolution) as usize).min(snn.lut.len() - 1);
+                if snn.lut.is_empty() {
+                    return;
+                }
                 let min_i = snn.lut[idx];
 
                 // for i in 0..(snn.ids.len()) {
