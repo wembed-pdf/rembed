@@ -41,12 +41,12 @@ impl JobManager {
     }
 
     pub async fn claim_next_job(&self) -> Result<Option<PositionJob>, sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
-
         // Cleanup stale jobs
         sqlx::query!(
             "UPDATE position_jobs SET status = 'pending', claimed_at = NULL, claimed_by_hostname = NULL WHERE status = 'running' AND claimed_at < NOW() - INTERVAL '2 hours'"
-        ).execute(&mut *tx).await?;
+        ).execute(&self.pool).await?;
+
+        let mut tx = self.pool.begin().await?;
 
         // Claim next job
         let job = sqlx::query!(
