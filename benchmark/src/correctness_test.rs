@@ -114,7 +114,7 @@ impl CorrectnessTestManager {
         for embedding in embeddings {
             let mut iteration_results = Vec::new();
             for node_id in 0..embedding.positions.len() {
-                let neighbors = embedding.nearest_neighbors(node_id, 1.0);
+                let neighbors = embedding.nearest_neighbors_owned(node_id, 1.0);
                 iteration_results.push(neighbors);
             }
             all_results.push(iteration_results);

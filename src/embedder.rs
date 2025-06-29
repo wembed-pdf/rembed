@@ -1,3 +1,5 @@
+use crossbeam::channel::{Receiver, Sender};
+
 use crate::{
     NodeId,
     dvec::DVec,
@@ -100,6 +102,11 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     old_positions: Vec<DVec<D>>,
     positions_log: Vec<(u64, Vec<DVec<D>>)>,
 
+    // Helpers for symmetricfication
+    node_results_sender: Vec<Sender<NodeId>>,
+    node_results_receiver: Vec<Receiver<NodeId>>,
+    query_cache: Vec<Vec<NodeId>>,
+
     // Spatial index
     spatial_index: SI,
 
@@ -140,12 +147,24 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         // Extract weights from graph
         let weights: Vec<f64> = (0..n).map(|node| spatial_index.weight(node)).collect();
 
+        let mut node_results_sender = Vec::with_capacity(n);
+        let mut node_results_receiver = Vec::with_capacity(n);
+
+        for _ in 0..n {
+            let (tx, rx) = crossbeam::channel::unbounded();
+            node_results_sender.push(tx);
+            node_results_receiver.push(rx);
+        }
+
         Self {
             positions,
             weights,
             forces: vec![DVec::zero(); n],
             old_positions: vec![DVec::zero(); n],
             positions_log: Vec::new(),
+            node_results_sender,
+            node_results_receiver,
+            query_cache: vec![Vec::with_capacity(10); n],
             spatial_index,
             optimizer: AdamOptimizer::new(n, learning_rate, cooling_factor),
             options,
@@ -253,39 +272,53 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
     fn calculate_repulsion_forces(&mut self) {
         // Stage 1: Query nearest neighbors for all nodes in parallel
-        let mut repelling_candidates: Vec<Vec<NodeId>> = (0..self.positions.len())
+        (0..self.positions.len())
             .into_par_iter()
-            .map(|v| {
+            .zip(self.query_cache.par_iter_mut())
+            .for_each(|(v, cache)| {
+                cache.clear();
                 // Find nearby nodes that might repel
-                let mut candidates = self.spatial_index.repelling_nodes(v);
+                self.spatial_index.repelling_nodes(v, cache);
 
-                candidates.sort_unstable();
-                candidates.dedup();
+                cache.sort_unstable();
+                cache.dedup();
 
-                candidates
-            })
-            .collect();
+                for candidate in cache {
+                    self.node_results_sender[*candidate].send(v).unwrap();
+                }
+            });
 
-        for (i, candidates) in repelling_candidates.clone().iter().enumerate() {
-            for candidate in candidates {
-                repelling_candidates[*candidate].push(i);
-            }
-        }
+        // for (i, candidates) in repelling_candidates.clone().iter().enumerate() {
+        //     for candidate in candidates {
+        //         repelling_candidates[*candidate].push(i);
+        //     }
+        // }
 
-        repelling_candidates.par_iter_mut().for_each(|candidates| {
-            candidates.sort_unstable();
-            candidates.dedup();
-        });
+        // self.node_results_receiver
+        //     .par_iter_mut()
+        //     .for_each(|candidates| {
+        //         candidates.sort_unstable();
+        //         candidates.dedup();
+        //     });
+        self.node_results_receiver
+            .par_iter()
+            .zip(self.query_cache.par_iter_mut())
+            .for_each(|(candidates, cache)| {
+                cache.extend(candidates.clone().try_iter());
+                cache.sort_unstable();
+                cache.dedup();
+            });
 
         // Stage 2: Calculate repulsion forces in parallel
-        let new_forces: Vec<DVec<D>> = repelling_candidates
+        let new_forces: Vec<DVec<D>> = self
+            .query_cache
             .par_iter()
             .enumerate()
-            .map(|(v, candidates)| {
+            .map(|(v, results)| {
                 let mut force = self.forces[v]; // Start with existing attraction force
 
                 // Add repulsion forces from all candidates
-                for &u in candidates {
+                for &u in results {
                     let f = self.repulsion_force(v, u);
                     force += f;
                 }

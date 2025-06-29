@@ -41,7 +41,7 @@ impl<'a, const D: usize> Clone for VPTree<'a, D> {
         Self {
             positions: self.positions.clone(),
             graph: self.graph,
-            vptree: vptree,
+            vptree,
         }
     }
 }
@@ -107,12 +107,10 @@ impl<'a, const D: usize> Update<D> for VPTree<'a, D> {
 }
 
 impl<'a, const D: usize> Query for VPTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
         let scaled_radius_squared = (radius * own_weight.powi(2)) as f32;
-
-        let mut results = Vec::with_capacity(16);
 
         let query_point = DataPoint {
             index,
@@ -135,8 +133,6 @@ impl<'a, const D: usize> Query for VPTree<'a, D> {
             .for_each(|nn| {
                 results.push(nn.item.index);
             });
-
-        results
     }
 }
 

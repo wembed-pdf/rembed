@@ -63,12 +63,10 @@ impl<'a, const D: usize> Update<D> for KDTree<'a, D> {
 }
 
 impl<'a, const D: usize> Query for KDTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
         let scaled_radius_squared = (radius * own_weight.powi(4)) as f32;
-
-        let mut results = Vec::with_capacity(16);
 
         self.tree
             .within(
@@ -92,8 +90,6 @@ impl<'a, const D: usize> Query for KDTree<'a, D> {
                     }
                 }
             });
-
-        results
     }
 }
 

@@ -106,6 +106,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
         b.iter_custom(|iters| {
             let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
+            let mut results = Vec::with_capacity(100);
             samples.start();
             for mut structure in data_structures {
                 match benchmark_type {
@@ -114,8 +115,9 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                     }
                     _ => {
                         for &i in query_list {
-                            let result = structure.nearest_neighbors(i, 1.);
-                            std::hint::black_box(result);
+                            results.clear();
+                            structure.nearest_neighbors(i, 1., &mut results);
+                            std::hint::black_box(&results);
                         }
                     }
                 }

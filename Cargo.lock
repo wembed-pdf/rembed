@@ -2160,6 +2160,7 @@ dependencies = [
  "acap",
  "ball-tree",
  "criterion 0.5.1",
+ "crossbeam",
  "fnntw",
  "kdtree",
  "kiddo",

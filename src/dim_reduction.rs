@@ -1,3 +1,5 @@
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
@@ -105,14 +107,22 @@ impl<const D: usize> Layer<D> {
         let max = node_index().max().unwrap_or(0);
 
         let mut temp_buckets = vec![vec![]; (-min) as usize + max as usize + 1];
-        let mut buckets = Vec::with_capacity(temp_buckets.len());
         for (&node_id, bucket) in nodes.iter().zip(node_index()) {
             temp_buckets[(bucket - min) as usize].push(node_id);
         }
 
-        for nodes in temp_buckets {
-            buckets.push(Self::new(depth + 1, &nodes, positions));
-        }
+        let buckets = if depth < 1 {
+            temp_buckets
+                .par_iter()
+                .map(|nodes| Self::new(depth + 1, nodes, positions))
+                .collect()
+        } else {
+            temp_buckets
+                .iter()
+                .map(|nodes| Self::new(depth + 1, nodes, positions))
+                .collect()
+        };
+
         Layer::Lsh(LineLsh {
             offset: min,
             buckets,
@@ -129,10 +139,8 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
         line_lsh.update_positions(&embedding.positions);
         line_lsh
     }
-    fn light_nn(&self, index: usize, radius: f64) -> Vec<usize> {
-        let mut results = Vec::new();
-        self.query_recursive(index, 0, &self.layer, radius, radius, &mut results);
-        results
+    fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+        self.query_recursive(index, 0, &self.layer, radius, radius, results);
     }
     fn query_recursive(
         &self,
@@ -206,8 +214,8 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
 }
 
 impl<const D: usize> Query for LayeredLsh<'_, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        self.light_nn(index, radius * self.weight(index).powi(4))
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+        self.light_nn(index, radius * self.weight(index).powi(4), results)
     }
 }
 impl<const D: usize> SpatialIndex<D> for LayeredLsh<'_, D> {

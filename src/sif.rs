@@ -100,12 +100,10 @@ impl<'a, const D: usize> Update<D> for SIF<'a, D> {
 }
 
 impl<'a, const D: usize> Query for SIF<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
         let scaled_radius = radius * own_weight.powi(2);
-
-        let mut results = Vec::with_capacity(16);
 
         // Convert own_position to [f64; D]
         let own_position_f64: [f64; D] = own_position.components.map(|x| x as f64);
@@ -126,7 +124,6 @@ impl<'a, const D: usize> Query for SIF<'a, D> {
                 std::ops::ControlFlow::Continue::<()>(())
             },
         );
-        results
     }
 }
 

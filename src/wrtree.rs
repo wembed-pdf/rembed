@@ -109,14 +109,12 @@ impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
 }
 
 impl<'a, const D: usize> Query for WRTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
 
         let weight_class = compute_weight_class(self, index);
         let radius = radius * own_weight.powi(4);
-
-        let mut results = Vec::with_capacity(16);
 
         for node in
             self.rtrees[weight_class].locate_within_distance(own_position.components, radius as f32)
@@ -133,8 +131,6 @@ impl<'a, const D: usize> Query for WRTree<'a, D> {
                 results.push(node.data);
             }
         }
-
-        results
     }
 }
 impl<'a, const D: usize> SpatialIndex<D> for WRTree<'a, D> {

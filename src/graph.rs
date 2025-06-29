@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::collections::HashSet;
 use std::fs::read_to_string;
 use std::io;
 
@@ -10,6 +11,7 @@ use crate::NodeId;
 pub struct Node {
     pub weight: f64,
     pub neighbors: Vec<usize>,
+    pub neighbors_set: HashSet<usize>,
 }
 
 // A graph structure
@@ -73,11 +75,14 @@ impl Graph {
                 weight: ((node_degree[i] as f64).powf(dim_ratio) * weight_norm)
                     .powf(1. / embedding_dim as f64),
                 neighbors: Vec::new(),
+                neighbors_set: HashSet::new(),
             });
         });
         for (u, v) in graph.edges.iter() {
             graph.nodes[*u].neighbors.push(*v);
+            graph.nodes[*u].neighbors_set.insert(*v);
             graph.nodes[*v].neighbors.push(*u);
+            graph.nodes[*v].neighbors_set.insert(*u);
         }
 
         // TODO: Sort nodes by degree and reassign indices
@@ -87,7 +92,7 @@ impl Graph {
 
 impl crate::query::Graph for Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
-        self.nodes[first].neighbors.contains(&second)
+        self.nodes[first].neighbors_set.contains(&second)
     }
     fn neighbors(&self, index: NodeId) -> &[NodeId] {
         &self.nodes[index].neighbors

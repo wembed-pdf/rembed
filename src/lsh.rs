@@ -94,11 +94,11 @@ impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
 }
 
 impl<const D: usize> Query for Lsh<'_, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         if self.weight(index) >= self.weight_threshold {
-            self.heavy_nn(index, radius)
+            self.heavy_nn(index, radius, results)
         } else {
-            self.light_nn(index)
+            self.light_nn(index, results)
         }
     }
 }
@@ -125,8 +125,7 @@ impl<'a, const D: usize> Lsh<'a, D> {
         new
     }
 
-    fn heavy_nn(&self, index: usize, radius: f64) -> Vec<usize> {
-        let mut output = Vec::new();
+    fn heavy_nn(&self, index: usize, radius: f64, output: &mut Vec<NodeId>) {
         let graph = self.graph;
         let positions = &self.positions;
         let own_weight = graph.nodes[index].weight;
@@ -142,12 +141,9 @@ impl<'a, const D: usize> Lsh<'a, D> {
                 output.push(i);
             }
         }
-        output
     }
 
-    fn light_nn(&self, index: usize) -> Vec<usize> {
-        // let mut neighbors = HashSet::with_capacity(1000);
-        let mut neighbors = Vec::with_capacity(100);
+    fn light_nn(&self, index: usize, neighbors: &mut Vec<NodeId>) {
         let spatial_maps =
             nbig_box(self.position(index), 0, DIM_CHUNK_SIZE).flat_map(|x| self.map.get(&x));
         let own_pos = self.position(index);
@@ -161,11 +157,9 @@ impl<'a, const D: usize> Lsh<'a, D> {
             if nbig_box(self.position(index), DIM_CHUNK_SIZE, DIM_CHUNK_SIZE).count()
                 > spatial_map.len() * 20
             {
-                // println!("short circuting second level");
                 for list in spatial_map.values() {
                     for node in list.leaf().unwrap() {
                         if own_pos.distance_squared(self.position(*node)) <= 1. {
-                            // neighbors.insert(*node);
                             neighbors.push(*node);
                         }
                     }
@@ -173,18 +167,14 @@ impl<'a, const D: usize> Lsh<'a, D> {
             }
             let lists = nbig_box(self.position(index), DIM_CHUNK_SIZE, DIM_CHUNK_SIZE)
                 .flat_map(|x| spatial_map.get(&x));
-            // println!("new_list");
             for list in lists {
-                // dbg!(list.leaf());
                 for node in list.leaf().unwrap() {
                     if own_pos.distance_squared(self.position(*node)) <= 1. {
-                        // neighbors.insert(*node);
                         neighbors.push(*node);
                     }
                 }
             }
         }
-        neighbors.into_iter().collect()
     }
 }
 

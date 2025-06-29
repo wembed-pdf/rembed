@@ -121,8 +121,10 @@ impl Layer {
         let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
         let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos);
 
-        let a = Layer::new(a_ids, a_dpos, (depth + 1) % D, atree, offset);
-        let b = Layer::new(b_ids, b_dpos, (depth + 1) % D, atree, offset + split_pos);
+        let (a, b) = rayon::join(
+            || Layer::new(a_ids, a_dpos, (depth + 1) % D, atree, offset),
+            || Layer::new(b_ids, b_dpos, (depth + 1) % D, atree, offset + split_pos),
+        );
 
         let node = Node {
             split,
@@ -148,8 +150,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         }
         line_lsh
     }
-    fn light_nn(&self, index: usize, radius: f64) -> Vec<usize> {
-        let mut results = Vec::new();
+    fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         self.query_recursive(
             index,
             0,
@@ -157,9 +158,8 @@ impl<'a, const D: usize> ATree<'a, D> {
             radius as f32,
             radius,
             DVec::zero(),
-            &mut results,
+            results,
         );
-        results
     }
     fn query_recursive(
         &self,
@@ -268,8 +268,12 @@ impl<'a, const D: usize> ATree<'a, D> {
 }
 
 impl<const D: usize> Query for ATree<'_, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        self.light_nn(index, (radius * self.weight(index).powi(2)).powi(2))
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
+        self.light_nn(
+            index,
+            (radius * self.weight(index).powi(2)).powi(2),
+            results,
+        )
     }
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {

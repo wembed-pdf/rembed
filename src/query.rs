@@ -1,3 +1,5 @@
+use rand::seq::IteratorRandom;
+
 use crate::{Embedding, NodeId, dvec::DVec};
 
 pub trait Graph {
@@ -39,15 +41,29 @@ pub trait SpatialIndex<const D: usize>: Query + Update<D> + Graph + Position<D> 
     }
 }
 
+// struct Statistics {
+//     nodes_queried: usize,
+//     branches: usize,
+//     dist_checks: usize,
+//     final_radius:
+// }
+
 pub trait Query {
     /// Return the list of neighbors in a given radius. You are allowed to return results asymmetricallys e.g only nodes to the left of you
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize>;
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>);
+    fn nearest_neighbors_owned(&self, index: usize, radius: f64) -> Vec<NodeId> {
+        let mut results = Vec::new();
+        self.nearest_neighbors(index, radius, &mut results);
+        results
+    }
+    // fn nearest_neighbors_instrumented(&self, _index: usize, _radius: f64, _stats: &mut Statistics) {
+    // }
 
     /// Runs a batch of nn queries and makes the result symmetric
     fn nearest_neighbors_batched(&self, indices: &[usize]) -> Vec<Vec<usize>> {
         let mut results = vec![vec![]; indices.len()];
         for &index in indices {
-            for other_node_id in self.nearest_neighbors(index, 1.) {
+            for other_node_id in self.nearest_neighbors_owned(index, 1.) {
                 results[other_node_id].push(index);
                 results[index].push(other_node_id);
             }
@@ -65,22 +81,17 @@ pub trait Update<const D: usize> {
 }
 
 pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> {
-    fn calculate_step(&mut self, dt: f64) {
-        todo!("Not implemented yet {}", dt);
-    }
-    fn repelling_nodes(&self, index: usize) -> Vec<usize> {
-        let mut result = self.nearest_neighbors(index, 1.);
+    fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
+        self.nearest_neighbors(index, 1., result);
         let pos = self.position(index);
         let weight = self.weight(index);
-        // todo consider graph edges
+
         result.retain(|&x| {
             index != x
                 && !self.is_connected(index, x)
                 && (self.position(x).distance_squared(pos) as f64)
                     < (weight * self.weight(x)).powi(2)
         });
-
-        result
     }
     fn attracting_nodes(&self, index: usize) -> Vec<usize> {
         self.neighbors(index).to_vec()
@@ -95,5 +106,43 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
             positions: Vec::new(),
             graph,
         })
+    }
+
+    fn graph_statistics(&self) -> (f64, f64) {
+        let ids: Vec<_> = (0..(self.num_nodes())).collect();
+        let results = self.nearest_neighbors_batched(&ids);
+        let mut found_edges = 0;
+        let mut missed_edges = 0;
+        let mut found_non_edges = 0;
+        for (i, nodes) in results
+            .iter()
+            .enumerate()
+            .choose_multiple(&mut rand::rng(), 500)
+        {
+            for node in nodes {
+                if self.is_connected(i, *node) {
+                    found_edges += 1;
+                } else if (self.position(i).distance_squared(self.position(*node)) as f64)
+                    < (self.weight(*node) * self.weight(i)).powi(2)
+                {
+                    found_non_edges += 1;
+                }
+                for neighbor in self.neighbors(i) {
+                    if nodes.contains(neighbor) {
+                        continue;
+                    }
+                    missed_edges += 1;
+                }
+            }
+        }
+
+        (
+            found_edges as f64 / (found_edges + missed_edges) as f64,
+            found_edges as f64 / (found_edges + found_non_edges) as f64,
+        )
+    }
+    fn f1(&self) -> f64 {
+        let (percision, recall) = self.graph_statistics();
+        2. / (recall.recip() + percision.recip())
     }
 }

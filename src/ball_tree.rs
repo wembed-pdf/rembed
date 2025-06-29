@@ -66,7 +66,7 @@ impl<'a, const D: usize> Update<D> for WBallTree<'a, D> {
 }
 
 impl<'a, const D: usize> Query for WBallTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
         let scaled_radius_squared = (radius * own_weight.powi(2)) as f32;
@@ -74,7 +74,6 @@ impl<'a, const D: usize> Query for WBallTree<'a, D> {
         let mut query = self.ball_tree.query();
 
         let query_position: [f64; D] = own_position.components.map(|x| x as f64);
-        let mut result = Vec::new();
         query
             .nn_within(&query_position, scaled_radius_squared as f64)
             .into_iter()
@@ -85,10 +84,9 @@ impl<'a, const D: usize> Query for WBallTree<'a, D> {
                 if own_position.distance_squared(other_pos)
                     <= (own_weight * other_weight).powi(2) as f32
                 {
-                    result.push(data);
+                    results.push(data);
                 }
             });
-        result
     }
 }
 

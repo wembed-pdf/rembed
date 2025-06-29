@@ -38,8 +38,7 @@ impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
 }
 
 impl<const D: usize> Query for Embedding<'_, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
-        let mut output = Vec::new();
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let graph = self.graph;
         let own_weight = self.weight(index);
         let own_position = self.position(index);
@@ -54,10 +53,9 @@ impl<const D: usize> Query for Embedding<'_, D> {
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
             if (distance as f64) < weight.powi(2) * radius {
-                output.push(i);
+                results.push(i);
             }
         }
-        output
     }
 }
 impl<const D: usize> SpatialIndex<D> for Embedding<'_, D> {

@@ -139,10 +139,8 @@ impl<'a, const D: usize> Update<D> for SNN<'a, D> {
 }
 
 impl<'a, const D: usize> Query for SNN<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64) -> Vec<usize> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, result: &mut Vec<NodeId>) {
         let query_radius = radius * self.weight(index).powi(2);
-
-        let mut result = Vec::new();
 
         // project the position of the index
         let pos_vec =
@@ -178,8 +176,6 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
                 result.push(*i);
             }
         }
-
-        result
     }
 }
 impl<'a, const D: usize> SpatialIndex<D> for SNN<'a, D> {
