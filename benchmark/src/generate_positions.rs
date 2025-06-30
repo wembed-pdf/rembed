@@ -98,12 +98,25 @@ impl PositionGenerator {
         Ok(())
     }
 
-    pub async fn show_status(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn show_summary_status(&self) -> Result<(), Box<dyn std::error::Error>> {
         let (pending, running, completed, failed) = self.job_manager.get_job_stats().await?;
         println!(
             "Jobs: {} pending, {} running, {} completed, {} failed",
             pending, running, completed, failed
         );
+        Ok(())
+    }
+
+    pub async fn show_detailed_status(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let running_jobs = self.job_manager.get_running_jobs().await?;
+        println!("");
+        println!("Running jobs:");
+        for (hostname, duration, embedding_dim, n, graph_id) in running_jobs {
+            println!(
+                "Job on {}: {}, dim: {}, n: {}, graph_id: {}",
+                hostname, duration, embedding_dim, n, graph_id
+            );
+        }
         Ok(())
     }
 }

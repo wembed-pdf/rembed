@@ -77,7 +77,11 @@ enum Commands {
     GeneratePositions,
 
     /// Show job queue status
-    Status,
+    Status {
+        /// Show detailed status information
+        #[arg(short, action)]
+        v: bool,
+    },
 
     /// Create position generation jobs for a graph
     CreateJobs {
@@ -258,7 +262,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             generator.run_daemon().await?;
         }
 
-        Commands::Status => {
+        Commands::Status { v } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
@@ -270,7 +274,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 job_manager,
             );
 
-            generator.show_status().await?;
+            generator.show_summary_status().await?;
+
+            if v {
+                generator.show_detailed_status().await?;
+            }
         }
 
         Commands::CreateJobs { graph_id } => {

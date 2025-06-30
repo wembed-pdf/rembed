@@ -230,4 +230,61 @@ impl JobManager {
             result.failed.unwrap_or(0),
         ))
     }
+
+    // For all running jobs: hostname, duration_claimed, embedding_dim, n, graph_id
+    pub async fn get_running_jobs(
+        &self,
+    ) -> Result<Vec<(String, String, i32, i32, i64)>, sqlx::Error> {
+        let results = sqlx::query!(
+            r#"
+            SELECT 
+                claimed_by_hostname,
+                claimed_at,
+                embedding_dim,
+                n,
+                graph_id
+            FROM position_jobs
+            JOIN graphs USING (graph_id)
+            WHERE status = 'running'
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let now = Utc::now();
+        let mut running_jobs = Vec::new();
+        for result in results {
+            let duration_claimed_delta = match result.claimed_at {
+                Some(claimed_at) => now.signed_duration_since(claimed_at),
+                None => chrono::Duration::zero(),
+            };
+
+            let duration_claimed = format!(
+                "{}:{:02}:{:02}",
+                duration_claimed_delta.num_hours(),
+                duration_claimed_delta.num_minutes() % 60,
+                duration_claimed_delta.num_seconds() % 60
+            );
+
+            let mut duration_claimed = String::new();
+            if duration_claimed_delta.num_hours() > 0 {
+                duration_claimed.push_str(&format!("{}h ", duration_claimed_delta.num_hours()));
+            }
+            if duration_claimed_delta.num_minutes() > 0 {
+                duration_claimed
+                    .push_str(&format!("{}m ", duration_claimed_delta.num_minutes() % 60));
+            }
+            duration_claimed.push_str(&format!("{}s", duration_claimed_delta.num_seconds() % 60));
+
+            running_jobs.push((
+                result.claimed_by_hostname.unwrap_or_default(),
+                duration_claimed,
+                result.embedding_dim,
+                result.n,
+                result.graph_id,
+            ));
+        }
+
+        Ok(running_jobs)
+    }
 }
