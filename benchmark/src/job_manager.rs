@@ -41,13 +41,7 @@ impl JobManager {
     }
 
     pub async fn claim_next_job(&self) -> Result<Option<PositionJob>, sqlx::Error> {
-        // Cleanup stale jobs
-        sqlx::query!(
-            "UPDATE position_jobs SET status = 'pending', claimed_at = NULL, claimed_by_hostname = NULL WHERE status = 'running' AND claimed_at < NOW() - INTERVAL '2 hours'"
-        ).execute(&self.pool).await?;
-
         let mut tx = self.pool.begin().await?;
-
         // Claim next job
         let job = sqlx::query!(
             r#"
@@ -173,7 +167,7 @@ impl JobManager {
 
     pub async fn create_missing_jobs(&self) -> Result<i32, sqlx::Error> {
         let graphs = sqlx::query!(
-            "SELECT graph_id FROM graphs where  deg = 15 AND ple = 2.5 and alpha > 1000"
+            "SELECT graph_id FROM graphs where  deg = 15 AND ple = 2.5 and alpha > 1000 and n <= 100000"
         )
         .fetch_all(&self.pool)
         .await?;
