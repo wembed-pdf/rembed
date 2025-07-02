@@ -259,13 +259,6 @@ impl JobManager {
                 None => chrono::Duration::zero(),
             };
 
-            let duration_claimed = format!(
-                "{}:{:02}:{:02}",
-                duration_claimed_delta.num_hours(),
-                duration_claimed_delta.num_minutes() % 60,
-                duration_claimed_delta.num_seconds() % 60
-            );
-
             let mut duration_claimed = String::new();
             if duration_claimed_delta.num_hours() > 0 {
                 duration_claimed.push_str(&format!("{}h ", duration_claimed_delta.num_hours()));
