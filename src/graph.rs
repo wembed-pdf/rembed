@@ -91,12 +91,15 @@ impl Graph {
 }
 
 impl crate::query::Graph for Graph {
+    #[track_caller]
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
         self.nodes[first].neighbors_set.contains(&second)
     }
+    #[track_caller]
     fn neighbors(&self, index: NodeId) -> &[NodeId] {
         &self.nodes[index].neighbors
     }
+    #[track_caller]
     fn weight(&self, index: NodeId) -> f64 {
         self.nodes[index].weight
     }

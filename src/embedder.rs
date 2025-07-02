@@ -271,6 +271,10 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     }
 
     fn calculate_repulsion_forces(&mut self) {
+        println!("gpu");
+        self.spatial_index
+            .nearest_neighbors_batched(&(0..self.positions.len()).collect::<Vec<_>>());
+        println!("cpu");
         // Stage 1: Query nearest neighbors for all nodes in parallel
         (0..self.positions.len())
             .into_par_iter()
@@ -287,6 +291,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
                     self.node_results_sender[*candidate].send(v).unwrap();
                 }
             });
+        println!("done");
 
         // for (i, candidates) in repelling_candidates.clone().iter().enumerate() {
         //     for candidate in candidates {

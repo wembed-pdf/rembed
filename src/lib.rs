@@ -9,6 +9,7 @@ pub mod ball_tree;
 pub mod dim_reduction;
 pub mod dvec;
 pub mod embedding;
+pub mod gpu_brute_force;
 pub mod graph;
 pub mod kd_tree;
 pub mod kiddo;
@@ -56,6 +57,8 @@ pub fn data_structures<'a, const D: usize>(
             as Box<dyn IndexClone<D> + 'a>,
         Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(gpu_brute_force::GpuBruteForce::<D>::new(embedding.clone()))
+            as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter();
 
