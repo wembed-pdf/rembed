@@ -392,6 +392,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
     } else {
         rembed::data_structures(&embeddings[0].1).collect::<Vec<_>>()
     };
+
     let mut code_states = HashMap::new();
     for structure in &mut data_structures {
         if let Ok(Some(code_state)) = load_data

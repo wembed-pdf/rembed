@@ -1,3 +1,5 @@
+use nalgebra::RealField;
+
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
@@ -189,27 +191,24 @@ impl<'a, const D: usize> ATree<'a, D> {
                     results,
                 );
                 let dist = own_pos - node.split;
-                let dist_squared = dist.powi(2);
-                if dist_squared < original_radius_squared as f32 {
-                    let d_2 = dist - distances[depth];
-                    let x = 2. * distances[depth] * d_2 + d_2.powi(2);
-                    let mut reduced_radius = dim_radius_squared;
-                    distances[depth] += dist;
-                    reduced_radius -= x;
-                    if reduced_radius <= 0. {
-                        return;
-                    }
-
-                    self.query_recursive(
-                        index,
-                        (depth + 1) % D,
-                        other,
-                        reduced_radius,
-                        original_radius_squared,
-                        distances,
-                        results,
-                    );
+                let d_2 = dist - distances[depth];
+                let x = 2. * distances[depth] * d_2 + d_2.powi(2);
+                let mut reduced_radius = dim_radius_squared;
+                distances[depth] = dist;
+                reduced_radius -= x;
+                if reduced_radius <= 0. {
+                    return;
                 }
+
+                self.query_recursive(
+                    index,
+                    (depth + 1) % D,
+                    other,
+                    reduced_radius,
+                    original_radius_squared,
+                    distances,
+                    results,
+                );
             }
             Layer::Leaf(snn) => {
                 // dbg!(snn, depth);
