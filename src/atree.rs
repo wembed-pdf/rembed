@@ -16,6 +16,7 @@ pub struct ATree<'a, const D: usize> {
     pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
     layer: Layer,
+    layers: Vec<Layer>,
 }
 
 impl<const D: usize> crate::query::Graph for ATree<'_, D> {
@@ -46,7 +47,18 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         self.positions = postions.to_vec();
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
         let mut d_pos = vec![0.; node_ids.len()];
-        self.layer = Layer::new(node_ids.as_mut_slice(), d_pos.as_mut_slice(), 0, self, 0);
+        let mut layers = std::mem::take(&mut self.layers);
+        assert_eq!(layers.len(), node_ids.len());
+        Layer::new(
+            node_ids.as_mut_slice(),
+            d_pos.as_mut_slice(),
+            &mut layers,
+            0,
+            0,
+            self,
+            0,
+        );
+        self.layers = layers;
         self.node_ids = node_ids;
         self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
         self.d_pos = d_pos;
@@ -56,8 +68,6 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
 #[derive(Clone, Debug)]
 struct Node {
     split: f32,
-    a: Box<Layer>,
-    b: Box<Layer>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -79,10 +89,12 @@ impl Layer {
     fn new<const D: usize>(
         nodes: &mut [NodeId],
         d_pos: &mut [f32],
+        layers: &mut [Layer],
         depth: usize,
+        layer_id: usize,
         atree: &ATree<D>,
         offset: usize,
-    ) -> Self {
+    ) {
         nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
 
         if nodes.len() <= LEAFSIZE {
@@ -104,13 +116,14 @@ impl Layer {
                 lut.push(pos_idx);
             }
 
-            return Self::Leaf(Snn {
+            layers[layer_id] = Self::Leaf(Snn {
                 offset,
                 len: nodes.len(),
                 lut,
                 min: d_pos[0].floor(),
                 resolution,
             });
+            return;
         }
 
         let mut split_pos = nodes.len() / 2;
@@ -123,18 +136,25 @@ impl Layer {
         let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
         let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos);
 
-        let (a, b) = rayon::join(
-            || Layer::new(a_ids, a_dpos, (depth + 1) % D, atree, offset),
-            || Layer::new(b_ids, b_dpos, (depth + 1) % D, atree, offset + split_pos),
+        let (a_id, b_id) = children(layer_id);
+
+        Layer::new(a_ids, a_dpos, layers, (depth + 1) % D, a_id, atree, offset);
+        Layer::new(
+            b_ids,
+            b_dpos,
+            layers,
+            (depth + 1) % D,
+            b_id,
+            atree,
+            offset + split_pos,
         );
 
-        let node = Node {
-            split,
-            a: Box::new(a),
-            b: Box::new(b),
-        };
-        Self::Node(node)
+        let node = Node { split };
+        layers[layer_id] = Self::Node(node);
     }
+}
+fn children(index: usize) -> (usize, usize) {
+    (index * 2 + 1, index * 2 + 2)
 }
 
 impl<'a, const D: usize> ATree<'a, D> {
@@ -146,6 +166,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
+            layers: vec![Layer::Node(Node { split: 0. }); embedding.positions.len()],
         };
         if !line_lsh.positions.is_empty() {
             line_lsh.update_positions(&embedding.positions);
@@ -153,33 +174,27 @@ impl<'a, const D: usize> ATree<'a, D> {
         line_lsh
     }
     fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        self.query_recursive(
-            index,
-            0,
-            &self.layer,
-            radius as f32,
-            radius,
-            DVec::zero(),
-            results,
-        );
+        self.query_recursive(index, 0, 0, radius as f32, radius, DVec::zero(), results);
     }
     fn query_recursive(
         &self,
         index: usize,
         depth: usize,
-        layer: &Layer,
+        layer_id: usize,
         dim_radius_squared: f32,
         original_radius_squared: f64,
         mut distances: DVec<D>,
         results: &mut Vec<NodeId>,
     ) {
+        let layer = &self.layers[layer_id];
         let own_pos = self.position(index)[depth];
         match layer {
             Layer::Node(node) => {
+                let (left, right) = children(layer_id);
                 let (own, other) = if own_pos < node.split {
-                    (&node.a, &node.b)
+                    (left, right)
                 } else {
-                    (&node.b, &node.a)
+                    (right, left)
                 };
                 self.query_recursive(
                     index,
