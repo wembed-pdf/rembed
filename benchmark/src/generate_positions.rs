@@ -3,6 +3,7 @@ use rembed::Embedding;
 use rembed::atree::ATree;
 use rembed::dim_reduction::LayeredLsh;
 use rembed::embedder::{EmbedderOptions, WEmbedder};
+use rembed::neighbourhood::Neihbourhood;
 use rembed::query::{Embedder, SpatialIndex};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
@@ -159,7 +160,7 @@ fn run_embedding_dynamic(
         13 => run_embedding::<13, LayeredLsh<13>>(seed, graph, options, output_path),
         14 => run_embedding::<14, LayeredLsh<14>>(seed, graph, options, output_path),
         15 => run_embedding::<15, LayeredLsh<15>>(seed, graph, options, output_path),
-        16 => run_embedding::<16, ATree<16>>(seed, graph, options, output_path),
+        16 => run_embedding::<16, Neihbourhood<16>>(seed, graph, options, output_path),
         32 => run_embedding::<32, Embedding<32>>(seed, graph, options, output_path),
         _ => unreachable!("not compiled for dim {dim}"),
     }
