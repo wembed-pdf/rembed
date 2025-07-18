@@ -34,7 +34,10 @@ pub trait SpatialIndex<const D: usize>: Query + Update<D> + Graph + Position<D> 
 
     fn checksum(&self) -> String {
         use sha2::Digest;
-        let common_files = concat![include_str!("dvec.rs")];
+        let common_files = concat![
+            include_str!("dvec.rs"),
+            include_str!("../.cargo/config.toml")
+        ];
         let implementation = self.implementation_string();
         let hasher = sha2::Sha256::new().chain_update(common_files);
         format!("{:x}", hasher.chain_update(implementation).finalize())
