@@ -436,6 +436,7 @@ fn half_log10(start: f64, end: f64) -> Vec<i32> {
             }
             let current = *state as i32;
             *state *= 10f64.powf(0.25);
+            *state = state.ceil();
             Some(current)
         })
         .collect()

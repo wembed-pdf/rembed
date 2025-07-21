@@ -1,4 +1,5 @@
 pub mod benchmark;
+pub mod cleanup;
 pub mod code_state;
 pub mod correctness_test;
 mod generate_graphs;

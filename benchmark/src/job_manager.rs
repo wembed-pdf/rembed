@@ -167,7 +167,7 @@ impl JobManager {
 
     pub async fn create_missing_jobs(&self) -> Result<i32, sqlx::Error> {
         let graphs = sqlx::query!(
-            "SELECT graph_id FROM graphs where  deg = 15 AND ple = 2.5 and alpha > 1000 and n <= 100000"
+            "SELECT graph_id FROM graphs where  deg = 15  and alpha > 1000 and n <= 100000"
         )
         .fetch_all(&self.pool)
         .await?;

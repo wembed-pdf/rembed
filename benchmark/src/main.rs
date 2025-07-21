@@ -102,6 +102,13 @@ enum Commands {
         failed: bool,
     },
 
+    /// Clean up orphaned files not referenced in database
+    CleanupFiles {
+        /// Perform dry run without actually deleting files
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Generate correctness test file for a specific result
     GenerateTest {
         /// Result ID to generate test for
@@ -330,6 +337,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
                 println!("Cleaned up {} stale jobs", cleaned.unwrap_or(0));
             }
+        }
+
+        Commands::CleanupFiles { dry_run } => {
+            let database_url = env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
+            let pool = PgPool::connect(&database_url).await?;
+
+            benchmark::cleanup::cleanup_orphaned_files(&pool, dry_run).await?;
         }
 
         Commands::GenerateTest { result_id } => {
