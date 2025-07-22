@@ -76,6 +76,12 @@ enum Commands {
     /// Generate position embeddings (daemon mode)
     GeneratePositions,
 
+    /// Compute F-Scores for position embeddings
+    FScores {
+        /// Result ID to compute F-Scores for
+        result_id: i64,
+    },
+
     /// Show job queue status
     Status {
         /// Show detailed status information
@@ -267,6 +273,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             generator.run_daemon().await?;
+        }
+
+        Commands::FScores { result_id } => {
+            let statistic_generator = benchmark::statistics::StatisticGenerator::new();
+            statistic_generator.compute_f_scores(result_id).await?;
+            println!("F-Scores computed for result ID: {}", result_id);
         }
 
         Commands::Status { v } => {
