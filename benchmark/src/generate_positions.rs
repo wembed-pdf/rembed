@@ -1,6 +1,5 @@
 use crate::job_manager::{JobManager, PositionJob};
 use rembed::Embedding;
-use rembed::atree::ATree;
 use rembed::dim_reduction::LayeredLsh;
 use rembed::embedder::{EmbedderOptions, WEmbedder};
 use rembed::neighbourhood::Neihbourhood;

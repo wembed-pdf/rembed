@@ -1,5 +1,3 @@
-use nalgebra::RealField;
-
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
@@ -15,7 +13,6 @@ pub struct ATree<'a, const D: usize> {
     pub node_ids: Vec<usize>,
     pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
-    layer: Layer,
     layers: Vec<Layer>,
 }
 
@@ -162,7 +159,6 @@ impl<'a, const D: usize> ATree<'a, D> {
         let mut line_lsh = ATree {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
-            layer: Layer::Leaf(Snn::default()),
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),

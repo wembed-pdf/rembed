@@ -1,8 +1,9 @@
-use rand::seq::IteratorRandom;
+use rembed::Embedding;
+use rembed::atree::ATree;
 use rembed::graph::Graph;
-use rembed::parsing::Iteration;
 use rembed::parsing::Iterations;
 use rembed::parsing::parse_positions_file;
+use rembed::query::Embedder;
 
 pub struct FScore {}
 
@@ -13,69 +14,19 @@ impl StatisticGenerator {
         StatisticGenerator {}
     }
 
-    fn neighbors<const D: usize>(
-        &self,
-        node_id: usize,
-        graph: &Graph,
-        iteration: &Iteration<D>,
-    ) -> Vec<usize> {
-        iteration
-            .positions
-            .iter()
-            .enumerate()
-            .filter_map(|(j, pos)| {
-                if (iteration.positions[node_id].distance_squared(pos) as f64)
-                    < (graph.nodes[j].weight * graph.nodes[node_id].weight).powi(2)
-                {
-                    Some(j)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
     fn graph_statistics<const D: usize>(
         &self,
         graph: &Graph,
         iterations: Iterations<D>,
     ) -> Vec<(f64, f64)> {
-        let num_nodes = graph.nodes.len();
-        let mut found_edges = 0;
-        let mut missed_edges = 0;
-        let mut found_non_edges = 0;
         let mut stats = Vec::new();
-        let mut adjacency_list: Vec<Vec<usize>> = vec![Vec::new(); num_nodes];
-        for edge in &graph.edges {
-            adjacency_list[edge.0].push(edge.1);
-            adjacency_list[edge.1].push(edge.0);
-        }
         for iteration in iterations.iterations() {
-            // let embedding_neighbours = self.neighbors_parallel(graph, iteration.clone());
-            for (i, _) in iteration
-                .positions
-                .iter()
-                .enumerate()
-                .choose_multiple(&mut rand::rng(), 500)
-            {
-                let embedding_neighbours = self.neighbors(i, graph, &iteration);
-                for node in embedding_neighbours.iter() {
-                    if adjacency_list[i].contains(node) {
-                        found_edges += 1;
-                    } else {
-                        found_non_edges += 1;
-                    }
-                }
-                for neighbor in adjacency_list[i].iter() {
-                    if !embedding_neighbours.contains(neighbor) {
-                        missed_edges += 1;
-                    }
-                }
-            }
-            stats.push((
-                found_edges as f64 / (found_edges + missed_edges) as f64,
-                found_edges as f64 / (found_edges + found_non_edges) as f64,
-            ));
+            let embedding = Embedding {
+                positions: iteration.positions.iter().cloned().collect(),
+                graph,
+            };
+            let atree = ATree::new(&embedding);
+            stats.push(atree.graph_statistics());
         }
         stats
     }
