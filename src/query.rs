@@ -117,31 +117,33 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
         let mut found_edges = 0;
         let mut missed_edges = 0;
         let mut found_non_edges = 0;
-        for (i, nodes) in results
+        for (i, close_nodes) in results
             .iter()
             .enumerate()
             .choose_multiple(&mut rand::rng(), 500)
         {
-            for node in nodes {
-                if self.is_connected(i, *node) {
+            for close_node in close_nodes {
+                if self.is_connected(i, *close_node) {
                     found_edges += 1;
-                } else if (self.position(i).distance_squared(self.position(*node)) as f64)
-                    < (self.weight(*node) * self.weight(i)).powi(2)
+                } else if (self
+                    .position(i)
+                    .distance_squared(self.position(*close_node)) as f64)
+                    < (self.weight(*close_node) * self.weight(i)).powi(2)
                 {
                     found_non_edges += 1;
                 }
-                for neighbor in self.neighbors(i) {
-                    if nodes.contains(neighbor) {
-                        continue;
-                    }
-                    missed_edges += 1;
+            }
+            for neighbor in self.neighbors(i) {
+                if close_nodes.contains(neighbor) {
+                    continue;
                 }
+                missed_edges += 1;
             }
         }
 
         (
             found_edges as f64 / (found_edges + missed_edges) as f64,
-            found_edges as f64 / (found_edges + found_non_edges) as f64,
+            found_edges as f64 / (found_edges + found_non_edges).max(1) as f64,
         )
     }
     fn f1(&self) -> f64 {

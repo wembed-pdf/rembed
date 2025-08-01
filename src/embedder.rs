@@ -108,7 +108,7 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     query_cache: Vec<Vec<NodeId>>,
 
     // Spatial index
-    spatial_index: SI,
+    pub spatial_index: SI,
 
     // Optimizer
     optimizer: AdamOptimizer<D>,
@@ -264,6 +264,13 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         if weighted_distance <= 1.0 {
             // Already close enough
             DVec::zero()
+            // This can be used to give nodes a minimal distance
+            // if weighted_distance <= 0.6 {
+            //     -direction
+            //         * (self.options.attraction_scale / (distance as f64 * weight_factor)) as f32
+            // } else {
+            //     DVec::zero()
+            // }
         } else {
             // Attraction force
             direction * (self.options.attraction_scale / (distance as f64 * weight_factor)) as f32
@@ -390,5 +397,176 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     /// Get the current iteration count
     pub fn iteration(&self) -> usize {
         self.iteration
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        Embedding,
+        dvec::DVec,
+        graph::Graph,
+        query::{Embedder, Graph as _},
+    };
+
+    use super::{EmbedderOptions, WEmbedder};
+
+    #[test]
+    fn check_convergence() {
+        let node1 = DVec::new([-0.1, 0.0]);
+        let node2 = DVec::new([0.0, 1.0]);
+        let node3 = DVec::new([0.1, 0.0]);
+
+        let edges = vec![(0, 1), (1, 2)];
+
+        let graph = Graph::from_edge_list(edges, 2, 2).unwrap();
+
+        let embedding = Embedding {
+            positions: vec![node1, node2, node3],
+            graph: &graph,
+        };
+        let mut options = EmbedderOptions::default();
+        options.learning_rate = 1.0;
+
+        let mut embedder = WEmbedder::new(embedding, options);
+
+        for i in 0..1000 {
+            println!("\n\nIteration {i} \n\n");
+            for a in [0, 1, 2] {
+                println!("node {a} pos: {:?}", embedder.positions[a]);
+                for b in [0, 1, 2] {
+                    if b == a {
+                        continue;
+                    }
+                    if graph.is_connected(a, b) {
+                        println!("attraction to {b} {:?}", embedder.attraction_force(a, b));
+                    } else {
+                        println!("repulsion to {b} {:?}", embedder.repulsion_force(a, b));
+                    }
+                }
+            }
+            embedder.calculate_step();
+            let (percision, recall) = embedder.spatial_index.graph_statistics();
+            let f1 = 2. / (recall.recip() + percision.recip());
+            println!("i: , percision: {percision}, recall: {recall}, f1: {f1}");
+            if f1 == 1. {
+                if i > 10 {
+                    panic!();
+                }
+                break;
+            }
+        }
+    }
+    #[test]
+    fn knowledge_graph() {
+        let nodes = [
+            ((0, 0), "Pdf"),
+            ((-1, 0), "Theory"),
+            ((-1, 1), "Seperators"),
+            ((-2, 1), "O(n)"),
+            ((-1, -1), "Lower Bounds"),
+            ((0, -1), "Literature"),
+            ((-1, -2), "Weighted Space"),
+            ((0, -2), "Math. Bounds"),
+            ((1, -2), "Ex. Implementations"),
+            ((1, 0), "Implementation"),
+            ((1, -1), "Symmetric Queries"),
+            ((1, 1), "Optimization"),
+            ((2, 1), "GPU"),
+            ((3, 1), "Dim Reduction"),
+            ((2, 0), "Persistance"),
+            ((3, -1), "Weight classes"),
+            ((2, -1), "Radius Reduction"),
+            ((2, -2), "Grid"),
+            ((3, -2), "Tree"),
+            ((0, 1), "Evaluation"),
+            ((1, 2), "Existing Libs"),
+            ((0, 3), "KD"),
+            ((1, 3), "RTree"),
+            ((2, 3), "BallTree"),
+            ((3, 3), "VP"),
+            ((4, 3), "SNN"),
+            ((-1, 2), "Benchmarking"),
+            ((-2, 2), "Perf Events"),
+            ((-1, 3), "Database"),
+            ((-2, 3), "Testing"),
+            ((-3, 3), "Plotting"),
+        ];
+
+        let edges = vec![
+            (0, 1),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (0, 5),
+            (5, 6),
+            (5, 7),
+            (5, 8),
+            (0, 9),
+            (9, 10),
+            (9, 11),
+            (9, 12),
+            (9, 13),
+            (9, 14),
+            (9, 15),
+            (9, 16),
+            (16, 17),
+            (16, 18),
+            (0, 19),
+            (19, 20),
+            (20, 21),
+            (20, 22),
+            (20, 23),
+            (20, 24),
+            (20, 25),
+            (19, 26),
+            (26, 27),
+            (26, 28),
+            (26, 29),
+            (26, 30),
+        ];
+
+        let graph = Graph::from_edge_list(edges.clone(), 2, 5).unwrap();
+
+        let positions = nodes
+            .iter()
+            .map(|x| [x.0.0 as f32, x.0.1 as f32].into())
+            .collect();
+
+        let embedding = Embedding {
+            positions,
+            graph: &graph,
+        };
+        let mut options = EmbedderOptions::default();
+        options.learning_rate = 0.8;
+        options.repulsion_scale = 6.;
+
+        let mut embedder = WEmbedder::new(embedding, options);
+
+        for i in 0..1000 {
+            embedder.calculate_step();
+            let (percision, recall) = embedder.spatial_index.graph_statistics();
+            let f1 = 2. / (recall.recip() + percision.recip());
+            println!("i: {i}, percision: {percision}, recall: {recall}, f1: {f1}");
+            if f1 == 1. {
+                if i > 600 {
+                    for (i, pos) in embedder.positions.iter().enumerate() {
+                        println!(
+                            "node(({} * scale_x, {} * scale_y), \"{}\", name: <l{}>),",
+                            pos[0], pos[1], nodes[i].1, i
+                        );
+                    }
+                    for (from, to) in &edges {
+                        println!(
+                            "edge(<l{}>, <l{}>), // ({}, {})",
+                            from, to, nodes[*from].1, nodes[*to].1,
+                        )
+                    }
+                    // dbg!(&embedder.positions);
+                    panic!();
+                }
+                break;
+            }
+        }
     }
 }

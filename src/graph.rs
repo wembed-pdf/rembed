@@ -43,8 +43,7 @@ impl Graph {
         embedding_dim: usize,
         latent_dim_hint: usize,
     ) -> io::Result<Self> {
-        let mut graph = Graph::new();
-        graph.edges = read_to_string(file_path)
+        let edges = read_to_string(file_path)
             .unwrap_or_else(|e| panic!("Tried to load file from {file_path}:\n {e:?}"))
             .lines()
             .map(|s| {
@@ -58,6 +57,18 @@ impl Graph {
                 (u, v)
             })
             .collect::<Vec<_>>();
+        Self::from_edge_list(edges, embedding_dim, latent_dim_hint)
+    }
+
+    /// Parses a graph from an edge list.
+    /// The file should contain pairs of integers representing edges.
+    pub fn from_edge_list(
+        edges: Vec<(usize, usize)>,
+        embedding_dim: usize,
+        latent_dim_hint: usize,
+    ) -> io::Result<Self> {
+        let mut graph = Graph::new();
+        graph.edges = edges;
         let mut node_degree = Vec::new();
         for (u, v) in graph.edges.iter() {
             if node_degree.len() <= max(*u, *v) {
