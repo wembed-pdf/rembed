@@ -50,7 +50,7 @@ impl JobManager {
             WHERE job_id = (
                 SELECT job_id FROM position_jobs 
                 WHERE status = 'pending' 
-                ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+                ORDER BY embedding_dim,created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
             )
             RETURNING job_id, graph_id, embedding_dim, dim_hint, max_iterations, seed
             "#,
