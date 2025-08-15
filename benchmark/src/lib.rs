@@ -53,7 +53,7 @@ pub async fn pull_files() -> Result<(), Box<dyn std::error::Error>> {
     println!("Syncing files from: {}", sync_destination);
 
     let status = tokio::process::Command::new("rsync")
-        .arg("-rlvtz")
+        .arg("-rlvt")
         .arg("--progress")
         .arg(&sync_destination)
         .arg(&sync_source)

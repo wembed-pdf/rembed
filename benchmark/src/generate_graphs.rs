@@ -148,14 +148,14 @@ impl GraphGenerator {
         let seeds = generate_seeds();
         // let avg_degrees = [15, 20, 25];
         let avg_degrees = [15];
-        let n_s = half_log10(1000.0, 1_000_005.0);
-        // let dimensions = [2, 3, 4];
-        let dimensions = [4];
+        let n_s = quarter_log10(1000.0, 1_000_005.0);
+        let dimensions = [2, 3, 4];
+        // let dimensions = [4];
         // let ples = [2.2, 2.5, 2.8, 8.];
-        // let power_law_exponents = [2.2, 2.5, 2.8];
-        let power_law_exponents = [2.5];
-        // let alphas = [f64::INFINITY, 2., 1.1];
-        let alphas = [f64::INFINITY];
+        let power_law_exponents = [2.2, 2.5, 2.8];
+        // let power_law_exponents = [2.5];
+        let alphas = [f64::INFINITY, 2., 1.1];
+        // let alphas = [f64::INFINITY];
         let total_graphs = n_s.len()
             * seeds.len()
             * avg_degrees.len()
@@ -428,18 +428,22 @@ fn calculate_file_checksum(file_path: &str) -> Result<String, Box<dyn std::error
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn half_log10(start: f64, end: f64) -> Vec<i32> {
-    (0..)
-        .scan(start, |state, _| {
-            if *state > end {
-                return None;
-            }
-            let current = *state as i32;
-            *state *= 10f64.powf(0.25);
-            *state = state.ceil();
-            Some(current)
-        })
-        .collect()
+fn quarter_log10(start: f64, end: f64) -> Vec<i32> {
+    let log_start = start.log10();
+    let log_end = end.log10();
+
+    let mut result = Vec::new();
+    let mut log_value = (log_start * 4.0).floor() / 4.0; // Round down to nearest quarter
+
+    while log_value <= log_end {
+        let value = 10_f64.powf(log_value);
+        if value >= start && value <= end {
+            result.push(value.round() as i32);
+        }
+        log_value += 0.25;
+    }
+
+    result
 }
 
 fn generate_seeds() -> Vec<Seed> {
@@ -452,4 +456,10 @@ fn generate_seeds() -> Vec<Seed> {
         });
     }
     seeds
+}
+
+#[test]
+fn log_scale() {
+    let n_s = quarter_log10(1000.0, 1_000_005.0);
+    panic!("ns: {:?}", n_s);
 }
