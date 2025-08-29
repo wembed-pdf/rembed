@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Pull => {
-            benchmark::pull_files().await?;
+            benchmark::pull_files(false).await?;
         }
 
         Commands::Push => {
