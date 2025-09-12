@@ -106,7 +106,7 @@ impl<const D: usize> Layer<D> {
         let min = node_index().min().unwrap_or(0);
         let max = node_index().max().unwrap_or(0);
 
-        let mut temp_buckets = vec![vec![]; (-min) as usize + max as usize + 1];
+        let mut temp_buckets = vec![vec![]; (max + 1 - min) as usize];
         for (&node_id, bucket) in nodes.iter().zip(node_index()) {
             temp_buckets[(bucket - min) as usize].push(node_id);
         }

@@ -2,6 +2,7 @@
 members = [
     ".",
     "benchmark",
+    "simulation",
     # "nanoflann"
 ]
 

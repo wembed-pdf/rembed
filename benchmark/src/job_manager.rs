@@ -166,11 +166,9 @@ impl JobManager {
     }
 
     pub async fn create_missing_jobs(&self) -> Result<i32, sqlx::Error> {
-        let graphs = sqlx::query!(
-            "SELECT graph_id FROM graphs where  deg = 15  and alpha > 1000 and n <= 1000000"
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let graphs = sqlx::query!("SELECT graph_id FROM graphs where  deg = 15")
+            .fetch_all(&self.pool)
+            .await?;
         let mut total_created = 0;
         let pb = crate::create_progress_bar(graphs.len());
         for graph in graphs {
