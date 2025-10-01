@@ -174,9 +174,9 @@ fn run_embedding<'a, const D: usize, SI: SpatialIndex<D> + Clone + Sync + Embedd
     let max_iterations = options.max_iterations;
     let mut embedder: WEmbedder<SI, D> = WEmbedder::random(seed, graph, options);
     let progress_bar = crate::create_progress_bar(max_iterations);
-    embedder.embed_with_callback(|i| {
+    embedder.embed_with_callback(|embedder| {
         progress_bar.inc(1);
-        progress_bar.set_message(format!("Iteration {i}"));
+        progress_bar.set_message(format!("Iteration {}", embedder.iteration()));
     });
     let sparse_iterations: Vec<_> = embedder.history().iter().step_by(10).cloned().collect();
 

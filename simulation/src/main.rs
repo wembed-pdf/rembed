@@ -46,7 +46,8 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
     let mut embedder: embedder::WEmbedder<LayeredLsh<_>, D> =
         embedder::WEmbedder::random(42, graph, options);
 
-    embedder.embed_with_callback(|i| {
+    embedder.embed_with_callback(|e| {
+        let i = e.iteration();
         if i % 10 == 0 && i > 0 {
             // eprintln!("Iteration {i}");
         }
