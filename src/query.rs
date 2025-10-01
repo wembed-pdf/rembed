@@ -90,10 +90,9 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
         let weight = self.weight(index);
 
         result.retain(|&x| {
-            index != x
-                && !self.is_connected(index, x)
-                && (self.position(x).distance_squared(pos) as f64)
-                    < (weight * self.weight(x)).powi(2)
+            index != x && !self.is_connected(index, x)
+            // && (self.position(x).distance_squared(pos) as f64)
+            // < (weight * self.weight(x)).powi(2)
         });
     }
     fn attracting_nodes(&self, index: usize) -> Vec<usize> {

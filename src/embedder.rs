@@ -356,7 +356,9 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
         if weighted_distance > 1.0 {
             // Far enough apart
-            DVec::zero()
+            // DVec::zero()
+            (direction / distance)
+                * (weight_factor as f64 * f64::exp((1. - weighted_distance) * 1.) * 0.001) as f32
         } else {
             // Repulsion force
             direction * (self.options.repulsion_scale / (distance as f64 * weight_factor)) as f32
