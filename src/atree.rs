@@ -45,7 +45,9 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
         let mut d_pos = vec![0.; node_ids.len()];
         let mut layers = std::mem::take(&mut self.layers);
-        assert_eq!(layers.len(), node_ids.len());
+        if layers.len() < node_ids.len() {
+            layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
+        }
         Layer::new(
             node_ids.as_mut_slice(),
             d_pos.as_mut_slice(),
