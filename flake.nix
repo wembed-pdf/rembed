@@ -30,7 +30,7 @@
             # Development tools
             gdb
             valgrind
-            gnuplot
+            gnuplot_qt
             clang
             pkgconf
 
