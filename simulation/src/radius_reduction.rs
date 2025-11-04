@@ -30,7 +30,7 @@ pub enum Layer<const D: usize> {
 
 impl<const D: usize> Layer<D> {
     fn new(mut positions: Vec<DVec<D>>, depth: usize) -> Self {
-        if positions.len() <= 1 {
+        if positions.len() <= 150 {
             return Self::BruteForce(positions);
         }
         let dim = depth % D;
@@ -134,6 +134,7 @@ impl<const D: usize> Layer<D> {
 #[derive(Default, Debug)]
 pub struct Statistics {
     pub num_comparionsons: usize,
+    pub actual_matches: usize,
     pub num_splits: usize,
     pub num_reductions: usize,
 }
@@ -178,6 +179,31 @@ impl<const D: usize> DimReduction<D> {
         // println!("final_radius: {}", 1. - spatial_offset.magnitude());
         if let Layer::BruteForce(positions) = layer {
             statistics.num_comparionsons += positions.len();
+            statistics.actual_matches += positions
+                .iter()
+                .filter(|x| x.distance_squared(&pos) < radius.powi(2))
+                .count();
+
+            if positions.len() > 60 {
+                for dp in positions {
+                    let close_enough = dp.distance_squared(&pos) < radius.powi(2);
+                    // "{} {} {} {} {} {} {} {} {}",
+                    println!(
+                        "{} {} {} ",
+                        dp[0],
+                        dp[1],
+                        // dp[2],
+                        // dp[3],
+                        // dp[4],
+                        // dp[5],
+                        // dp[6],
+                        // dp[7],
+                        if close_enough { 0 } else { 1 }
+                    );
+                }
+                panic!();
+            }
+            eprintln!("len: {}", positions.len());
             // return;
         }
 
