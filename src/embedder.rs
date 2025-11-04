@@ -120,7 +120,6 @@ pub struct WEmbedder<SI: Query, const D: usize> {
 
 impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     pub fn random(seed: u64, graph: &'a Graph, options: EmbedderOptions) -> Self {
-        let mut spatial_index = SI::from_graph(graph);
         let n = graph.nodes.len();
 
         // Initialize random positions
@@ -133,7 +132,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
                 DVec::new(components)
             })
             .collect();
-        spatial_index.update_positions(&positions);
+        let spatial_index = SI::new(&crate::Embedding { positions, graph });
 
         Self::new(spatial_index, options)
     }

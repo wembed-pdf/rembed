@@ -8,6 +8,7 @@ pub mod atree;
 pub mod ball_tree;
 pub mod dim_reduction;
 pub mod dvec;
+pub mod dynamic_queries;
 pub mod embedding;
 pub mod graph;
 pub mod kd_tree;

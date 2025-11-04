@@ -17,10 +17,19 @@ pub trait Position<const D: usize> {
 }
 pub trait IndexClone<const D: usize>: SpatialIndex<D> {
     fn clone_box<'a>(&'a self) -> Box<dyn SpatialIndex<D> + 'a>;
+    fn clone_box_cloneable<'a>(&self) -> Box<dyn IndexClone<D> + 'a + Sync>
+    where
+        Self: 'a;
 }
 
-impl<const D: usize, T: Clone + Sized + SpatialIndex<D>> IndexClone<D> for T {
+impl<const D: usize, T: Clone + Sized + SpatialIndex<D> + Sync> IndexClone<D> for T {
     fn clone_box<'a>(&'a self) -> Box<dyn SpatialIndex<D> + 'a> {
+        Box::new(self.clone())
+    }
+    fn clone_box_cloneable<'a>(&self) -> Box<dyn IndexClone<D> + 'a + Sync>
+    where
+        T: 'a,
+    {
         Box::new(self.clone())
     }
 }
