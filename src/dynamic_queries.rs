@@ -67,7 +67,8 @@ impl<'a, const D: usize> query::Update<D> for DynamicQuery<'a, D> {
             .zip(postions)
             .map(|(old, new)| old.distance(new))
             .max_by(|a, b| f32::total_cmp(a, b))
-            .unwrap_or_default() as f64;
+            .unwrap_or_default() as f64
+            * 2.;
 
         self.structure.update_positions(postions);
         self.positions = postions.to_vec();
