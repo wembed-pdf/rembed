@@ -19,7 +19,7 @@ impl<'a, const D: usize> KDTree<'a, D> {
             graph: embedding.graph,
             tree: KdTree::new(0),
         };
-        tree.update_positions(&embedding.positions);
+        tree.update_positions(&embedding.positions, None);
         tree
     }
 }
@@ -49,7 +49,7 @@ impl<'a, const D: usize> Position<D> for KDTree<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for KDTree<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
         self.tree = KdTree::new(D);
         for (i, pos) in self.positions.iter().enumerate() {

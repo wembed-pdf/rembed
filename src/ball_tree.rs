@@ -23,7 +23,7 @@ impl<'a, const D: usize> WBallTree<'a, D> {
             graph: embedding.graph,
             ball_tree: ball_tree,
         };
-        tree.update_positions(&embedding.positions);
+        tree.update_positions(&embedding.positions, None);
         tree
     }
 }
@@ -53,7 +53,7 @@ impl<'a, const D: usize> Position<D> for WBallTree<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for WBallTree<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
         let ball_tree_positions: Vec<[f64; D]> = self
             .positions

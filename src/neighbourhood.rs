@@ -39,7 +39,7 @@ impl<'a, const D: usize> Neihbourhood<'a, D> {
             tree: KdTree::new(vec![[0. as f32; D]; 2]),
             map: HashMap::new(),
         };
-        tree.update_positions(&embedding.positions);
+        tree.update_positions(&embedding.positions, None);
         tree
     }
 }
@@ -69,7 +69,7 @@ impl<'a, const D: usize> Position<D> for Neihbourhood<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for Neihbourhood<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
         self.map.clear();
         let mut points: Vec<[f32; D]> = Vec::with_capacity(self.positions.len());

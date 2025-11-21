@@ -22,7 +22,7 @@ impl<'a, const D: usize> Kiddo<'a, D> {
             kdtree: KdTree::new(),
             max_weights: Vec::new(),
         };
-        tree.update_positions(&embedding.positions);
+        tree.update_positions(&embedding.positions, None);
         tree
     }
 }
@@ -52,7 +52,7 @@ impl<'a, const D: usize> Position<D> for Kiddo<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for Kiddo<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
         self.kdtree = KdTree::new();
         for (i, pos) in self.positions.iter().enumerate() {

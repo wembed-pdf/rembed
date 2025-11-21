@@ -73,7 +73,7 @@ impl<'a, const D: usize> query::Position<D> for Lsh<'a, D> {
     }
 }
 impl<'a, const D: usize> query::Update<D> for Lsh<'a, D> {
-    fn update_positions(&mut self, postions: &[DVec<D>]) {
+    fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
         self.positions = postions.to_vec();
         for (id, pos) in self.positions.iter().enumerate() {
             for rounded_pos in point(pos, 0, DIM_CHUNK_SIZE) {
@@ -121,7 +121,7 @@ impl<'a, const D: usize> Lsh<'a, D> {
             // TODO: use different hash function
             map: HashMap::with_capacity(positions.len()),
         };
-        new.update_positions(&positions);
+        new.update_positions(&positions, None);
         new
     }
 

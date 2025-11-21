@@ -24,7 +24,7 @@ impl<'a, const D: usize> SNN<'a, D> {
             v: SMatrix::<f32, D, D>::identity(),
             max_weights: Vec::new(),
         };
-        snn.update_positions(&embedding.positions);
+        snn.update_positions(&embedding.positions, None);
         snn
     }
 
@@ -58,7 +58,7 @@ impl<'a, const D: usize> Position<D> for SNN<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for SNN<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         // self.v = SMatrix::<f64, D, D>::identity();
         // self.positions = positions.to_vec();
 

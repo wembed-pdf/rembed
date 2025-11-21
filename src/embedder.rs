@@ -1,4 +1,7 @@
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::{
+    channel::{Receiver, Sender},
+    utils::CachePadded,
+};
 
 use crate::{
     NodeId,
@@ -103,8 +106,8 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     positions_log: Vec<(u64, Vec<DVec<D>>)>,
 
     // Helpers for symmetricfication
-    node_results_sender: Vec<Sender<NodeId>>,
-    node_results_receiver: Vec<Receiver<NodeId>>,
+    node_results_sender: Vec<CachePadded<Sender<NodeId>>>,
+    node_results_receiver: Vec<CachePadded<Receiver<NodeId>>>,
     query_cache: Vec<Vec<NodeId>>,
 
     // Spatial index
@@ -116,6 +119,7 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     // Configuration
     options: EmbedderOptions,
     iteration: usize,
+    last_relative_change: Option<f64>,
 }
 
 impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
@@ -151,8 +155,8 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
         for _ in 0..n {
             let (tx, rx) = crossbeam::channel::unbounded();
-            node_results_sender.push(tx);
-            node_results_receiver.push(rx);
+            node_results_sender.push(CachePadded::new(tx));
+            node_results_receiver.push(CachePadded::new(rx));
         }
 
         Self {
@@ -168,6 +172,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
             optimizer: AdamOptimizer::new(n, learning_rate, cooling_factor),
             options,
             iteration: 0,
+            last_relative_change: None,
         }
     }
 
@@ -195,6 +200,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     }
 
     pub fn calculate_step(&mut self) {
+        let update_start = std::time::Instant::now();
         // Save old positions
         self.old_positions.clone_from(&self.positions);
         if self.iteration % 10 == 0 {
@@ -204,20 +210,41 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
         // Clear forces
         self.forces.iter_mut().for_each(|f| *f = DVec::zero());
+        let reset = update_start.elapsed();
 
         // Update spatial index
         self.update_spatial_index();
+        let update_end = update_start.elapsed();
 
         // Calculate forces
         self.calculate_attraction_forces();
+        let attraction_end = update_start.elapsed();
         self.calculate_repulsion_forces();
+        let repulsion_end = update_start.elapsed();
 
         // Update positions
         self.optimizer.update(&mut self.positions, &self.forces);
+        let optimizer_update = update_start.elapsed();
+
+        // if self.iteration % 100 == 0 {
+        //     println!("reset: {}μs", reset.as_micros());
+        //     println!("update index: {}ms", (update_end - reset).as_millis());
+        //     println!(
+        //         "attraction: {}ms",
+        //         (attraction_end - update_end).as_millis()
+        //     );
+        //     println!(
+        //         "repulsion: {}ms",
+        //         (repulsion_end - attraction_end).as_millis()
+        //     );
+        //     println!("adam: {}μs", (optimizer_update - repulsion_end).as_micros());
+        //     println!("total {}ms", update_start.elapsed().as_millis());
+        // }
     }
 
     fn update_spatial_index(&mut self) {
-        self.spatial_index.update_positions(&self.positions);
+        self.spatial_index
+            .update_positions(&self.positions, self.last_relative_change);
     }
 
     fn calculate_attraction_forces(&mut self) {
@@ -362,8 +389,8 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         }
     }
 
-    fn check_convergence(&self) -> bool {
-        let (sum_norm_squared, sum_diff_squared) = self
+    fn check_convergence(&mut self) -> bool {
+        let (sum_norm_squared, sum_diff_squared, max_squared) = self
             .positions
             .iter()
             .zip(&self.old_positions)
@@ -371,15 +398,23 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
                 let diff = *new_pos - *old_pos;
                 (old_pos.magnitude_squared(), diff.magnitude_squared())
             })
-            .fold((0.0, 0.0), |(sum_norm, sum_diff), (norm, diff)| {
-                (sum_norm + norm as f64, sum_diff + diff as f64)
-            });
+            .fold(
+                (0.0, 0.0, 0f64),
+                |(sum_norm, sum_diff, max), (norm, diff)| {
+                    (
+                        sum_norm + norm as f64,
+                        sum_diff + diff as f64,
+                        max.max(diff as f64),
+                    )
+                },
+            );
 
         if sum_norm_squared == 0.0 {
             return false;
         }
 
         let relative_change = sum_diff_squared / sum_norm_squared;
+        self.last_relative_change = Some(max_squared.sqrt());
         relative_change < self.options.min_position_change
     }
 
@@ -401,6 +436,11 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     /// Get the current query_cache
     pub fn query_cache(&self) -> &[Vec<NodeId>] {
         &self.query_cache
+    }
+
+    // Get the current query_cache
+    pub fn last_pos_delta(&self) -> &Option<f64> {
+        &self.last_relative_change
     }
 }
 

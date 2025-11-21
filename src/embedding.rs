@@ -32,7 +32,7 @@ impl<'a, const D: usize> query::Position<D> for Embedding<'a, D> {
     }
 }
 impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
-    fn update_positions(&mut self, postions: &[DVec<D>]) {
+    fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
         self.positions = postions.to_vec();
     }
 }

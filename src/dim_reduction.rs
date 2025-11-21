@@ -59,7 +59,7 @@ impl<'a, const D: usize> query::Position<D> for LayeredLsh<'a, D> {
     }
 }
 impl<'a, const D: usize> query::Update<D> for LayeredLsh<'a, D> {
-    fn update_positions(&mut self, postions: &[DVec<D>]) {
+    fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
         self.positions = postions.to_vec();
         let node_ids: Vec<_> = (0..postions.len()).collect();
         self.layer = Layer::new(0, &node_ids, &self.positions)
@@ -136,7 +136,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
             graph: embedding.graph,
             layer: Layer::Snn(Default::default()),
         };
-        line_lsh.update_positions(&embedding.positions);
+        line_lsh.update_positions(&embedding.positions, None);
         line_lsh
     }
     fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {

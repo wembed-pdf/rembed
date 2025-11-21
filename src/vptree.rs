@@ -91,7 +91,7 @@ impl<'a, const D: usize> Position<D> for VPTree<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for VPTree<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
         let data_points = self
             .positions

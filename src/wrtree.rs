@@ -43,7 +43,7 @@ impl<'a, const D: usize> WRTree<'a, D> {
             rtrees: Vec::new(),
             max_weights: Vec::new(),
         };
-        tree.update_positions(&embedding.positions);
+        tree.update_positions(&embedding.positions, None);
         tree
     }
 }
@@ -72,7 +72,7 @@ impl<'a, const D: usize> Position<D> for WRTree<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         let mut weight_classes: Vec<Vec<usize>> = Vec::new();
         let mut max_weights: Vec<f64> = Vec::new();
 

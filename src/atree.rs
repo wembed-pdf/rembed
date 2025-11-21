@@ -40,8 +40,15 @@ impl<const D: usize> query::Position<D> for ATree<'_, D> {
     }
 }
 impl<const D: usize> query::Update<D> for ATree<'_, D> {
-    fn update_positions(&mut self, postions: &[DVec<D>]) {
-        self.positions = postions.to_vec();
+    fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
+        if self.positions.len() != postions.len() {
+            self.positions = postions.to_vec();
+        } else {
+            for (old_pos, pos) in self.positions.iter_mut().zip(postions.iter()) {
+                *old_pos = *pos;
+            }
+        }
+
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
         let mut d_pos = vec![0.; node_ids.len()];
         let mut layers = std::mem::take(&mut self.layers);
@@ -167,7 +174,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             layers: vec![Layer::Node(Node { split: 0. }); embedding.positions.len()],
         };
         if !line_lsh.positions.is_empty() {
-            line_lsh.update_positions(&embedding.positions);
+            line_lsh.update_positions(&embedding.positions, None);
         }
         line_lsh
     }
