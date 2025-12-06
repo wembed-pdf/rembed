@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use rembed::{
     atree::ATree, dim_reduction::LayeredLsh, dynamic_queries::DynamicQuery,
     embedder::EmbedderOptions, query::Embedder, *,
@@ -7,7 +9,7 @@ fn main() -> io::Result<()> {
     let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 3;
+    const D: usize = 32;
     // let dim = 8;
     let dim_hint = 8;
 
@@ -15,9 +17,9 @@ fn main() -> io::Result<()> {
     let graph_path = format!("data/{}/graph", graph_name);
     // let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
     // let graph = "data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
-    // let graph = "data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
+    let graph = "data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
-    let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/609.gr";
+    // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/609.gr";
     // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/72.gr";
     let graph = graph::Graph::parse_from_edge_list_file(&graph, D, dim_hint)?;
 
@@ -31,14 +33,17 @@ fn main() -> io::Result<()> {
     // for i in 0..1000 {
     // embedder.calculate_step();
     // let mut last_cache = vec![vec![]; graph.nodes.len()];
+    let mut last_time = Instant::now();
     let mut last_positions = embedder.positions().to_vec();
     embedder.embed_with_callback(|e| {
         let i = e.iteration();
         if i % 10 == 0 && i > 0 {
             eprintln!(
-                "Iteration {i}, Δp{}",
-                e.last_pos_delta().unwrap_or_default()
+                "Iteration {i}, Δp{}, {:.1}s",
+                e.last_pos_delta().unwrap_or_default(),
+                last_time.elapsed().as_secs_f32(),
             );
+            last_time = Instant::now();
             // let pos = embedder.positions();
             // let embedding = Embedding {
             //     positions: pos.to_vec(),

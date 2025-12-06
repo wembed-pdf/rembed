@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use crossbeam::{
     channel::{Receiver, Sender},
     utils::CachePadded,
@@ -109,6 +111,7 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     node_results_sender: Vec<CachePadded<Sender<NodeId>>>,
     node_results_receiver: Vec<CachePadded<Receiver<NodeId>>>,
     query_cache: Vec<Vec<NodeId>>,
+    repulsion_mutexes: Vec<Mutex<Vec<usize>>>,
 
     // Spatial index
     pub spatial_index: SI,
@@ -168,6 +171,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
             node_results_sender,
             node_results_receiver,
             query_cache: vec![Vec::with_capacity(10); n],
+            repulsion_mutexes: (0..n).map(|_| Mutex::new(Vec::with_capacity(10))).collect(),
             spatial_index,
             optimizer: AdamOptimizer::new(n, learning_rate, cooling_factor),
             options,
@@ -304,6 +308,10 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     }
 
     fn calculate_repulsion_forces(&mut self) {
+        self.repulsion_mutexes
+            .iter()
+            .for_each(|mutex| mutex.lock().unwrap().clear());
+
         // Stage 1: Query nearest neighbors for all nodes in parallel
         (0..self.positions.len())
             .into_par_iter()
@@ -313,11 +321,12 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
                 // Find nearby nodes that might repel
                 self.spatial_index.repelling_nodes(v, cache);
 
-                cache.sort_unstable();
-                cache.dedup();
+                // cache.sort_unstable();
+                // cache.dedup();
 
                 for candidate in cache {
-                    self.node_results_sender[*candidate].send(v).unwrap();
+                    // self.node_results_sender[*candidate].send(v).unwrap();
+                    self.repulsion_mutexes[*candidate].lock().unwrap().push(v);
                 }
             });
 
@@ -333,13 +342,15 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         //         candidates.sort_unstable();
         //         candidates.dedup();
         //     });
-        self.node_results_receiver
+        // self.node_results_receiver
+        self.repulsion_mutexes
             .par_iter()
             .zip(self.query_cache.par_iter_mut())
             .for_each(|(candidates, cache)| {
-                cache.extend(candidates.clone().try_iter());
-                cache.sort_unstable();
-                cache.dedup();
+                // cache.extend(candidates.clone().try_iter());
+                cache.extend(candidates.lock().unwrap().drain(..));
+                // cache.sort_unstable();
+                // cache.dedup();
             });
 
         // Stage 2: Calculate repulsion forces in parallel

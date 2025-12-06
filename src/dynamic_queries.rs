@@ -25,7 +25,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D> + Clone> Clone for DynamicQuery<'a,
             positions: self.positions.clone(),
             query_buffer: self.query_buffer.clone(),
             over_query_radius: self.over_query_radius.clone(),
-            cache_empty: true,
+            cache_empty: false,
             overquery: self.overquery,
             _phantom: std::marker::PhantomData,
         }
@@ -65,7 +65,8 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for DynamicQuery<
             return;
         }
         // let max_deviation = last_delta.unwrap_or(10.) * 2.;
-        let max_deviation = last_delta.unwrap_or(10.) * 2.;
+        // let max_deviation = last_delta.unwrap_or(10.) * 2.;
+        let max_deviation = last_delta.unwrap_or(10.);
 
         if self.positions.len() != positions.len() {
             self.positions = positions.to_vec();
@@ -82,8 +83,8 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for DynamicQuery<
             self.cache_empty = false;
         } else {
             self.overquery = false;
-            self.structure.update_positions(positions, last_delta);
-            return;
+            // self.structure.update_positions(positions, last_delta);
+            // return;
         }
         // return;
         if self.query_buffer - max_deviation < 1. {
@@ -124,6 +125,8 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for DynamicQuery<
 impl<'a, const D: usize, ID: Embedder<'a, D>> Query for DynamicQuery<'a, D, ID> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         if !self.overquery {
+            // TODO find out why this assert fails
+            // assert!(self.query_cache[index].lock().unwrap().is_empty());
             return self.structure.nearest_neighbors(index, radius, results);
         }
         assert!(
@@ -138,6 +141,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query for DynamicQuery<'a, D, ID> 
         let remaining_radius = self.query_buffer;
         let filter = |&id: &usize| {
             !self.structure.is_connected(index, id)
+                && (weight > self.weight(id) || (weight == self.weight(id) && index > id))
                 && (self.position(id).distance_squared(&pos) as f64)
                     < (weight * self.weight(id)).powi(2) * remaining_radius
         };
@@ -153,6 +157,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query for DynamicQuery<'a, D, ID> 
             guard.retain(pos);
             results.extend(guard.iter().filter(|x| radius_one(x)).cloned());
         } else {
+            assert!(guard.is_empty());
             self.structure
                 .nearest_neighbors(index, self.over_query_radius as f64, &mut guard);
             guard.retain(filter);
@@ -176,7 +181,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for Dynamic
             structure: ID::new(embedding),
             positions: vec![],
             query_buffer: 0.,
-            over_query_radius: 1.2,
+            over_query_radius: 1.1,
             overquery: false,
             cache_empty: true,
             _phantom: std::marker::PhantomData,
@@ -187,7 +192,25 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for Dynamic
     }
 
     fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
-        self.nearest_neighbors(index, 1., result);
+        if !self.cache_empty || self.overquery {
+            self.nearest_neighbors(index, 1., result);
+        } else {
+            // TODO: find out why this fails
+            // assert!(self.query_cache[index].lock().unwrap().is_empty());
+
+            self.nearest_neighbors(index, 1., result);
+            let pos = self.position(index);
+            let weight = self.weight(index);
+
+            result.retain(|&x| {
+                index != x
+                    && !self.is_connected(index, x)
+                    // TODO: remove dedup from embedder
+                    && (weight > self.weight(x) || weight == self.weight(x) && index > x)
+                    && (self.position(x).distance_squared(pos) as f64)
+                        < (weight * self.weight(x)).powi(2)
+            });
+        }
     }
 }
 
