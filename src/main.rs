@@ -9,7 +9,7 @@ fn main() -> io::Result<()> {
     let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 16;
+    const D: usize = 32;
     // let dim = 8;
     let dim_hint = 8;
 

@@ -412,7 +412,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
 
     for &(iteration, ref embedding) in embeddings {
         for structure in &mut data_structures {
-            structure.update_positions(&embedding.positions);
+            structure.update_positions(&embedding.positions, None);
         }
         let mut group = c.benchmark_group(format!("result_{result_id}@{iteration}_dim-{D}"));
 

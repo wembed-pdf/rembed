@@ -111,7 +111,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
             for mut structure in data_structures {
                 match benchmark_type {
                     BenchmarkType::PositionUpdate => {
-                        structure.update_positions(&embedding.positions);
+                        structure.update_positions(&embedding.positions, None);
                     }
                     _ => {
                         for &i in query_list {
