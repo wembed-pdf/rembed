@@ -222,6 +222,7 @@ impl CorrectnessTestManager {
     }
 
     /// Run correctness tests with configurable options
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_tests(
         &self,
         all_iterations: bool,
@@ -275,20 +276,20 @@ impl CorrectnessTestManager {
         let filtered_results: Vec<_> = test_results
             .into_iter()
             .filter(|r| {
-                if let Some(rid) = result_id_filter {
-                    if r.result_id != rid {
-                        return false;
-                    }
+                if let Some(rid) = result_id_filter
+                    && r.result_id != rid
+                {
+                    return false;
                 }
-                if let Some(gid) = graph_id_filter {
-                    if r.graph_id != gid {
-                        return false;
-                    }
+                if let Some(gid) = graph_id_filter
+                    && r.graph_id != gid
+                {
+                    return false;
                 }
-                if let Some(dim) = dim_filter {
-                    if r.embedding_dim != dim {
-                        return false;
-                    }
+                if let Some(dim) = dim_filter
+                    && r.embedding_dim != dim
+                {
+                    return false;
                 }
                 true
             })

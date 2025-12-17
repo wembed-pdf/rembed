@@ -79,7 +79,7 @@ pub fn profile_datastructures<'a, const D: usize>(
             c,
             query_list,
             benchmark_type,
-            structure,
+            structure.as_ref(),
         ));
     }
     results
@@ -90,7 +90,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     c: &mut BenchmarkGroup<WallTime>,
     query_list: &[usize],
     benchmark_type: BenchmarkType,
-    structure: &Box<dyn IndexClone<D> + 'a>,
+    structure: &(dyn IndexClone<D> + 'a),
 ) -> MeasurementResult {
     let mut samples = PerfMeasurements::new(1000);
     let warmup = Duration::from_secs(1);

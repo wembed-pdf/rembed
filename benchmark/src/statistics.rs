@@ -7,6 +7,7 @@ use rembed::query::Embedder;
 
 pub struct FScore {}
 
+#[derive(Default)]
 pub struct StatisticGenerator {}
 
 impl StatisticGenerator {

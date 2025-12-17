@@ -55,7 +55,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         if layers.len() < node_ids.len() {
             layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
         }
-        Layer::new(
+        Layer::init(
             node_ids.as_mut_slice(),
             d_pos.as_mut_slice(),
             &mut layers,
@@ -92,7 +92,7 @@ enum Layer {
 }
 
 impl Layer {
-    fn new<const D: usize>(
+    fn init<const D: usize>(
         nodes: &mut [NodeId],
         d_pos: &mut [f32],
         layers: &mut [Layer],
@@ -113,11 +113,11 @@ impl Layer {
             let mut lut = vec![];
             let min = d_pos[0].floor();
             let max = d_pos.last().unwrap().ceil();
-            let resolution = 50. / (max - min) as f32;
-            for i in 0..(((max - min) as f32 * resolution) as i32) {
+            let resolution = 50. / (max - min);
+            for i in 0..(((max - min) * resolution) as i32) {
                 let pos_idx = d_pos
                     .iter()
-                    .take_while(|&&x| x < ((i as f32 / resolution) + min) as f32)
+                    .take_while(|&&x| x < ((i as f32 / resolution) + min))
                     .count();
                 lut.push(pos_idx);
             }
@@ -144,8 +144,8 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        Layer::new(a_ids, a_dpos, layers, (depth + 1) % D, a_id, atree, offset);
-        Layer::new(
+        Layer::init(a_ids, a_dpos, layers, (depth + 1) % D, a_id, atree, offset);
+        Layer::init(
             b_ids,
             b_dpos,
             layers,
@@ -181,6 +181,7 @@ impl<'a, const D: usize> ATree<'a, D> {
     fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         self.query_recursive(index, 0, 0, radius as f32, radius, DVec::zero(), results);
     }
+    #[allow(clippy::too_many_arguments)]
     fn query_recursive(
         &self,
         index: usize,
@@ -233,7 +234,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             Layer::Leaf(snn) => {
                 // dbg!(snn, depth);
                 let dim_diff_squared = distances[depth].powi(2);
-                let radius_sqrt = (dim_radius_squared as f32 + dim_diff_squared).sqrt();
+                let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
                 // dbg!(dim_diff_squared, radius_sqrt);
                 let min = own_pos - radius_sqrt;
                 let max = own_pos + radius_sqrt;

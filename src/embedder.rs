@@ -1,10 +1,5 @@
 use std::sync::Mutex;
 
-use crossbeam::{
-    channel::{Receiver, Sender},
-    utils::CachePadded,
-};
-
 use crate::{
     NodeId,
     dvec::DVec,
@@ -23,6 +18,7 @@ pub struct EmbedderOptions {
     pub min_position_change: f64,
     pub attraction_scale: f64,
     pub repulsion_scale: f64,
+    pub print_timings: bool,
 }
 
 impl Default for EmbedderOptions {
@@ -34,6 +30,7 @@ impl Default for EmbedderOptions {
             min_position_change: 1e-8,
             attraction_scale: 1.0,
             repulsion_scale: 1.0,
+            print_timings: false,
         }
     }
 }
@@ -108,8 +105,6 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     positions_log: Vec<(u64, Vec<DVec<D>>)>,
 
     // Helpers for symmetricfication
-    node_results_sender: Vec<CachePadded<Sender<NodeId>>>,
-    node_results_receiver: Vec<CachePadded<Receiver<NodeId>>>,
     query_cache: Vec<Vec<NodeId>>,
     repulsion_mutexes: Vec<Mutex<Vec<usize>>>,
 
@@ -123,6 +118,7 @@ pub struct WEmbedder<SI: Query, const D: usize> {
     options: EmbedderOptions,
     iteration: usize,
     last_relative_change: Option<f64>,
+    print_timings: bool,
 }
 
 impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
@@ -153,27 +149,17 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         // Extract weights from graph
         let weights: Vec<f64> = (0..n).map(|node| spatial_index.weight(node)).collect();
 
-        let mut node_results_sender = Vec::with_capacity(n);
-        let mut node_results_receiver = Vec::with_capacity(n);
-
-        for _ in 0..n {
-            let (tx, rx) = crossbeam::channel::unbounded();
-            node_results_sender.push(CachePadded::new(tx));
-            node_results_receiver.push(CachePadded::new(rx));
-        }
-
         Self {
             positions,
             weights,
             forces: vec![DVec::zero(); n],
             old_positions: vec![DVec::zero(); n],
             positions_log: Vec::new(),
-            node_results_sender,
-            node_results_receiver,
             query_cache: vec![Vec::with_capacity(10); n],
             repulsion_mutexes: (0..n).map(|_| Mutex::new(Vec::with_capacity(10))).collect(),
             spatial_index,
             optimizer: AdamOptimizer::new(n, learning_rate, cooling_factor),
+            print_timings: options.print_timings,
             options,
             iteration: 0,
             last_relative_change: None,
@@ -189,7 +175,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         self.optimizer.reset();
 
         loop {
-            callback(&self);
+            callback(self);
             self.iteration += 1;
 
             self.calculate_step();
@@ -230,20 +216,20 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         self.optimizer.update(&mut self.positions, &self.forces);
         let optimizer_update = update_start.elapsed();
 
-        // if self.iteration % 100 == 0 {
-        //     println!("reset: {}μs", reset.as_micros());
-        //     println!("update index: {}ms", (update_end - reset).as_millis());
-        //     println!(
-        //         "attraction: {}ms",
-        //         (attraction_end - update_end).as_millis()
-        //     );
-        //     println!(
-        //         "repulsion: {}ms",
-        //         (repulsion_end - attraction_end).as_millis()
-        //     );
-        //     println!("adam: {}μs", (optimizer_update - repulsion_end).as_micros());
-        //     println!("total {}ms", update_start.elapsed().as_millis());
-        // }
+        if self.iteration % 100 == 0 && self.print_timings {
+            println!("reset: {}μs", reset.as_micros());
+            println!("update index: {}ms", (update_end - reset).as_millis());
+            println!(
+                "attraction: {}ms",
+                (attraction_end - update_end).as_millis()
+            );
+            println!(
+                "repulsion: {}ms",
+                (repulsion_end - attraction_end).as_millis()
+            );
+            println!("adam: {}μs", (optimizer_update - repulsion_end).as_micros());
+            println!("total {}ms", update_start.elapsed().as_millis());
+        }
     }
 
     fn update_spatial_index(&mut self) {
@@ -305,6 +291,12 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
             // Attraction force
             direction * (self.options.attraction_scale / (distance as f64 * weight_factor)) as f32
         }
+    }
+
+    pub fn print_stats(&self) {
+        let (percision, recall) = self.spatial_index.graph_statistics();
+        let f1 = 2. / (recall.recip() + percision.recip());
+        eprintln!("i: , percision: {percision}, recall: {recall}, f1: {f1}");
     }
 
     fn calculate_repulsion_forces(&mut self) {

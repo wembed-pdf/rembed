@@ -25,6 +25,10 @@ pub mod snn;
 pub mod vptree;
 pub mod wrtree;
 
+pub use atree::ATree;
+pub use dim_reduction::LayeredLsh;
+pub use dynamic_queries::DynamicQuery;
+
 pub mod embedder;
 
 pub type NodeId = usize;
@@ -49,6 +53,7 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,

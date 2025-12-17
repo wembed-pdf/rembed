@@ -34,7 +34,7 @@ impl<'a, const D: usize> Clone for VPTree<'a, D> {
             .enumerate()
             .map(|(i, pos)| DataPoint {
                 index: i,
-                position: pos.clone(),
+                position: *pos,
             })
             .collect::<Vec<_>>();
         let vptree = FlatVpTree::balanced(data);
@@ -54,7 +54,7 @@ impl<'a, const D: usize> VPTree<'a, D> {
             .enumerate()
             .map(|(i, pos)| DataPoint {
                 index: i,
-                position: pos.clone(),
+                position: *pos,
             })
             .collect::<Vec<_>>();
         let vptree = FlatVpTree::balanced(data_points);
@@ -99,7 +99,7 @@ impl<'a, const D: usize> Update<D> for VPTree<'a, D> {
             .enumerate()
             .map(|(i, pos)| DataPoint {
                 index: i,
-                position: pos.clone(),
+                position: *pos,
             })
             .collect::<Vec<_>>();
         self.vptree = FlatVpTree::balanced(data_points);

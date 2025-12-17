@@ -23,8 +23,8 @@ impl<'a, const D: usize, ID: Embedder<'a, D> + Clone> Clone for DynamicQuery<'a,
             query_cache: empty_cache(self.query_cache.len()),
             structure: self.structure.clone(),
             positions: self.positions.clone(),
-            query_buffer: self.query_buffer.clone(),
-            over_query_radius: self.over_query_radius.clone(),
+            query_buffer: self.query_buffer,
+            over_query_radius: self.over_query_radius,
             cache_empty: false,
             overquery: self.overquery,
             _phantom: std::marker::PhantomData,
@@ -92,27 +92,8 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for DynamicQuery<
             // println!("recomputing after pos diff {}", max_deviation);
             self.cache_empty = true;
             for cache in self.query_cache.iter_mut() {
-                let mut guard = cache.lock().unwrap();
-                guard.clear();
+                cache.get_mut().unwrap().clear();
             }
-            // self.query_cache = {
-            //     let indices: &[usize] = &(0..postions.len()).collect::<Vec<_>>();
-            //     let mut results = vec![vec![]; indices.len()];
-            //     for &index in indices {
-            //         for other_node_id in self
-            //             .structure
-            //             .nearest_neighbors_owned(index, self.over_query_radius as f64)
-            //         {
-            //             results[other_node_id].push(index);
-            //             results[index].push(other_node_id);
-            //         }
-            //     }
-            //     for vec in &mut results {
-            //         vec.sort_unstable();
-            //         vec.dedup();
-            //     }
-            //     results
-            // };
 
             self.query_buffer = self.over_query_radius;
         } else {
@@ -142,14 +123,14 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query for DynamicQuery<'a, D, ID> 
         let filter = |&id: &usize| {
             !self.structure.is_connected(index, id)
                 && (weight > self.weight(id) || (weight == self.weight(id) && index > id))
-                && (self.position(id).distance_squared(&pos) as f64)
+                && (self.position(id).distance_squared(pos) as f64)
                     < (weight * self.weight(id)).powi(2) * remaining_radius
         };
         let radius_one = |&id: &usize| {
-            (self.position(id).distance_squared(&pos) as f64) < (weight * self.weight(id)).powi(2)
+            (self.position(id).distance_squared(pos) as f64) < (weight * self.weight(id)).powi(2)
         };
         let pos = |&id: &usize| {
-            (self.position(id).distance_squared(&pos) as f64)
+            (self.position(id).distance_squared(pos) as f64)
                 < (weight * self.weight(id)).powi(2) * remaining_radius
         };
 
@@ -159,7 +140,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query for DynamicQuery<'a, D, ID> 
         } else {
             assert!(guard.is_empty());
             self.structure
-                .nearest_neighbors(index, self.over_query_radius as f64, &mut guard);
+                .nearest_neighbors(index, self.over_query_radius, &mut guard);
             guard.retain(filter);
             results.extend(guard.iter().filter(|x| radius_one(x)).cloned());
         }
@@ -210,48 +191,6 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for Dynamic
                     && (self.position(x).distance_squared(pos) as f64)
                         < (weight * self.weight(x)).powi(2)
             });
-        }
-    }
-}
-
-/// **DANGER:** This abstraction invokes UB and is exposed for the insane fun
-///             of it only. Do not ever try this in a production program.
-///
-/// On x86_64, it momentarily disables subnormal math using forbidden MXCSR
-/// operations until the current scope is exited. On other CPUs it does nothing.
-struct DenormalsGuard {
-    old_mxcsr: u32,
-}
-//
-impl DenormalsGuard {
-    /// Set up the forbidden denormals-disabling magic
-    fn new() -> Self {
-        #[expect(
-            deprecated,
-            reason = "Deprecated due to UB, which is exactly what our foolish selves are looking for here"
-        )]
-        #[cfg(target_arch = "x86_64")]
-        unsafe {
-            use std::arch::x86_64;
-            let old_mxcsr = x86_64::_mm_getcsr();
-            // Set FTZ flag (0x8000) and DAZ flag (0x0040)
-            x86_64::_mm_setcsr(old_mxcsr | 0x8040);
-            Self { old_mxcsr }
-        }
-        #[cfg(not(target_arch = "x86_64"))]
-        Self { old_mxcsr: 0 }
-    }
-}
-//
-impl Drop for DenormalsGuard {
-    fn drop(&mut self) {
-        #[expect(
-            deprecated,
-            reason = "Deprecated due to UB, which is exactly what our foolish selves are looking for here"
-        )]
-        #[cfg(target_arch = "x86_64")]
-        unsafe {
-            std::arch::x86_64::_mm_setcsr(self.old_mxcsr);
         }
     }
 }

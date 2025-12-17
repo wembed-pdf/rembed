@@ -54,7 +54,7 @@ impl<'a, const D: usize> Update<D> for KDTree<'a, D> {
         self.tree = KdTree::new(D);
         for (i, pos) in self.positions.iter().enumerate() {
             // Convert DVec to [f32; D] for the KdTree
-            let point: [f32; D] = pos.components.map(|x| x as f32);
+            let point: [f32; D] = pos.components.map(|x| x);
             self.tree
                 .add(point, i)
                 .expect("Failed to add point to KdTree");
@@ -77,7 +77,7 @@ impl<'a, const D: usize> Query for KDTree<'a, D> {
             .into_iter()
             .for_each(|nn| {
                 for data in nn.iter() {
-                    let data_index = *data.1 as usize;
+                    let data_index = *data.1;
                     if data_index == index {
                         continue; // Skip the own node
                     }

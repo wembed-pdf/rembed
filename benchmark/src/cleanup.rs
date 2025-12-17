@@ -21,7 +21,7 @@ pub async fn cleanup_orphaned_files(
 
     // Get all files from filesystem
     let mut all_files = HashSet::new();
-    scan_directory(&data_path.join("generated"), &data_path, &mut all_files)?;
+    scan_directory(&data_path.join("generated"), data_path, &mut all_files)?;
 
     println!("Found {} files in data directory", all_files.len());
 

@@ -21,7 +21,7 @@ impl<'a, const D: usize> WBallTree<'a, D> {
         let mut tree = Self {
             positions: embedding.positions.to_vec(),
             graph: embedding.graph,
-            ball_tree: ball_tree,
+            ball_tree,
         };
         tree.update_positions(&embedding.positions, None);
         tree
@@ -76,7 +76,6 @@ impl<'a, const D: usize> Query for WBallTree<'a, D> {
         let query_position: [f64; D] = own_position.components.map(|x| x as f64);
         query
             .nn_within(&query_position, scaled_radius_squared as f64)
-            .into_iter()
             .for_each(|nn| {
                 let data = *nn.2;
                 let other_pos = &self.positions[data];

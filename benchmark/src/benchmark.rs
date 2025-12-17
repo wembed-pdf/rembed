@@ -42,6 +42,7 @@ impl LoadData {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_benchmarks(
         &self,
         only_last_iteration: bool,
@@ -428,15 +429,14 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         let mut run_benchmark_with_query_list =
             async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
                 for structure in &data_structures {
-                    if load_data.store {
-                        if let Some((_, skiplist)) = code_states.get(&structure.name()) {
-                            if skiplist.contains(&Measurement {
-                                benchmark_type: benchmark_type.as_str().to_owned(),
-                                iteration: iteration as i32,
-                            }) {
-                                continue;
-                            }
-                        }
+                    if load_data.store
+                        && let Some((_, skiplist)) = code_states.get(&structure.name())
+                        && skiplist.contains(&Measurement {
+                            benchmark_type: benchmark_type.as_str().to_owned(),
+                            iteration: iteration as i32,
+                        })
+                    {
+                        continue;
                     }
                     let result = process_results(
                         runner::profile_datastructure_query(
@@ -444,7 +444,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                             &mut group,
                             &query_list,
                             *benchmark_type,
-                            structure,
+                            structure.as_ref(),
                         ),
                         benchmark_type,
                     );

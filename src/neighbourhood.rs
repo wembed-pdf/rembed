@@ -18,7 +18,7 @@ impl<'a, const D: usize> Clone for Neihbourhood<'a, D> {
     fn clone(&self) -> Self {
         let mut points: Vec<[f32; D]> = Vec::with_capacity(self.positions.len());
         for pos in self.positions.iter() {
-            let point: [f32; D] = pos.components.map(|x| x as f32);
+            let point: [f32; D] = pos.components.map(|x| x);
             points.push(point);
         }
         let tree = KdTree::new(points);
@@ -36,7 +36,7 @@ impl<'a, const D: usize> Neihbourhood<'a, D> {
         let mut tree = Self {
             positions: embedding.positions.to_vec(),
             graph: embedding.graph,
-            tree: KdTree::new(vec![[0. as f32; D]; 2]),
+            tree: KdTree::new(vec![[0.; D]; 2]),
             map: HashMap::new(),
         };
         tree.update_positions(&embedding.positions, None);
@@ -74,7 +74,7 @@ impl<'a, const D: usize> Update<D> for Neihbourhood<'a, D> {
         self.map.clear();
         let mut points: Vec<[f32; D]> = Vec::with_capacity(self.positions.len());
         for pos in self.positions.iter() {
-            let point: [f32; D] = pos.components.map(|x| x as f32);
+            let point: [f32; D] = pos.components.map(|x| x);
             self.map.insert(
                 core::array::from_fn(|i| point[i].to_bits()),
                 self.map.len() as NodeId,
@@ -95,15 +95,15 @@ impl<'a, const D: usize> Query for Neihbourhood<'a, D> {
             .neighbourhood(&own_position.components, scaled_radius_squared)
             .into_iter()
             .for_each(|nn| {
-                if let Some(&node_id) = self.map.get(&core::array::from_fn(|i| nn[i].to_bits())) {
-                    if node_id != index {
-                        let other_pos = &self.positions[node_id];
-                        let other_weight = self.weight(node_id);
-                        if own_position.distance_squared(other_pos)
-                            <= (own_weight * other_weight).powi(2) as f32
-                        {
-                            results.push(node_id as usize);
-                        }
+                if let Some(&node_id) = self.map.get(&core::array::from_fn(|i| nn[i].to_bits()))
+                    && node_id != index
+                {
+                    let other_pos = &self.positions[node_id];
+                    let other_weight = self.weight(node_id);
+                    if own_position.distance_squared(other_pos)
+                        <= (own_weight * other_weight).powi(2) as f32
+                    {
+                        results.push(node_id);
                     }
                 }
             });

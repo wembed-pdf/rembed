@@ -56,7 +56,7 @@ impl<'a, const D: usize> Clone for SIF<'a, D> {
         Self {
             positions: self.positions.clone(),
             graph: self.graph,
-            kdtree: kdtree,
+            kdtree,
             max_weights: self.max_weights.clone(),
         }
     }
@@ -111,7 +111,7 @@ impl<'a, const D: usize> Query for SIF<'a, D> {
         let _ = self.kdtree.look_up(
             &sif_kdtree::WithinDistance::new(own_position_f64, scaled_radius),
             |nn| {
-                let data = nn.0 as usize;
+                let data = nn.0;
                 if data != index {
                     let other_pos = &self.positions[data];
                     let other_weight = self.weight(data);

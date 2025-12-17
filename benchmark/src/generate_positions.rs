@@ -68,8 +68,10 @@ impl PositionGenerator {
             job.dim_hint as usize,
         )?;
 
-        let mut options = EmbedderOptions::default();
-        options.max_iterations = job.max_iterations as usize;
+        let options = EmbedderOptions {
+            max_iterations: job.max_iterations as usize,
+            ..Default::default()
+        };
         run_embedding_dynamic(
             job.seed as u64,
             &graph,
@@ -110,7 +112,7 @@ impl PositionGenerator {
 
     pub async fn show_detailed_status(&self) -> Result<(), Box<dyn std::error::Error>> {
         let running_jobs = self.job_manager.get_running_jobs().await?;
-        println!("");
+        println!();
         println!("Running jobs:");
         for (hostname, duration, embedding_dim, n, graph_id) in running_jobs {
             println!(
