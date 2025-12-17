@@ -92,6 +92,7 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
         result.retain(|&x| {
             index != x
                 && !self.is_connected(index, x)
+                && (weight > self.weight(x) || (weight == self.weight(x) && index > x))
                 && (self.position(x).distance_squared(pos) as f64)
                     < (weight * self.weight(x)).powi(2)
         });
