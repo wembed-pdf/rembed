@@ -143,8 +143,9 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
         }
 
         (
-            found_edges as f64 / (found_edges + missed_edges) as f64,
+            // precision, recall
             found_edges as f64 / (found_edges + found_non_edges).max(1) as f64,
+            found_edges as f64 / (found_edges + missed_edges) as f64,
         )
     }
     fn f1(&self) -> f64 {

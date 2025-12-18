@@ -30,6 +30,7 @@ rstar = "0.12.2"
 sha2 = "0.10.9"
 sif-kdtree = "0.7.0"
 vec-vp-tree = "0.1.1"
+hnsw_rs = "0.3.2"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

@@ -11,6 +11,7 @@ pub mod dvec;
 pub mod dynamic_queries;
 pub mod embedding;
 pub mod graph;
+pub mod hnsw;
 pub mod kd_tree;
 pub mod kiddo;
 pub mod lsh;
@@ -50,6 +51,7 @@ pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
+        Box::new(hnsw::HNSWTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
