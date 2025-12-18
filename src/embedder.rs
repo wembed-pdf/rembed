@@ -296,7 +296,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     pub fn print_stats(&self) {
         let (percision, recall) = self.spatial_index.graph_statistics();
         let f1 = 2. / (recall.recip() + percision.recip());
-        eprintln!("i: , percision: {percision}, recall: {recall}, f1: {f1}");
+        eprintln!("i: , percision: {percision:.2}, recall: {recall:.2}, f1: {f1:.2}");
     }
 
     fn calculate_repulsion_forces(&mut self) {
@@ -322,25 +322,12 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
                 }
             });
 
-        // for (i, candidates) in repelling_candidates.clone().iter().enumerate() {
-        //     for candidate in candidates {
-        //         repelling_candidates[*candidate].push(i);
-        //     }
-        // }
-
-        // self.node_results_receiver
-        //     .par_iter_mut()
-        //     .for_each(|candidates| {
-        //         candidates.sort_unstable();
-        //         candidates.dedup();
-        //     });
-        // self.node_results_receiver
         self.repulsion_mutexes
             .par_iter()
             .zip(self.query_cache.par_iter_mut())
             .for_each(|(candidates, cache)| {
-                // cache.extend(candidates.clone().try_iter());
                 cache.extend(candidates.lock().unwrap().drain(..));
+                // Since the queries are 100% symmetric using the id as a tie braker, we know that we can't have duplicates
                 // cache.sort_unstable();
                 // cache.dedup();
             });

@@ -64,56 +64,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for LossyQuery<'a
 
 impl<'a, const D: usize, ID: Embedder<'a, D>> Query for LossyQuery<'a, D, ID> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
-        self.structure.nearest_neighbors(index, radius, results);
-
-        // Only keep true positive repelling nodes
-        let pos = self.position(index);
-        let weight = self.weight(index);
-
-        results.retain(|&x| {
-            // index != x && !self.is_connected(index, x)
-            (weight > self.weight(x) || (weight == self.weight(x) && index > x))
-                && (self.position(x).distance_squared(pos) as f64)
-                    < (weight * self.weight(x)).powi(2)
-        });
-
-        let node_count_before = results.len();
-
-        // Apply lossy strategy
-        match self.loss_strategy {
-            LossyStrategy::Random => results.retain(|_| rand::random_bool(self.recall)),
-            LossyStrategy::InOrder => {
-                *results = results[(results.len() as f64 * (1. - self.recall)).round() as usize..]
-                    .to_vec();
-            }
-            LossyStrategy::First => {
-                // sort ascending by distance
-                results.sort_by(|a, b| {
-                    self.position(*a)
-                        .distance_squared(self.position(index))
-                        .total_cmp(&self.position(*b).distance_squared(self.position(index)))
-                });
-                // Remove the closest neighbors
-                *results = results[(results.len() as f64 * (1. - self.recall)).round() as usize..]
-                    .to_vec();
-            }
-            LossyStrategy::Last => {
-                // sort ascending by distance
-                results.sort_by(|a, b| {
-                    self.position(*a)
-                        .distance_squared(self.position(index))
-                        .total_cmp(&self.position(*b).distance_squared(self.position(index)))
-                });
-                // Remove the furthest neighbors
-                results.truncate((results.len() as f64 * self.recall).round() as usize);
-            }
-        }
-
-        // println!(
-        //     "LossyQuery: reduced from {} to {} neighbors",
-        //     node_count_before,
-        //     results.len()
-        // );
+        return self.structure.nearest_neighbors(index, radius, results);
     }
 }
 impl<'a, const D: usize, ID: Embedder<'a, D>> SpatialIndex<D> for LossyQuery<'a, D, ID> {
@@ -134,7 +85,51 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for LossyQu
             _phantom: std::marker::PhantomData,
         };
         query.update_positions(&embedding.positions, None);
-        // assert_ne!(query.query_cache.len(), 0);
         query
+    }
+    fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
+        self.nearest_neighbors(index, 1., result);
+
+        // Only keep true positive repelling nodes
+        let pos = self.position(index);
+        let weight = self.weight(index);
+
+        result.retain(|&x| {
+            index != x
+                && !self.is_connected(index, x)
+                && (weight > self.weight(x) || (weight == self.weight(x) && index > x))
+                && (self.position(x).distance_squared(pos) as f64)
+                    < (weight * self.weight(x)).powi(2)
+        });
+
+        // Apply lossy strategy
+        match self.loss_strategy {
+            LossyStrategy::Random => result.retain(|_| rand::random_bool(self.recall)),
+            LossyStrategy::InOrder => {
+                *result =
+                    result[(result.len() as f64 * (1. - self.recall)).round() as usize..].to_vec();
+            }
+            LossyStrategy::First => {
+                // sort ascending by distance
+                result.sort_by(|a, b| {
+                    self.position(*a)
+                        .distance_squared(self.position(index))
+                        .total_cmp(&self.position(*b).distance_squared(self.position(index)))
+                });
+                // Remove the closest neighbors
+                *result =
+                    result[(result.len() as f64 * (1. - self.recall)).round() as usize..].to_vec();
+            }
+            LossyStrategy::Last => {
+                // sort ascending by distance
+                result.sort_by(|a, b| {
+                    self.position(*a)
+                        .distance_squared(self.position(index))
+                        .total_cmp(&self.position(*b).distance_squared(self.position(index)))
+                });
+                // Remove the furthest neighbors
+                result.truncate((result.len() as f64 * self.recall).round() as usize);
+            }
+        }
     }
 }

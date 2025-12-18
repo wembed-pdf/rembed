@@ -121,7 +121,7 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
         for (i, close_nodes) in results
             .iter()
             .enumerate()
-            .choose_multiple(&mut rand::rng(), 500)
+            .choose_multiple(&mut rand::rng(), 1000)
         {
             for close_node in close_nodes {
                 if self.is_connected(i, *close_node) {
