@@ -40,7 +40,7 @@ impl<'a, const D: usize> HNSWTree<'a, D> {
             graph: embedding.graph,
             hnsw: Hnsw::new(5, embedding.positions.len(), 3, 100, DistL2::default()),
         };
-        tree.update_positions(&embedding.positions);
+        tree.update_positions(&embedding.positions, None);
         tree
     }
 }
@@ -70,7 +70,7 @@ impl<'a, const D: usize> Position<D> for HNSWTree<'a, D> {
 }
 
 impl<'a, const D: usize> Update<D> for HNSWTree<'a, D> {
-    fn update_positions(&mut self, positions: &[DVec<D>]) {
+    fn update_positions(&mut self, positions: &[DVec<D>], _last_delta: Option<f64>) {
         self.positions = positions.to_vec();
         self.hnsw = Hnsw::new(8, self.positions.len(), 3, 10, DistL2::default());
 

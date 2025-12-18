@@ -14,6 +14,7 @@ pub mod graph;
 pub mod hnsw;
 pub mod kd_tree;
 pub mod kiddo;
+pub mod lossy_queries;
 pub mod lsh;
 pub mod nabo;
 #[cfg(feature = "nanoflann")]

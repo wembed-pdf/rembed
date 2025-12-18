@@ -1,12 +1,12 @@
 use std::time::Instant;
 
-use rembed::{embedder::EmbedderOptions, *};
+use rembed::{embedder::EmbedderOptions, lossy_queries::LossyQuery, *};
 
 fn main() -> io::Result<()> {
     // let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 32;
+    const D: usize = 8;
     let dim_hint = 8;
 
     // let graph_path = format!("data/{}/graph", graph_name);
@@ -21,10 +21,21 @@ fn main() -> io::Result<()> {
     let graph = graph::Graph::parse_from_edge_list_file(&graph, D, dim_hint)?;
 
     let options = EmbedderOptions::default();
-    let mut embedder: embedder::WEmbedder<ATree<_>, D> =
-        embedder::WEmbedder::random(42, &graph, options);
+    let embedder: embedder::WEmbedder<ATree<_>, D> =
+        embedder::WEmbedder::random(42, &graph, options.clone());
     // let mut embedder: embedder::WEmbedder<DynamicQuery<_, ATree<_>>, D> =
     //     embedder::WEmbedder::random(42, &graph, options);
+    let positions = embedder.positions().to_vec();
+    let embedding = Embedding {
+        positions,
+        graph: &graph,
+    };
+    let recall = 1.0;
+    let strategy = rembed::lossy_queries::LossyStrategy::Random;
+    // let lossy_queries = ATree::new(&embedding);
+    let lossy_queries: LossyQuery<'_, 8, ATree<'_, 8>> =
+        LossyQuery::<D, ATree<D>>::new(&embedding, recall, strategy);
+    let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
 
     // takes wembed 03:04 for the first 100 iterations on rel8
     let mut last_time = Instant::now();
