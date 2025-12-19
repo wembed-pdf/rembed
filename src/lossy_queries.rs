@@ -11,8 +11,8 @@ pub enum LossyStrategy {
     Random,
     InOrder,
     Droplist,
-    First,
-    Last,
+    Closest,
+    Furthest,
     Heavy,
     Light,
 }
@@ -108,7 +108,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for LossyQu
         });
 
         match self.loss_strategy {
-            LossyStrategy::First | LossyStrategy::Last => {
+            LossyStrategy::Closest | LossyStrategy::Furthest => {
                 result.sort_by(|a, b| {
                     self.position(*a)
                         .distance_squared(self.position(index))
@@ -130,22 +130,11 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for LossyQu
             _ => (),
         };
         match self.loss_strategy {
-            LossyStrategy::First | LossyStrategy::Light => result.reverse(),
+            LossyStrategy::Closest | LossyStrategy::Light | LossyStrategy::Droplist => {
+                result.reverse()
+            }
             _ => (),
         }
         result.truncate((result.len() as f64 * self.recall).round() as usize);
-        // // Apply lossy strategy
-        // match self.loss_strategy {
-        //     LossyStrategy::Random => result.retain(|_| rand::random_bool(self.recall)),
-        //     LossyStrategy::InOrder | LossyStrategy::First | LossyStrategy::Light => {
-        //         // Remove the closest neighbors
-        //         *result =
-        //             result[(result.len() as f64 * (1. - self.recall)).round() as usize..].to_vec();
-        //     }
-        //     LossyStrategy::Last | LossyStrategy::Heavy => {
-        //         // Remove the furthest neighbors
-        //         result.truncate((result.len() as f64 * self.recall).round() as usize);
-        //     }
-        // }
     }
 }

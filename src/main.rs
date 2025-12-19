@@ -35,11 +35,11 @@ fn main() -> io::Result<()> {
     // let recall = 1.0;
     let recall = 0.7;
     // let strategy = rembed::lossy_queries::LossyStrategy::Random;
-    // let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
-    // let strategy = rembed::lossy_queries::LossyStrategy::First;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Last;
+    let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
+    // let strategy = rembed::lossy_queries::LossyStrategy::Closest;
+    // let strategy = rembed::lossy_queries::LossyStrategy::Furthest;
     // let strategy = rembed::lossy_queries::LossyStrategy::Heavy;
-    let strategy = rembed::lossy_queries::LossyStrategy::Droplist;
+    // let strategy = rembed::lossy_queries::LossyStrategy::Droplist;
     // let strategy = rembed::lossy_queries::LossyStrategy::Light;
     // let lossy_queries = ATree::new(&embedding);
     let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, recall, strategy);
