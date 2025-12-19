@@ -72,6 +72,9 @@ impl<'a, const D: usize> Position<D> for HNSWTree<'a, D> {
 impl<'a, const D: usize> Update<D> for HNSWTree<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>], _last_delta: Option<f64>) {
         self.positions = positions.to_vec();
+        // M is future expected k
+        // max_nb = M_max should be maybe 2 times M
+        // TODO test higher ef_construction values
         self.hnsw = Hnsw::new(8, self.positions.len(), 3, 10, DistL2::default());
 
         let data: Vec<(Vec<f32>, usize)> = positions

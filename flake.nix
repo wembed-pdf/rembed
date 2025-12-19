@@ -23,9 +23,76 @@
           inherit system overlays;
         };
       
+        # Common R packages used across all shells
+        rPackages = with pkgs.rPackages; [
+          # Core data manipulation and visualization
+          ggplot2
+          dplyr
+          janitor
+          ggthemes
+          scales
+          ggforce
+          
+          # Database connectivity
+          DBI
+          RPostgres
+          
+          # Environment and utility packages
+          dotenv
+          readr
+          
+          # Color palettes and themes
+          Polychrome
+          viridis
+          RColorBrewer
+          
+          # Additional useful packages for data analysis
+          tidyr
+          stringr
+          lubridate
+
+          # Session
+          jsonlite
+          languageserver
+        ];
+        
+        # R with required packages
+        R-with-packages = pkgs.rWrapper.override {
+          packages = rPackages;
+        };
+        
+        # Common development tools
+        devTools = with pkgs; [
+          R-with-packages
+          git
+        ];
+        
+        # Common shell hook
+        commonShellHook = ''
+          echo "🔬 R Benchmark Analysis Environment"
+          echo "R version: $(R --version | head -n1)"
+          echo ""
+          echo "Available commands:"
+          echo "  R                    - Start R interactive session"
+          echo "  Rscript <file>       - Run R script"
+          echo "  rstudio              - Launch RStudio IDE"
+          echo ""
+          echo "Database setup:"
+          echo "  Create .env file with your PostgreSQL credentials"
+          echo ""
+          
+          # Set R library path to use Nix packages
+          export R_LIBS_USER=""
+          export R_PROFILE_USER=".Rprofile"
+          
+          # Ensure plots directory exists
+          mkdir -p plots
+        '';
       in
       {
         devShells.default = pkgs.mkShell {
+          buildInputs = devTools;
+          shellHook = commonShellHook;
           packages = with pkgs; [
             # Development tools
             gdb
