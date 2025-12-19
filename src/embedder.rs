@@ -296,7 +296,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     pub fn print_stats(&self) {
         let (percision, recall) = self.spatial_index.graph_statistics();
         let f1 = 2. / (recall.recip() + percision.recip());
-        eprintln!("i: , percision: {percision:.2}, recall: {recall:.2}, f1: {f1:.2}");
+        eprintln!("i: , percision: {percision:.3}, recall: {recall:.3}, f1: {f1:.3}");
     }
 
     fn calculate_repulsion_forces(&mut self) {

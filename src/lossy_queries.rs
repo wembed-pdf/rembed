@@ -1,3 +1,5 @@
+use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
+
 use crate::{
     NodeId, Query,
     dvec::DVec,
@@ -8,8 +10,11 @@ use crate::{
 pub enum LossyStrategy {
     Random,
     InOrder,
+    Droplist,
     First,
     Last,
+    Heavy,
+    Light,
 }
 
 #[derive(Clone)]
@@ -102,34 +107,45 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for LossyQu
                     < (weight * self.weight(x)).powi(2)
         });
 
-        // Apply lossy strategy
         match self.loss_strategy {
-            LossyStrategy::Random => result.retain(|_| rand::random_bool(self.recall)),
-            LossyStrategy::InOrder => {
-                *result =
-                    result[(result.len() as f64 * (1. - self.recall)).round() as usize..].to_vec();
-            }
-            LossyStrategy::First => {
-                // sort ascending by distance
+            LossyStrategy::First | LossyStrategy::Last => {
                 result.sort_by(|a, b| {
                     self.position(*a)
                         .distance_squared(self.position(index))
                         .total_cmp(&self.position(*b).distance_squared(self.position(index)))
                 });
-                // Remove the closest neighbors
-                *result =
-                    result[(result.len() as f64 * (1. - self.recall)).round() as usize..].to_vec();
             }
-            LossyStrategy::Last => {
-                // sort ascending by distance
-                result.sort_by(|a, b| {
-                    self.position(*a)
-                        .distance_squared(self.position(index))
-                        .total_cmp(&self.position(*b).distance_squared(self.position(index)))
-                });
-                // Remove the furthest neighbors
-                result.truncate((result.len() as f64 * self.recall).round() as usize);
+            LossyStrategy::Heavy | LossyStrategy::Light => {
+                result.sort_by(|a, b| self.weight(*a).total_cmp(&self.weight(*b)));
             }
+            LossyStrategy::Random => {
+                result.shuffle(&mut rand::rng());
+            }
+            LossyStrategy::Droplist => {
+                let mut droplist: Vec<_> = (0..self.num_nodes()).collect();
+                let mut rng: SmallRng = rand::SeedableRng::seed_from_u64(index as u64);
+                droplist.shuffle(&mut rng);
+                result.sort_by_key(|id| droplist.iter().position(|x| x == id));
+            }
+            _ => (),
+        };
+        match self.loss_strategy {
+            LossyStrategy::First | LossyStrategy::Light => result.reverse(),
+            _ => (),
         }
+        result.truncate((result.len() as f64 * self.recall).round() as usize);
+        // // Apply lossy strategy
+        // match self.loss_strategy {
+        //     LossyStrategy::Random => result.retain(|_| rand::random_bool(self.recall)),
+        //     LossyStrategy::InOrder | LossyStrategy::First | LossyStrategy::Light => {
+        //         // Remove the closest neighbors
+        //         *result =
+        //             result[(result.len() as f64 * (1. - self.recall)).round() as usize..].to_vec();
+        //     }
+        //     LossyStrategy::Last | LossyStrategy::Heavy => {
+        //         // Remove the furthest neighbors
+        //         result.truncate((result.len() as f64 * self.recall).round() as usize);
+        //     }
+        // }
     }
 }

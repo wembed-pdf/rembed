@@ -32,11 +32,15 @@ fn main() -> io::Result<()> {
         positions,
         graph: &graph,
     };
+    // let recall = 1.0;
     let recall = 0.7;
     // let strategy = rembed::lossy_queries::LossyStrategy::Random;
-    let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
+    // let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
     // let strategy = rembed::lossy_queries::LossyStrategy::First;
     // let strategy = rembed::lossy_queries::LossyStrategy::Last;
+    // let strategy = rembed::lossy_queries::LossyStrategy::Heavy;
+    let strategy = rembed::lossy_queries::LossyStrategy::Droplist;
+    // let strategy = rembed::lossy_queries::LossyStrategy::Light;
     // let lossy_queries = ATree::new(&embedding);
     let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, recall, strategy);
     let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
@@ -45,7 +49,7 @@ fn main() -> io::Result<()> {
     let mut last_time = Instant::now();
     embedder.embed_with_callback(|e| {
         let i = e.iteration();
-        if i % 10 == 0 && i > 0 {
+        if i % 100 == 0 && i > 0 {
             eprintln!(
                 "Iteration {i}, Δp{}, {:.1}s",
                 e.last_pos_delta().unwrap_or_default(),
