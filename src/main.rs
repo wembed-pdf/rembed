@@ -1,13 +1,18 @@
 use std::time::Instant;
 
-use rembed::{embedder::EmbedderOptions, lossy_queries::LossyQuery, *};
+use rembed::{
+    embedder::{EmbedderOptions, WEmbedder},
+    lossy_queries::LossyQuery,
+    random_projection_lsh::RandomProjectionLsh,
+    *,
+};
 
 fn main() -> io::Result<()> {
     // let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 2;
-    let dim_hint = 8;
+    const D: usize = 4;
+    let dim_hint = 16;
 
     // let graph_path = format!("data/{}/graph", graph_name);
     let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
@@ -35,7 +40,7 @@ fn main() -> io::Result<()> {
     // let recall = 1.0;
     let recall = 0.7;
     // let strategy = rembed::lossy_queries::LossyStrategy::Random;
-    let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
+    // let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
     // let strategy = rembed::lossy_queries::LossyStrategy::Closest;
     // let strategy = rembed::lossy_queries::LossyStrategy::Furthest;
     // let strategy = rembed::lossy_queries::LossyStrategy::Heavy;
@@ -43,6 +48,8 @@ fn main() -> io::Result<()> {
     // let strategy = rembed::lossy_queries::LossyStrategy::Light;
     // let lossy_queries = ATree::new(&embedding);
     let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, recall, strategy);
+    // let lossy_queries = RandomProjectionLsh::<_>::new(embedding.clone());
+    // let lossy_queries = ATree::<_>::new(&embedding);
     let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
 
     // takes wembed 03:04 for the first 100 iterations on rel8
@@ -58,6 +65,13 @@ fn main() -> io::Result<()> {
             last_time = Instant::now();
         }
     });
+    let embedder = WEmbedder::new(
+        ATree::new(&Embedding {
+            positions: embedder.positions().to_vec(),
+            graph: &graph,
+        }),
+        Default::default(),
+    );
     embedder.print_stats();
 
     Ok(())

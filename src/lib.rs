@@ -20,6 +20,7 @@ pub mod nabo;
 #[cfg(feature = "nanoflann")]
 pub mod nanoflann;
 pub mod neighbourhood;
+pub mod random_projection_lsh;
 pub mod parsing;
 pub mod query;
 pub mod sif;
@@ -59,6 +60,8 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(random_projection_lsh::RandomProjectionLsh::<D>::new(embedding.clone()))
+            as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kd_tree::KDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(ball_tree::WBallTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
