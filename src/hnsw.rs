@@ -7,9 +7,19 @@ use crate::{
     query::{self, Graph, Position, SpatialIndex, Update},
 };
 
+#[derive(Default, Clone, Debug)]
+pub struct HnswConfig {
+    pub max_nb_connection: usize,
+    pub max_layer: usize,
+    pub ef_construction: usize,
+    pub knbn: usize,
+    pub ef_search: usize,
+}
+
 pub struct HNSWTree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
+    pub config: HnswConfig,
     pub hnsw: Hnsw<
         'a,
         f32,
@@ -19,8 +29,15 @@ pub struct HNSWTree<'a, const D: usize> {
 
 impl<'a, const D: usize> Clone for HNSWTree<'a, D> {
     fn clone(&self) -> Self {
+        let config = self.config.clone();
         let positions = self.positions.clone();
-        let hnsw = Hnsw::new(32, positions.len(), 4, 100, DistL2::default());
+        let hnsw = Hnsw::new(
+            config.max_nb_connection,
+            positions.len(),
+            config.max_layer,
+            config.ef_construction,
+            DistL2::default(),
+        );
         for (i, pos) in positions.iter().enumerate() {
             hnsw.insert((&pos.components, i));
         }
@@ -28,20 +45,31 @@ impl<'a, const D: usize> Clone for HNSWTree<'a, D> {
             positions,
             graph: self.graph,
             hnsw,
+            config,
         }
     }
 }
 
 impl<'a, const D: usize> HNSWTree<'a, D> {
-    pub fn new(embedding: Embedding<'a, D>) -> Self {
+    pub fn new_with_config(embedding: &Embedding<'a, D>, config: HnswConfig) -> Self {
         let positions = embedding.positions.clone();
         let mut tree = Self {
             positions,
             graph: embedding.graph,
-            hnsw: Hnsw::new(5, embedding.positions.len(), 3, 100, DistL2::default()),
+            hnsw: Hnsw::new(
+                config.max_nb_connection,
+                embedding.positions.len(),
+                config.max_layer,
+                config.ef_construction,
+                DistL2::default(),
+            ),
+            config,
         };
         tree.update_positions(&embedding.positions, None);
         tree
+    }
+    pub fn new(embedding: Embedding<'a, D>) -> Self {
+        Self::new_with_config(&embedding, Default::default())
     }
 }
 
@@ -75,7 +103,13 @@ impl<'a, const D: usize> Update<D> for HNSWTree<'a, D> {
         // M is future expected k
         // max_nb = M_max should be maybe 2 times M
         // TODO test higher ef_construction values
-        self.hnsw = Hnsw::new(8, self.positions.len(), 3, 10, DistL2::default());
+        self.hnsw = Hnsw::new(
+            self.config.max_nb_connection,
+            self.positions.len(),
+            self.config.max_layer,
+            self.config.ef_construction,
+            DistL2::default(),
+        );
 
         let data: Vec<(Vec<f32>, usize)> = positions
             .iter()
@@ -95,31 +129,32 @@ impl<'a, const D: usize> Query for HNSWTree<'a, D> {
 
         if self.weight(index) > 1.2 {
             // bruteforce search if own weight is too high
-            // self.positions.iter().enumerate().for_each(|(i, pos)| {
-            //     if i != index
-            //         && own_position.distance_squared(pos)
-            //             <= (own_weight * self.weight(i)).powi(2) as f32
-            //     {
-            //         results.push(i);
-            //     }
-            // });
-            let mut knbn = 50; // initial number of neighbors to search for
-            let ef_search = 100;
+            self.positions.iter().enumerate().for_each(|(i, pos)| {
+                if i != index
+                    && own_position.distance_squared(pos)
+                        <= (own_weight * self.weight(i)).powi(2) as f32
+                {
+                    results.push(i);
+                }
+            });
+            // let mut knbn = 50; // initial number of neighbors to search for
+            // let ef_search = 100;
 
-            let neighbors = self.hnsw.search(&own_position.components, knbn, ef_search);
-            for neighbor in neighbors {
-                results.push(neighbor.d_id);
-            }
+            // let neighbors = self.hnsw.search(&own_position.components, knbn, ef_search);
+            // for neighbor in neighbors {
+            //     results.push(neighbor.d_id);
+            // }
             return;
         }
 
+        return;
         // if self.weight(index) > 1.0 {
         //     self.positions.iter().enumerate().for_each(|(i, d)| {
         //         results.push(i);
         //     });
         // } else {
-        let mut knbn = 5; // initial number of neighbors to search for
-        let ef_search = 10;
+        let mut knbn = self.config.knbn; // initial number of neighbors to search for
+        let ef_search = self.config.ef_search;
 
         let neighbors = self.hnsw.search(&own_position.components, knbn, ef_search);
         for neighbor in neighbors {

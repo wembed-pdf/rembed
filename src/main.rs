@@ -1,15 +1,20 @@
 use std::time::Instant;
 
-use rembed::{embedder::EmbedderOptions, lossy_queries::LossyQuery, *};
+use rembed::{embedder::EmbedderOptions, lossy_queries::LossyQuery, query::Embedder as _, *};
+use std::fmt::Write;
 
 fn main() -> io::Result<()> {
     // let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 2;
-    let dim_hint = 8;
+    const D: usize = 8;
+    let dim_hint = 16;
+    // rayon::ThreadPoolBuilder::new()
+    //     .num_threads(1)
+    //     .build_global()
+    //     .unwrap();
 
-    // let graph_path = format!("data/{}/graph", graph_name);
+    // let graph = format!("data/{}/graph", graph_name);
     let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
     // let graph = "data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
@@ -32,6 +37,35 @@ fn main() -> io::Result<()> {
         positions,
         graph: &graph,
     };
+
+    let strategies = [
+        rembed::lossy_queries::LossyStrategy::Random,
+        rembed::lossy_queries::LossyStrategy::InOrder,
+        // rembed::lossy_queries::LossyStrategy::Droplist,
+        rembed::lossy_queries::LossyStrategy::Closest,
+        rembed::lossy_queries::LossyStrategy::Furthest,
+        rembed::lossy_queries::LossyStrategy::Heavy,
+        rembed::lossy_queries::LossyStrategy::Light,
+    ];
+    let mut output = String::from("strategy, p, f1, percision, recall\n");
+
+    // for p in (1..=10).map(|i| i as f64 / 10.) {
+    //     for strategy in strategies {
+    //         eprintln!("{p}: {strategy:?}");
+    //         let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, p, strategy);
+    //         let mut embedder = embedder::WEmbedder::new(lossy_queries, options.clone());
+    //         embedder.embed();
+    //         let (percision, recall) = embedder.spatial_index.graph_statistics();
+    //         let f1 = 2. / (recall.recip() + percision.recip());
+    //         writeln!(
+    //             &mut output,
+    //             "{strategy:?}, {p}, {f1}, {percision}, {recall}"
+    //         );
+    //     }
+    // }
+
+    // println!("{}", output);
+    // return Ok(());
     // let recall = 1.0;
     let recall = 0.7;
     // let strategy = rembed::lossy_queries::LossyStrategy::Random;
@@ -42,14 +76,55 @@ fn main() -> io::Result<()> {
     // let strategy = rembed::lossy_queries::LossyStrategy::Droplist;
     // let strategy = rembed::lossy_queries::LossyStrategy::Light;
     // let lossy_queries = ATree::new(&embedding);
-    let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, recall, strategy);
-    let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
+    // let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, recall, strategy);
+
+    for ef_search in [10, 20, 50, 100] {
+        for ef_construction in [10, 20, 50, 100] {
+            for max_nb_connection in [2, 4, 8] {
+                for max_layer in [1, 2] {
+                    // for strategy in strategies {
+                    let config = rembed::hnsw::HnswConfig {
+                        max_nb_connection,
+                        max_layer,
+                        ef_construction,
+                        knbn: 5,
+                        ef_search,
+                    };
+                    dbg!(&config);
+
+                    let lossy_queries = hnsw::HNSWTree::<_>::new_with_config(&embedding, config);
+                    let lossy_queries = ATree::<_>::new(&embedding);
+
+                    let mut embedder = embedder::WEmbedder::new(lossy_queries, options.clone());
+                    embedder.embed();
+                    let (percision, recall) = embedder.spatial_index.graph_statistics();
+                    let f1 = 2. / (recall.recip() + percision.recip());
+                    dbg!(percision, recall, f1);
+                    writeln!(&mut output, "{strategy:?}, , {f1}, {percision}, {recall}");
+                }
+            }
+        }
+    }
+
+    let config = rembed::hnsw::HnswConfig {
+        max_nb_connection: todo!(),
+        max_layer: todo!(),
+        ef_construction: todo!(),
+        knbn: todo!(),
+        ef_search: todo!(),
+    };
+    let lossy_queries = hnsw::HNSWTree::<_>::new_with_config(&embedding, config);
+    let mut embedder = embedder::WEmbedder::new(lossy_queries, options.clone());
+    // let mut embedder: embedder::WEmbedder<ATree<_>, D> =
+    //     embedder::WEmbedder::random(42, &graph, options.clone());
+    let mut embedder: embedder::WEmbedder<hnsw::HNSWTree<_>, D> =
+        embedder::WEmbedder::random(42, &graph, options.clone());
 
     // takes wembed 03:04 for the first 100 iterations on rel8
     let mut last_time = Instant::now();
     embedder.embed_with_callback(|e| {
         let i = e.iteration();
-        if i % 100 == 0 && i > 0 {
+        if i % 10 == 0 && i > 0 {
             eprintln!(
                 "Iteration {i}, Δp{}, {:.1}s",
                 e.last_pos_delta().unwrap_or_default(),
