@@ -44,7 +44,7 @@ impl Default for SweepConfig {
         Self {
             // Graph and embedding
             graph_path: "data/generated/graphs/73_girg_n-10000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400",
-            embedding_dim: 8,
+            embedding_dim: 12,
             dim_hint: 8,
             max_iterations: 500,
 
