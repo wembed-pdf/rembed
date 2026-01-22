@@ -43,20 +43,20 @@ impl Default for SweepConfig {
     fn default() -> Self {
         Self {
             // Graph and embedding
-            graph_path: "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402",
+            graph_path: "data/generated/graphs/73_girg_n-10000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400",
             embedding_dim: 8,
             dim_hint: 8,
             max_iterations: 500,
 
             // What to sweep
             sweep_lsh: true,
-            sweep_lossy: true,
+            sweep_lossy: false,
 
             // LSH ranges
-            lsh_num_tables_range: 1..=8,
-            lsh_num_projections_start: 4,
+            lsh_num_tables_range: 1..=4,
+            lsh_num_projections_start: 8,
             lsh_num_projections_end: 64,
-            lsh_num_projections_step: 4,
+            lsh_num_projections_step: 8,
 
             // LossyQuery settings
             lossy_p_values: vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
