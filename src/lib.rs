@@ -16,6 +16,7 @@ pub mod kd_tree;
 pub mod kiddo;
 pub mod lossy_queries;
 pub mod lsh;
+pub mod measured_lsh;
 pub mod nabo;
 #[cfg(feature = "nanoflann")]
 pub mod nanoflann;
@@ -31,6 +32,7 @@ pub mod wrtree;
 pub use atree::ATree;
 pub use dim_reduction::LayeredLsh;
 pub use dynamic_queries::DynamicQuery;
+pub use measured_lsh::MeasuredLSH;
 
 pub mod embedder;
 

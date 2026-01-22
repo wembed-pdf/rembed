@@ -1,8 +1,8 @@
 [workspace]
 members = [
     ".",
-    "benchmark",
-    "simulation",
+    # "benchmark",
+    # "simulation",
     # "nanoflann"
 ]
 
@@ -10,6 +10,7 @@ members = [
 name = "rembed"
 version = "0.1.0"
 edition = "2024"
+default-run = "rembed"
 
 
 [dependencies]
@@ -27,6 +28,7 @@ neighbourhood = "0.0.1"
 rand = "0.9.1"
 rayon = "1.10.0"
 rstar = "0.12.2"
+rustc-hash = "2.1.0"
 sha2 = "0.10.9"
 sif-kdtree = "0.7.0"
 vec-vp-tree = "0.1.1"

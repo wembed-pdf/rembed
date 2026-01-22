@@ -88,10 +88,10 @@ impl<'a, const D: usize> Update<D> for HNSWTree<'a, D> {
 }
 
 impl<'a, const D: usize> Query for HNSWTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+    fn nearest_neighbors(&self, index: usize, _radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius_squared = (radius * own_weight.powi(2)) as f32;
+        // let own_weight = self.weight(index);
+        // let scaled_radius_squared = (radius * own_weight.powi(2)) as f32;
 
         if self.weight(index) > 1.2 {
             // bruteforce search if own weight is too high
@@ -103,7 +103,7 @@ impl<'a, const D: usize> Query for HNSWTree<'a, D> {
             //         results.push(i);
             //     }
             // });
-            let mut knbn = 50; // initial number of neighbors to search for
+            let knbn = 50; // initial number of neighbors to search for
             let ef_search = 100;
 
             let neighbors = self.hnsw.search(&own_position.components, knbn, ef_search);
@@ -118,7 +118,7 @@ impl<'a, const D: usize> Query for HNSWTree<'a, D> {
         //         results.push(i);
         //     });
         // } else {
-        let mut knbn = 5; // initial number of neighbors to search for
+        let knbn = 5; // initial number of neighbors to search for
         let ef_search = 10;
 
         let neighbors = self.hnsw.search(&own_position.components, knbn, ef_search);

@@ -69,18 +69,6 @@
         
         # Common shell hook
         commonShellHook = ''
-          echo "🔬 R Benchmark Analysis Environment"
-          echo "R version: $(R --version | head -n1)"
-          echo ""
-          echo "Available commands:"
-          echo "  R                    - Start R interactive session"
-          echo "  Rscript <file>       - Run R script"
-          echo "  rstudio              - Launch RStudio IDE"
-          echo ""
-          echo "Database setup:"
-          echo "  Create .env file with your PostgreSQL credentials"
-          echo ""
-          
           # Set R library path to use Nix packages
           export R_LIBS_USER=""
           export R_PROFILE_USER=".Rprofile"

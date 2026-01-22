@@ -6,10 +6,11 @@ use crate::{
     query::{self, Embedder, Graph, Position, SpatialIndex, Update},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LossyStrategy {
     Random,
     InOrder,
+    ID,
     Droplist,
     Closest,
     Furthest,

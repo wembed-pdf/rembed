@@ -3,19 +3,20 @@ use std::time::Instant;
 use rembed::{
     embedder::{EmbedderOptions, WEmbedder},
     lossy_queries::LossyQuery,
+    query::Embedder,
     random_projection_lsh::RandomProjectionLsh,
     *,
 };
 
 fn main() -> io::Result<()> {
-    // let graph_name = "rel8";
+    let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 4;
+    const D: usize = 8;
     let dim_hint = 16;
 
-    // let graph_path = format!("data/{}/graph", graph_name);
-    let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
+    let graph = format!("data/{}/graph", graph_name);
+    // let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
     // let graph = "data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/73_girg_n-10000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
@@ -25,7 +26,7 @@ fn main() -> io::Result<()> {
     let graph = graph::Graph::parse_from_edge_list_file(&graph, D, dim_hint)?;
 
     let options = EmbedderOptions {
-        max_iterations: 500,
+        // max_iterations: 500,
         ..Default::default()
     };
     let embedder: embedder::WEmbedder<ATree<_>, D> =
@@ -37,19 +38,10 @@ fn main() -> io::Result<()> {
         positions,
         graph: &graph,
     };
-    // let recall = 1.0;
-    let recall = 0.7;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Random;
-    // let strategy = rembed::lossy_queries::LossyStrategy::InOrder;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Closest;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Furthest;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Heavy;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Droplist;
-    // let strategy = rembed::lossy_queries::LossyStrategy::Light;
+
     // let lossy_queries = ATree::new(&embedding);
-    let lossy_queries = LossyQuery::<_, ATree<_>>::new(&embedding, recall, strategy);
     // let lossy_queries = RandomProjectionLsh::<_>::new(embedding.clone());
-    // let lossy_queries = ATree::<_>::new(&embedding);
+    let lossy_queries = DynamicQuery::<_, ATree<_>>::new(&embedding);
     let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
 
     // takes wembed 03:04 for the first 100 iterations on rel8

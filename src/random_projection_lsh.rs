@@ -56,8 +56,8 @@ impl<'a, const D: usize> RandomProjectionLsh<'a, D> {
     fn default_num_projections(d: usize) -> usize {
         match d {
             0..=4 => 8,
-            5..=16 => 16,
-            17..=64 => 16,
+            5..=16 => 48,
+            17..=64 => 24,
             _ => 20,
         }
     }
