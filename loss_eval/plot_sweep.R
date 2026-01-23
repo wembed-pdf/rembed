@@ -19,10 +19,11 @@ lossy_data <- data %>% filter(sweep_type == "LossyQuery")
 if (nrow(lsh_data) > 0) {
   lsh_data_plot <- lsh_data %>%
     extract(strategy,
-            into = c("num_tables", "num_projections"),
-            regex = "LSH-L([0-9]+)-K([0-9]+)",
-            convert = TRUE,
-            remove = FALSE) %>%
+      into = c("num_tables", "num_projections"),
+      regex = "LSH-L([0-9]+)-K([0-9]+)",
+      convert = TRUE,
+      remove = FALSE
+    ) %>%
     mutate(strategy_group = paste0("LSH-L", num_tables))
 } else {
   lsh_data_plot <- lsh_data
@@ -41,8 +42,10 @@ ggplot(plot_data, aes(x = p, y = f1, color = strategy_group, group = strategy_gr
   geom_point(aes(shape = sweep_type), size = 2.5, alpha = 0.8) +
   scale_shape_manual(values = c("LSH" = 18, "LossyQuery" = 16)) +
   labs(
-    title = sprintf("LSH vs LossyQuery Performance (n=%d, dim=%d)",
-                    plot_data$num_nodes[1], plot_data$embedding_dim[1]),
+    title = sprintf(
+      "LSH vs LossyQuery Performance (n=%d, dim=%d)",
+      plot_data$num_nodes[1], plot_data$embedding_dim[1]
+    ),
     subtitle = "LSH grouped by num_tables (L), lines show varying projections (K)",
     x = "p (Recall of repelling edges)",
     y = "F1 Score",
@@ -54,6 +57,73 @@ ggplot(plot_data, aes(x = p, y = f1, color = strategy_group, group = strategy_gr
 
 ggsave("f1_score_vs_p_combined.png", width = 12, height = 8)
 
+
+# ============================================================================
+# Plot 1.5: Combined LSH vs LossyQuery (F1 vs p) colored by speed
+# ============================================================================
+
+# For LSH: extract num_tables to group by
+if (nrow(lsh_data) > 0) {
+  lsh_data_plot <- lsh_data %>%
+    extract(strategy,
+      into = c("num_tables", "num_projections"),
+      regex = "LSH-L([0-9]+)-K([0-9]+)",
+      convert = TRUE,
+      remove = FALSE
+    ) %>%
+    mutate(strategy_group = paste0("LSH-L", num_tables))
+} else {
+  lsh_data_plot <- lsh_data
+}
+
+# filter outliers with time_ms > 11000
+# lsh_data_plot <- lsh_data_plot %>% filter(time_ms <= 11000)
+
+# Combine data with group column for plotting
+plot_data <- bind_rows(
+  lossy_data %>% mutate(strategy_group = as.character(strategy)),
+  if (nrow(lsh_data) > 0) lsh_data_plot %>% select(-num_tables, -num_projections) else lsh_data
+)
+
+ggplot(plot_data, aes(x = p, y = f1, color = time_ms, group = strategy_group)) +
+  scale_x_reverse() +
+  # All strategies with lines
+  geom_line(alpha = 0.7, linewidth = 1) +
+  geom_point(size = 3.5, alpha = 0.8, shape = 18) +
+  # scale_shape_manual(values = c("LSH" = 18, "LossyQuery" = 16)) +
+  scale_color_gradient2(
+    low = "green",
+    high = "red",
+    mid = "lightblue",
+    # midpoint = log(9370),
+    midpoint = log(10000),
+    # midpoint = 10000,
+    # midpoint = log(mean(plot_data$time_ms)),
+    trans = "log",
+    labels = scales::label_number(accuracy = 1000),
+    name = "Time (ms)"
+  ) +
+  # horizontal line at 0.9 with Annotation
+  geom_hline(yintercept = 0.93, linetype = "dashed", color = "lightblue", linewidth = 1.5) +
+  annotate("text", x = max(plot_data$p) / 3, y = 0.95, label = "Advanced KD-Tree", hjust = 1, vjust = 0, color = "#59b3d1", size = 4) +
+  # scale y axis from 1
+  # coord_cartesian(ylim = c(0.55, 1.0)) +
+  labs(
+    title = sprintf(
+      "LSH Recall vs Quality"
+    ),
+    subtitle = "Speed colored logarithmically",
+    x = "Recall of repelling edges",
+    y = "F1 Score",
+    color = "Time log(ms)",
+    # shape = "Type"
+  ) +
+  theme_bw() +
+  theme(legend.position = "right")
+
+ggsave("f1_score_vs_p_combined_speed.png", width = 6, height = 4)
+
+
 # ============================================================================
 # Plot 2: LSH Heatmap (F1 score)
 # ============================================================================
@@ -62,10 +132,11 @@ if (nrow(lsh_data) > 0) {
   # Extract num_tables and num_projections from strategy
   lsh_data <- lsh_data %>%
     extract(strategy,
-            into = c("num_tables", "num_projections"),
-            regex = "LSH-L([0-9]+)-K([0-9]+)",
-            convert = TRUE,
-            remove = FALSE)
+      into = c("num_tables", "num_projections"),
+      regex = "LSH-L([0-9]+)-K([0-9]+)",
+      convert = TRUE,
+      remove = FALSE
+    )
 
   ggplot(lsh_data, aes(x = num_projections, y = num_tables, fill = f1)) +
     geom_tile(color = "white", size = 0.5) +
@@ -80,14 +151,18 @@ if (nrow(lsh_data) > 0) {
     scale_x_continuous(breaks = unique(lsh_data$num_projections)) +
     scale_y_continuous(breaks = unique(lsh_data$num_tables)) +
     labs(
-      title = sprintf("LSH F1 Score Heatmap (n=%d, dim=%d)",
-                      lsh_data$num_nodes[1], lsh_data$embedding_dim[1]),
+      title = sprintf(
+        "LSH F1 Score Heatmap (n=%d, dim=%d)",
+        lsh_data$num_nodes[1], lsh_data$embedding_dim[1]
+      ),
       x = "Number of Projections (K)",
       y = "Number of Tables (L)"
     ) +
     theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()
+    )
 
   ggsave("lsh_heatmap_f1.png", width = 10, height = 8)
 
@@ -108,15 +183,19 @@ if (nrow(lsh_data) > 0) {
     scale_x_continuous(breaks = unique(lsh_data$num_projections)) +
     scale_y_continuous(breaks = unique(lsh_data$num_tables)) +
     labs(
-      title = sprintf("LSH Recall (p) Heatmap (n=%d, dim=%d)",
-                      lsh_data$num_nodes[1], lsh_data$embedding_dim[1]),
+      title = sprintf(
+        "LSH Recall (p) Heatmap (n=%d, dim=%d)",
+        lsh_data$num_nodes[1], lsh_data$embedding_dim[1]
+      ),
       subtitle = "Average recall of repelling edges found by LSH vs ATree",
       x = "Number of Projections (K)",
       y = "Number of Tables (L)"
     ) +
     theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()
+    )
 
   ggsave("lsh_heatmap_recall.png", width = 10, height = 8)
 
@@ -137,15 +216,19 @@ if (nrow(lsh_data) > 0) {
     scale_x_continuous(breaks = unique(lsh_data$num_projections)) +
     scale_y_continuous(breaks = unique(lsh_data$num_tables)) +
     labs(
-      title = sprintf("LSH Runtime Heatmap (n=%d, dim=%d)",
-                      lsh_data$num_nodes[1], lsh_data$embedding_dim[1]),
+      title = sprintf(
+        "LSH Runtime Heatmap (n=%d, dim=%d)",
+        lsh_data$num_nodes[1], lsh_data$embedding_dim[1]
+      ),
       subtitle = sprintf("%d iterations", unique(lsh_data$num_nodes)[1] * 2),
       x = "Number of Projections (K)",
       y = "Number of Tables (L)"
     ) +
     theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()
+    )
 
   ggsave("lsh_heatmap_time.png", width = 10, height = 8)
 
@@ -172,15 +255,19 @@ if (nrow(lsh_data) > 0) {
     scale_x_continuous(breaks = unique(lsh_data$num_projections)) +
     scale_y_continuous(breaks = unique(lsh_data$num_tables)) +
     labs(
-      title = sprintf("LSH Cost: Failure Rate × Time (n=%d, dim=%d)",
-                      lsh_data$num_nodes[1], lsh_data$embedding_dim[1]),
+      title = sprintf(
+        "LSH Cost: Failure Rate × Time (n=%d, dim=%d)",
+        lsh_data$num_nodes[1], lsh_data$embedding_dim[1]
+      ),
       subtitle = "Lower is better - captures both quality and speed",
       x = "Number of Projections (K)",
       y = "Number of Tables (L)"
     ) +
     theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()
+    )
 
   ggsave("lsh_heatmap_cost.png", width = 10, height = 8)
 
@@ -204,18 +291,21 @@ if (nrow(lsh_data) > 0) {
     scale_x_continuous(breaks = unique(lsh_data$num_projections)) +
     scale_y_continuous(breaks = unique(lsh_data$num_tables)) +
     labs(
-      title = sprintf("LSH Efficiency: F1 Score per Second (n=%d, dim=%d)",
-                      lsh_data$num_nodes[1], lsh_data$embedding_dim[1]),
+      title = sprintf(
+        "LSH Efficiency: F1 Score per Second (n=%d, dim=%d)",
+        lsh_data$num_nodes[1], lsh_data$embedding_dim[1]
+      ),
       subtitle = "Higher is better - more quality per unit time",
       x = "Number of Projections (K)",
       y = "Number of Tables (L)"
     ) +
     theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()
+    )
 
   ggsave("lsh_heatmap_efficiency.png", width = 10, height = 8)
-
 }
 
 # ============================================================================
@@ -228,8 +318,10 @@ if (nrow(lossy_data) > 0) {
     geom_point(size = 2) +
     geom_line(alpha = 0.7) +
     labs(
-      title = sprintf("LossyQuery Strategy Sweep (n=%d, dim=%d)",
-                      lossy_data$num_nodes[1], lossy_data$embedding_dim[1]),
+      title = sprintf(
+        "LossyQuery Strategy Sweep (n=%d, dim=%d)",
+        lossy_data$num_nodes[1], lossy_data$embedding_dim[1]
+      ),
       x = "p (Target recall parameter)",
       y = "F1 Score",
       color = "Strategy"
@@ -247,8 +339,10 @@ if (nrow(lossy_data) > 0) {
     geom_point(size = 2) +
     geom_line(alpha = 0.7) +
     labs(
-      title = sprintf("LossyQuery Runtime vs p (n=%d, dim=%d)",
-                      lossy_data$num_nodes[1], lossy_data$embedding_dim[1]),
+      title = sprintf(
+        "LossyQuery Runtime vs p (n=%d, dim=%d)",
+        lossy_data$num_nodes[1], lossy_data$embedding_dim[1]
+      ),
       x = "p (Target recall parameter)",
       y = "Runtime (ms)",
       color = "Strategy"
@@ -263,60 +357,74 @@ if (nrow(lossy_data) > 0) {
 # ============================================================================
 
 cat("\n=== Sweep Summary ===\n")
-cat(sprintf("Graph: %d nodes, dimension %d\n",
-            data$num_nodes[1], data$embedding_dim[1]))
+cat(sprintf(
+  "Graph: %d nodes, dimension %d\n",
+  data$num_nodes[1], data$embedding_dim[1]
+))
 
 if (nrow(lsh_data) > 0) {
   cat("\nLSH Results:\n")
   best_f1_idx <- which.max(lsh_data$f1)
-  cat(sprintf("  Best F1: %.4f at L=%d, K=%d (p=%.4f, time=%.0fms)\n",
-              lsh_data$f1[best_f1_idx],
-              lsh_data$num_tables[best_f1_idx],
-              lsh_data$num_projections[best_f1_idx],
-              lsh_data$p[best_f1_idx],
-              lsh_data$time_ms[best_f1_idx]))
+  cat(sprintf(
+    "  Best F1: %.4f at L=%d, K=%d (p=%.4f, time=%.0fms)\n",
+    lsh_data$f1[best_f1_idx],
+    lsh_data$num_tables[best_f1_idx],
+    lsh_data$num_projections[best_f1_idx],
+    lsh_data$p[best_f1_idx],
+    lsh_data$time_ms[best_f1_idx]
+  ))
 
   best_p_idx <- which.max(lsh_data$p)
-  cat(sprintf("  Best recall: %.4f at L=%d, K=%d (f1=%.4f, time=%.0fms)\n",
-              lsh_data$p[best_p_idx],
-              lsh_data$num_tables[best_p_idx],
-              lsh_data$num_projections[best_p_idx],
-              lsh_data$f1[best_p_idx],
-              lsh_data$time_ms[best_p_idx]))
+  cat(sprintf(
+    "  Best recall: %.4f at L=%d, K=%d (f1=%.4f, time=%.0fms)\n",
+    lsh_data$p[best_p_idx],
+    lsh_data$num_tables[best_p_idx],
+    lsh_data$num_projections[best_p_idx],
+    lsh_data$f1[best_p_idx],
+    lsh_data$time_ms[best_p_idx]
+  ))
 
   fastest_idx <- which.min(lsh_data$time_ms)
-  cat(sprintf("  Fastest: %.0fms at L=%d, K=%d (f1=%.4f, p=%.4f)\n",
-              lsh_data$time_ms[fastest_idx],
-              lsh_data$num_tables[fastest_idx],
-              lsh_data$num_projections[fastest_idx],
-              lsh_data$f1[fastest_idx],
-              lsh_data$p[fastest_idx]))
+  cat(sprintf(
+    "  Fastest: %.0fms at L=%d, K=%d (f1=%.4f, p=%.4f)\n",
+    lsh_data$time_ms[fastest_idx],
+    lsh_data$num_tables[fastest_idx],
+    lsh_data$num_projections[fastest_idx],
+    lsh_data$f1[fastest_idx],
+    lsh_data$p[fastest_idx]
+  ))
 
   best_efficiency_idx <- which.max(lsh_data$f1_per_second)
-  cat(sprintf("  Best efficiency: %.3f F1/s at L=%d, K=%d (f1=%.4f, time=%.0fms)\n",
-              lsh_data$f1_per_second[best_efficiency_idx],
-              lsh_data$num_tables[best_efficiency_idx],
-              lsh_data$num_projections[best_efficiency_idx],
-              lsh_data$f1[best_efficiency_idx],
-              lsh_data$time_ms[best_efficiency_idx]))
+  cat(sprintf(
+    "  Best efficiency: %.3f F1/s at L=%d, K=%d (f1=%.4f, time=%.0fms)\n",
+    lsh_data$f1_per_second[best_efficiency_idx],
+    lsh_data$num_tables[best_efficiency_idx],
+    lsh_data$num_projections[best_efficiency_idx],
+    lsh_data$f1[best_efficiency_idx],
+    lsh_data$time_ms[best_efficiency_idx]
+  ))
 
   lowest_cost_idx <- which.min(lsh_data$cost)
-  cat(sprintf("  Lowest cost: %.1f (1-F1)×ms at L=%d, K=%d (f1=%.4f, time=%.0fms)\n",
-              lsh_data$cost[lowest_cost_idx],
-              lsh_data$num_tables[lowest_cost_idx],
-              lsh_data$num_projections[lowest_cost_idx],
-              lsh_data$f1[lowest_cost_idx],
-              lsh_data$time_ms[lowest_cost_idx]))
+  cat(sprintf(
+    "  Lowest cost: %.1f (1-F1)×ms at L=%d, K=%d (f1=%.4f, time=%.0fms)\n",
+    lsh_data$cost[lowest_cost_idx],
+    lsh_data$num_tables[lowest_cost_idx],
+    lsh_data$num_projections[lowest_cost_idx],
+    lsh_data$f1[lowest_cost_idx],
+    lsh_data$time_ms[lowest_cost_idx]
+  ))
 }
 
 if (nrow(lossy_data) > 0) {
   cat("\nLossyQuery Results:\n")
   best_f1_idx <- which.max(lossy_data$f1)
-  cat(sprintf("  Best F1: %.4f with %s at p=%.1f (time=%.0fms)\n",
-              lossy_data$f1[best_f1_idx],
-              lossy_data$strategy[best_f1_idx],
-              lossy_data$p[best_f1_idx],
-              lossy_data$time_ms[best_f1_idx]))
+  cat(sprintf(
+    "  Best F1: %.4f with %s at p=%.1f (time=%.0fms)\n",
+    lossy_data$f1[best_f1_idx],
+    lossy_data$strategy[best_f1_idx],
+    lossy_data$p[best_f1_idx],
+    lossy_data$time_ms[best_f1_idx]
+  ))
 }
 
 cat("\nGenerated plots:\n")
