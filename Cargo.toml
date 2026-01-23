@@ -1,7 +1,7 @@
 [workspace]
 members = [
     ".",
-    # "benchmark",
+    "benchmark",
     # "simulation",
     # "nanoflann"
 ]

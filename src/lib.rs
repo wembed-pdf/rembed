@@ -21,9 +21,9 @@ pub mod nabo;
 #[cfg(feature = "nanoflann")]
 pub mod nanoflann;
 pub mod neighbourhood;
-pub mod random_projection_lsh;
 pub mod parsing;
 pub mod query;
+pub mod random_projection_lsh;
 pub mod sif;
 pub mod snn;
 pub mod vptree;
@@ -55,15 +55,15 @@ pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
-        Box::new(hnsw::HNSWTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(hnsw::HNSWTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dim_reduction::LayeredLsh::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
         Box::new(lsh::Lsh::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(random_projection_lsh::RandomProjectionLsh::<D>::new(embedding.clone()))
-            as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(random_projection_lsh::RandomProjectionLsh::<D>::new(embedding.clone()))
+        // as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::SNN::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kd_tree::KDTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(ball_tree::WBallTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,

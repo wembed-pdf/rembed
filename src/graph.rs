@@ -95,6 +95,10 @@ impl Graph {
             graph.nodes[*v].neighbors.push(*u);
             graph.nodes[*v].neighbors_set.insert(*u);
         }
+        for node in &mut graph.nodes {
+            node.neighbors.sort_unstable();
+            node.neighbors.dedup();
+        }
 
         // TODO: Sort nodes by degree and reassign indices
         Ok(graph)
@@ -103,6 +107,10 @@ impl Graph {
 
 impl crate::query::Graph for Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
+        debug_assert_eq!(
+            self.nodes[first].neighbors_set.contains(&second),
+            self.nodes[second].neighbors_set.contains(&first)
+        );
         self.nodes[first].neighbors_set.contains(&second)
     }
     fn neighbors(&self, index: NodeId) -> &[NodeId] {

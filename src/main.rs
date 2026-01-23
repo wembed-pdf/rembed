@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use rembed::{
     embedder::{EmbedderOptions, WEmbedder},
+    kiddo::Kiddo,
     lossy_queries::LossyQuery,
     query::Embedder,
     random_projection_lsh::RandomProjectionLsh,
@@ -12,8 +13,8 @@ fn main() -> io::Result<()> {
     let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 8;
-    let dim_hint = 16;
+    const D: usize = 12;
+    let dim_hint = 8;
 
     let graph = format!("data/{}/graph", graph_name);
     // let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
@@ -23,6 +24,8 @@ fn main() -> io::Result<()> {
     // let graph = "data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/609.gr";
     // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/72.gr";
+    // let graph = "../../cpp/sample/edge_lists_real/web-spam";
+    let graph = "../../cpp/sample/edge_lists_real/rel7";
     let graph = graph::Graph::parse_from_edge_list_file(&graph, D, dim_hint)?;
 
     let options = EmbedderOptions {
@@ -40,8 +43,11 @@ fn main() -> io::Result<()> {
     };
 
     // let lossy_queries = ATree::new(&embedding);
-    // let lossy_queries = RandomProjectionLsh::<_>::new(embedding.clone());
-    let lossy_queries = DynamicQuery::<_, ATree<_>>::new(&embedding);
+    // let lossy_queries = Kiddo::new(embedding.clone());
+    // let lossy_queries = embedding.clone();
+    let lossy_queries =
+        RandomProjectionLsh::<_>::new_with_params(embedding.clone(), Some(1), Some(16));
+    // let lossy_queries = DynamicQuery::<_, ATree<_>>::new(&embedding);
     let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
 
     // takes wembed 03:04 for the first 100 iterations on rel8
@@ -57,11 +63,28 @@ fn main() -> io::Result<()> {
             last_time = Instant::now();
         }
     });
+    // embedder.print_stats();
+    // let embedder = WEmbedder::new(
+    //     // ATree::new(&Embedding {
+    //     //     positions: embedder.positions().to_vec(),
+    //     //     graph: &graph,
+    //     // }),
+    //     Embedding {
+    //         positions: embedder.positions().to_vec(),
+    //         graph: &graph,
+    //     },
+    //     Default::default(),
+    // );
+    // embedder.print_stats();
     let embedder = WEmbedder::new(
         ATree::new(&Embedding {
             positions: embedder.positions().to_vec(),
             graph: &graph,
         }),
+        // Embedding {
+        //     positions: embedder.positions().to_vec(),
+        //     graph: &graph,
+        // },
         Default::default(),
     );
     embedder.print_stats();

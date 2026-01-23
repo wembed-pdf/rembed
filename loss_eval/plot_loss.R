@@ -4,7 +4,7 @@
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 
-measurements <- read.csv("loss_measurements_4.csv")
+measurements <- read.csv("bio-grid_dim8.csv")
 
 # Expect columns: strategy, p, f1, precision, recall
 
@@ -17,11 +17,12 @@ ggplot(measurements, aes(x = p, y = f1, color = strategy)) +
   geom_point() +
   geom_line() +
   labs(
-    title = "Variants of Approximation Losses dim=4; n=10000",
+    # title = "Variants of Approximation Losses dim=2; n=10000",
+    title = "Variants of Approximation Losses bio-grid dim = 8",
     x = "p (Recall of repelling edges)",
     y = "F1 Score"
   ) +
   theme_bw()
 
 
-ggsave("f1_score_vs_p_4.png")
+ggsave("f1_score_vs_p_bio-grid_dim8.png")

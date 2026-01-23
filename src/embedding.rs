@@ -39,6 +39,8 @@ impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
 
 impl<const D: usize> Query for Embedding<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+        // results.extend(0..index);
+        // return;
         let graph = self.graph;
         let own_weight = self.weight(index);
         let own_position = self.position(index);
@@ -70,5 +72,9 @@ impl<const D: usize> SpatialIndex<D> for Embedding<'_, D> {
 impl<'a, const D: usize> query::Embedder<'a, D> for Embedding<'a, D> {
     fn new(embedding: &crate::Embedding<'a, D>) -> Self {
         embedding.clone()
+    }
+
+    fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
+        self.nearest_neighbors(index, 1., result);
     }
 }

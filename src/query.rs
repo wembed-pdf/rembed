@@ -71,6 +71,14 @@ pub trait Query {
                 results[index].push(other_node_id);
             }
         }
+        // let total_sum_pre_dedup: usize = results.iter().map(|x| x.len()).sum();
+        // dbg!(total_sum_pre_dedup);
+
+        // for (i, list) in results.iter().enumerate() {
+        //     for other in list {
+        //         assert!(results[*other].contains(&i));
+        //     }
+        // }
         for vec in &mut results {
             vec.sort_unstable();
             vec.dedup();
@@ -116,40 +124,49 @@ pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> 
         let ids: Vec<_> = (0..(self.num_nodes())).collect();
         let results = self.nearest_neighbors_batched(&ids);
         let mut found_edges = 0;
-        let mut missed_edges = 0;
         let mut found_non_edges = 0;
-        for (i, close_nodes) in results
-            .iter()
-            .enumerate()
-            .choose_multiple(&mut rand::rng(), 1000)
-        {
+
+        // Count total edges in graph
+        let mut total_edges = 0;
+        for i in 0..self.num_nodes() {
+            total_edges += self.neighbors(i).len();
+        }
+        // dbg!(total_edges);
+        total_edges /= 2; // Each edge counted twice
+
+        // let total_sum: usize = results.iter().map(|x| x.len()).sum();
+        // dbg!(total_sum);
+        for (i, close_nodes) in results.iter().enumerate() {
             for close_node in close_nodes {
-                if self.is_connected(i, *close_node) {
-                    found_edges += 1;
-                } else if (self
+                if i == *close_node {
+                    continue;
+                }
+                let within_dist = (self
                     .position(i)
-                    .distance_squared(self.position(*close_node)) as f64)
-                    < (self.weight(*close_node) * self.weight(i)).powi(2)
-                {
+                    .distance_squared(self.position(*close_node))
+                    as f64)
+                    < (self.weight(*close_node) * self.weight(i)).powi(2);
+
+                if self.is_connected(i, *close_node) && within_dist {
+                    found_edges += 1;
+                } else if within_dist {
                     found_non_edges += 1;
                 }
             }
-            for neighbor in self.neighbors(i) {
-                if close_nodes.contains(neighbor) {
-                    continue;
-                }
-                missed_edges += 1;
-            }
         }
+
+        // Adjust for double-counting (since results are symmetric)
+        found_edges /= 2;
+        found_non_edges /= 2;
 
         (
             // precision, recall
             found_edges as f64 / (found_edges + found_non_edges).max(1) as f64,
-            found_edges as f64 / (found_edges + missed_edges) as f64,
+            found_edges as f64 / total_edges as f64,
         )
     }
     fn f1(&self) -> f64 {
-        let (percision, recall) = self.graph_statistics();
-        2. / (recall.recip() + percision.recip())
+        let (precision, recall) = self.graph_statistics();
+        2. / (recall.recip() + precision.recip())
     }
 }
