@@ -6,6 +6,8 @@ use rembed::{
     lossy_queries::LossyQuery,
     query::Embedder,
     random_projection_lsh::RandomProjectionLsh,
+    snn::SNN,
+    wrtree::WRTree,
     *,
 };
 
@@ -26,7 +28,11 @@ fn main() -> io::Result<()> {
     // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/72.gr";
     // let graph = "../../cpp/sample/edge_lists_real/web-spam";
     let graph = "../../cpp/sample/edge_lists_real/rel7";
+    // let graph = "../../cpp/sample/edge_lists_real/rel6";
     let graph = graph::Graph::parse_from_edge_list_file(&graph, D, dim_hint)?;
+
+    let count = graph.nodes.len();
+    eprintln!("n: {count}");
 
     let options = EmbedderOptions {
         // max_iterations: 500,
@@ -43,13 +49,15 @@ fn main() -> io::Result<()> {
     };
 
     // let lossy_queries = ATree::new(&embedding);
+    let lossy_queries = dim_reduction::LayeredLsh::new(&embedding.clone());
     // let lossy_queries = Kiddo::new(embedding.clone());
     // let lossy_queries = embedding.clone();
-    let lossy_queries =
-        RandomProjectionLsh::<_>::new_with_params(embedding.clone(), Some(1), Some(16));
+    // let lossy_queries =
+    //     RandomProjectionLsh::<_>::new_with_params(embedding.clone(), Some(1), Some(16));
     // let lossy_queries = DynamicQuery::<_, ATree<_>>::new(&embedding);
     let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
 
+    let start = Instant::now();
     // takes wembed 03:04 for the first 100 iterations on rel8
     let mut last_time = Instant::now();
     embedder.embed_with_callback(|e| {
@@ -63,28 +71,13 @@ fn main() -> io::Result<()> {
             last_time = Instant::now();
         }
     });
-    // embedder.print_stats();
-    // let embedder = WEmbedder::new(
-    //     // ATree::new(&Embedding {
-    //     //     positions: embedder.positions().to_vec(),
-    //     //     graph: &graph,
-    //     // }),
-    //     Embedding {
-    //         positions: embedder.positions().to_vec(),
-    //         graph: &graph,
-    //     },
-    //     Default::default(),
-    // );
-    // embedder.print_stats();
+    eprintln!("Embedding took {:.2}s", start.elapsed().as_secs_f32());
+
     let embedder = WEmbedder::new(
         ATree::new(&Embedding {
             positions: embedder.positions().to_vec(),
             graph: &graph,
         }),
-        // Embedding {
-        //     positions: embedder.positions().to_vec(),
-        //     graph: &graph,
-        // },
         Default::default(),
     );
     embedder.print_stats();

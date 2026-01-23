@@ -76,5 +76,7 @@ impl<'a, const D: usize> query::Embedder<'a, D> for Embedding<'a, D> {
 
     fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
         self.nearest_neighbors(index, 1., result);
+
+        result.retain(|&x| !self.is_connected(index, x));
     }
 }
