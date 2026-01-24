@@ -101,9 +101,12 @@ impl Layer {
         atree: &ATree<D>,
         offset: usize,
     ) {
-        nodes.sort_unstable_by_key(|i| i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes()));
-
+        // For leaf nodes, we need full sorting for the lookup table
         if nodes.len() <= LEAFSIZE {
+            nodes.sort_unstable_by_key(|i| {
+                i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
+            });
+
             for (d_pos, pos) in d_pos
                 .iter_mut()
                 .zip(nodes.iter().map(|id| atree.position(*id)))
@@ -132,11 +135,27 @@ impl Layer {
             return;
         }
 
-        let mut split_pos = nodes.len() / 2;
+        // For internal nodes, use select_nth_unstable to partition around median
+        let median_idx = nodes.len() / 2;
+        nodes.select_nth_unstable_by_key(median_idx, |i| {
+            i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
+        });
 
-        let split = atree.position(nodes[split_pos])[depth];
-        while split_pos != 0 && atree.position(nodes[split_pos - 1])[depth] == split {
-            split_pos -= 1;
+        // After select_nth_unstable, all elements left of median_idx have values <= pivot
+        // We need to move elements equal to pivot to the right side for strict partitioning
+        let split = atree.position(nodes[median_idx])[depth];
+        let mut split_pos = median_idx;
+
+        let mut i = 0;
+        while i < split_pos {
+            if atree.position(nodes[i])[depth] == split {
+                // Move equal value to the end of left half and shrink left half
+                split_pos -= 1;
+                nodes.swap(i, split_pos);
+                // Don't increment i, check the swapped element
+            } else {
+                i += 1;
+            }
         }
 
         let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
@@ -211,10 +230,10 @@ impl<'a, const D: usize> ATree<'a, D> {
                     distances,
                     results,
                 );
+                let mut reduced_radius = dim_radius_squared;
                 let dist = own_pos - node.split;
                 let d_2 = dist - distances[depth];
                 let x = 2. * distances[depth] * d_2 + d_2.powi(2);
-                let mut reduced_radius = dim_radius_squared;
                 distances[depth] = dist;
                 reduced_radius -= x;
                 if reduced_radius <= 0. {
