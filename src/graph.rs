@@ -7,7 +7,7 @@ use crate::NodeId;
 
 // A node in the graph
 // Each node has a weight, which is degree ^ (d/8)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Node {
     pub weight: f64,
     pub neighbors: Vec<usize>,
