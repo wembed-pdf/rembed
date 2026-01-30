@@ -145,7 +145,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     }
 }
 
-fn format_number(num: f64) -> String {
+pub fn format_number(num: f64) -> String {
     if num < 1000. {
         format!("{:.2}", num)
     } else if num < 1_000_000. {

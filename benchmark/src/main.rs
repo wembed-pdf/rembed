@@ -145,6 +145,41 @@ enum Commands {
         #[arg(long)]
         structures: Option<Vec<String>>,
     },
+
+    /// Benchmark data structures with synthetic distributions
+    BenchDistributions {
+        /// Dimensions to test (range format: "2-16" or single value "8")
+        #[arg(long, default_value = "2-16")]
+        dimensions: String,
+
+        /// Node counts to test (range format: "1000-10000" or single value)
+        #[arg(long, default_value = "1000-10000")]
+        node_counts: String,
+
+        /// Radiuses to test (range format: "0.5-2.0" or single value)
+        #[arg(long, default_value = "1.0")]
+        radiuses: String,
+
+        /// Point distributions: "normal", "uniform", or both (comma-separated)
+        #[arg(long, default_value = "normal,uniform")]
+        distributions: String,
+
+        /// Filter to specific data structures (optional)
+        #[arg(long)]
+        structures: Option<Vec<String>>,
+
+        /// Number of query points to sample per configuration
+        #[arg(long, default_value = "1000")]
+        num_queries: usize,
+
+        /// Random seed for reproducibility
+        #[arg(long, default_value = "42")]
+        seed: u64,
+
+        /// Output file path (optional, defaults to stdout with pretty print)
+        #[arg(long, short)]
+        output: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -396,6 +431,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .await?;
         }
+
+        Commands::BenchDistributions {
+            dimensions,
+            node_counts,
+            radiuses,
+            distributions,
+            structures,
+            num_queries,
+            seed,
+            output,
+        } => {
+            use benchmark::benchmark::distribution_bench::{
+                DistributionBenchConfig, DistributionBenchRunner,
+            };
+
+            // Parse ranges using existing range parsing functions
+            let dim_range = parse_usize_range(&dimensions)?;
+            let count_range = parse_usize_range(&node_counts)?;
+            let radius_range = parse_f64_range(&radiuses)?;
+
+            // Parse distributions
+            let dists = parse_distributions(&distributions)?;
+
+            let config = DistributionBenchConfig {
+                dim_range,
+                count_range,
+                radius_range,
+                distributions: dists,
+                structures,
+                num_queries,
+                seed,
+            };
+
+            let runner = DistributionBenchRunner::new(config);
+            let results = runner.run()?;
+
+            // Write output
+            runner.write_output(&results, output.as_deref())?;
+        }
     }
 
     Ok(())
@@ -449,4 +523,15 @@ fn parse_f64_range(s: &str) -> Result<(f64, f64), String> {
         .map_err(|_| "Invalid end of range")?;
 
     Ok((start, end))
+}
+
+fn parse_distributions(s: &str) -> Result<Vec<benchmark::synthetic_data::PointDistribution>, String> {
+    s.split(',')
+        .map(|s| s.trim())
+        .map(|s| match s {
+            "normal" => Ok(benchmark::synthetic_data::PointDistribution::standard_normal()),
+            "uniform" => Ok(benchmark::synthetic_data::PointDistribution::unit_uniform()),
+            _ => Err(format!("Invalid distribution '{}'. Must be 'normal' or 'uniform'", s)),
+        })
+        .collect()
 }

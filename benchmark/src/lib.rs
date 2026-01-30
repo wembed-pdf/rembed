@@ -6,6 +6,7 @@ mod generate_graphs;
 pub mod generate_positions;
 pub mod job_manager;
 pub mod statistics;
+pub mod synthetic_data;
 
 pub use generate_graphs::GraphGenerator;
 pub use generate_positions::PositionGenerator;
