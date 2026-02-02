@@ -6,6 +6,10 @@ use std::ops::Deref;
 
 pub mod atree;
 pub mod ball_tree;
+#[cfg(feature = "boost-rtree")]
+pub mod boost_rtree;
+#[cfg(feature = "cgal")]
+pub mod cgal_kdtree;
 pub mod dim_reduction;
 pub mod dvec;
 pub mod dynamic_queries;
@@ -75,9 +79,23 @@ pub fn data_structures<'a, const D: usize>(
     .into_iter();
 
     #[cfg(feature = "nanoflann")]
-    let iter = iter.chain(
+    let iter = iter.chain(Some(
         Box::new(nanoflann::NanoflannIndexWrapper::<D>::new(embedding))
             as Box<dyn IndexClone<D> + 'a>,
-    );
-    iter
+    ));
+
+    #[cfg(feature = "boost-rtree")]
+    let iter = iter.chain(Some(
+        Box::new(boost_rtree::BoostRTreeWrapper::<D>::new(embedding))
+            as Box<dyn IndexClone<D> + 'a>,
+    ));
+
+    #[cfg(feature = "cgal")]
+    let iter = iter.chain(Some(
+        Box::new(cgal_kdtree::CgalKdTreeWrapper::<D>::new(embedding))
+            as Box<dyn IndexClone<D> + 'a>,
+    ));
+
+    #[cfg(any(feature = "cgal", feature = "boost-rtree", feature = "nanoflann"))]
+    iter.collect::<Vec<_>>().into_iter()
 }

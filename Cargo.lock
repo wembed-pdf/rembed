@@ -273,6 +273,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "boost-rtree"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "pkg-config",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -331,6 +340,15 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "cgal"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "pkg-config",
+]
 
 [[package]]
 name = "chrono"
@@ -2333,6 +2351,8 @@ version = "0.1.0"
 dependencies = [
  "acap",
  "ball-tree",
+ "boost-rtree",
+ "cgal",
  "criterion 0.5.1",
  "crossbeam",
  "fnntw",

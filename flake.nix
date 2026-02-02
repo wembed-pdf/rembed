@@ -79,8 +79,18 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs = devTools;
+          # C++ libraries go in buildInputs so Nix sets up include paths automatically
+          buildInputs = devTools ++ (with pkgs; [
+            boost.dev  # .dev output contains headers
+            cgal       # CGAL development headers
+            eigen      # Required by CGAL for Epick_d kernel
+            gmp        # Required by CGAL
+            mpfr       # Required by CGAL
+          ]);
+
           shellHook = commonShellHook;
+
+          # Only development tools in packages
           packages = with pkgs; [
             # Development tools
             gdb
@@ -96,10 +106,14 @@
             sqlx-cli
           ];
 
-
           NIX_ENFORCE_NO_NATIVE=false;
 
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.llvmPackages_latest.libclang.lib pkgs.stdenv.cc.cc.lib ];
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.llvmPackages_latest.libclang.lib
+            pkgs.stdenv.cc.cc.lib
+            pkgs.gmp
+            pkgs.mpfr
+          ];
           LIBCLANG_PATH = pkgs.lib.makeLibraryPath [ pkgs.llvmPackages_latest.libclang.lib ];
         };
       }

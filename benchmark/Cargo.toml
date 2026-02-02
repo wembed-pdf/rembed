@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 #Local
-rembed = { path = "../" }
+rembed = { path = "../", features = ["boost-rtree", "cgal"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono"] }
