@@ -150,23 +150,31 @@ enum Commands {
     BenchDistributions {
         /// Dimensions to test (range format: "2-16" or single value "8")
         #[arg(long, default_value = "2-16")]
-        dimensions: String,
+        dimensions: Option<String>,
 
         /// Node counts to test (range format: "1000-10000" or single value)
         #[arg(long, default_value = "1000-10000")]
-        node_counts: String,
+        node_counts: Option<String>,
 
         /// Radiuses to test (range format: "0.5-2.0" or single value)
         #[arg(long, default_value = "1.0")]
         radiuses: String,
 
         /// Point distributions: "normal", "uniform", or both (comma-separated)
-        #[arg(long, default_value = "normal,uniform")]
-        distributions: String,
+        #[arg(long)]
+        distributions: Option<String>,
+
+        /// Benchmarkset names (optional)
+        #[arg(long)]
+        benchmarksets: Option<String>,
+
+        /// Path to benchmarksets (optional)
+        #[arg(long)]
+        benchmarksets_path: Option<String>,
 
         /// Filter to specific data structures (optional)
         #[arg(long)]
-        structures: Option<Vec<String>>,
+        structures: Vec<String>,
 
         /// Number of query points to sample per configuration
         #[arg(long, default_value = "1000")]
@@ -437,6 +445,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             node_counts,
             radiuses,
             distributions,
+            benchmarksets,
+            benchmarksets_path,
             structures,
             num_queries,
             seed,
@@ -446,23 +456,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 DistributionBenchConfig, DistributionBenchRunner,
             };
 
-            // Parse ranges using existing range parsing functions
-            let dim_range = parse_usize_range(&dimensions)?;
-            let count_range = parse_usize_range(&node_counts)?;
-            let radius_range = parse_f64_range(&radiuses)?;
-
-            // Parse distributions
-            let dists = parse_distributions(&distributions)?;
-
-            let config = DistributionBenchConfig {
-                dim_range,
-                count_range,
-                radius_range,
-                distributions: dists,
+            let mut config = DistributionBenchConfig {
+                dim_range: None,
+                count_range: None,
+                radius_range: parse_f64_range(&radiuses)?,
+                distributions: None,
                 structures,
                 num_queries,
                 seed,
+                benchmarksets: None,
+                path_to_benchmarksets: benchmarksets_path.clone(),
             };
+
+            // Parse distributions
+            if distributions.is_some() {
+                assert!(
+                    dimensions.is_some() && node_counts.is_some(),
+                    "Dimensions and node_counts must be specified when distributions are provided"
+                );
+                config.dim_range = Some(parse_usize_range(&dimensions.unwrap())?);
+                config.count_range = Some(parse_usize_range(&node_counts.unwrap())?);
+
+                config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
+            }
+
+            // Parse benchmarksets
+            if benchmarksets.is_some() {
+                assert!(
+                    benchmarksets_path.is_some(),
+                    "Benchmarksets path must be provided when benchmarksets are specified"
+                );
+                config.benchmarksets = Some(parse_benchmarksets(&benchmarksets.unwrap())?);
+            }
 
             let runner = DistributionBenchRunner::new(config);
             let results = runner.run()?;
@@ -525,13 +550,25 @@ fn parse_f64_range(s: &str) -> Result<(f64, f64), String> {
     Ok((start, end))
 }
 
-fn parse_distributions(s: &str) -> Result<Vec<benchmark::synthetic_data::PointDistribution>, String> {
+fn parse_distributions(
+    s: &str,
+) -> Result<Vec<benchmark::synthetic_data::PointDistribution>, String> {
     s.split(',')
         .map(|s| s.trim())
         .map(|s| match s {
             "normal" => Ok(benchmark::synthetic_data::PointDistribution::standard_normal()),
             "uniform" => Ok(benchmark::synthetic_data::PointDistribution::unit_uniform()),
-            _ => Err(format!("Invalid distribution '{}'. Must be 'normal' or 'uniform'", s)),
+            _ => Err(format!(
+                "Invalid distribution '{}'. Must be 'normal' or 'uniform'",
+                s
+            )),
         })
         .collect()
+}
+
+fn parse_benchmarksets(s: &str) -> Result<Vec<String>, String> {
+    Ok(s.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
 }

@@ -2,15 +2,18 @@ use crate::benchmark::runner;
 use crate::synthetic_data::{self, PointDistribution};
 use criterion::Criterion;
 use rembed::{Embedding, NodeId};
+use std::fs;
 use std::io::Write;
 
 #[derive(Debug, Clone)]
 pub struct DistributionBenchConfig {
-    pub dim_range: (usize, usize),
-    pub count_range: (usize, usize),
+    pub dim_range: Option<(usize, usize)>,
+    pub count_range: Option<(usize, usize)>,
     pub radius_range: (f64, f64),
-    pub distributions: Vec<PointDistribution>,
-    pub structures: Option<Vec<String>>,
+    pub distributions: Option<Vec<PointDistribution>>,
+    pub benchmarksets: Option<Vec<String>>,
+    pub path_to_benchmarksets: Option<String>,
+    pub structures: Vec<String>,
     pub num_queries: usize,
     pub seed: u64,
 }
@@ -19,7 +22,7 @@ impl DistributionBenchConfig {
     pub fn expand_dimensions(&self) -> Vec<usize> {
         vec![2, 3, 4, 8, 16, 32]
             .into_iter()
-            .filter(|&d| d >= self.dim_range.0 && d <= self.dim_range.1)
+            .filter(|&d| d >= self.dim_range.unwrap().0 && d <= self.dim_range.unwrap().1)
             .collect()
     }
 
@@ -27,7 +30,7 @@ impl DistributionBenchConfig {
         // Generate powers of 10 within range
         vec![100, 1000, 10000, 100000, 1000000]
             .into_iter()
-            .filter(|&n| n >= self.count_range.0 && n <= self.count_range.1)
+            .filter(|&n| n >= self.count_range.unwrap().0 && n <= self.count_range.unwrap().1)
             .collect()
     }
 
@@ -48,7 +51,7 @@ pub struct BenchmarkRecord {
     pub dimension: usize,
     pub node_count: usize,
     pub radius: f64,
-    pub distribution: String,
+    pub name: String,
     pub data_structure: String,
     pub wall_time_mean_ns: u64,
     pub wall_time_stddev_ns: u64,
@@ -69,83 +72,102 @@ impl DistributionBenchRunner {
     }
 
     pub fn run(&self) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
-        let dimensions = self.config.expand_dimensions();
-        let node_counts = self.config.expand_node_counts();
-        let radiuses = self.config.expand_radiuses();
-
-        eprintln!("Running distribution benchmarks:");
-        eprintln!("  Dimensions: {:?}", dimensions);
-        eprintln!("  Node counts: {:?}", node_counts);
-        eprintln!("  Radiuses: {:?}", radiuses);
-        eprintln!(
-            "  Distributions: {:?}",
-            self.config
-                .distributions
-                .iter()
-                .map(|d| d.name())
-                .collect::<Vec<_>>()
-        );
-        eprintln!();
-
         let mut all_results = Vec::new();
-        let total =
-            dimensions.len() * node_counts.len() * radiuses.len() * self.config.distributions.len();
-        let mut current = 0;
+        let radiuses = self.config.expand_radiuses();
+        if self.config.distributions.is_some() {
+            assert!(
+                self.config.dim_range.is_some() && self.config.count_range.is_some(),
+                "When specifying distributions, dim_range and count_range must also be specified"
+            );
+            let dimensions = self.config.expand_dimensions();
+            let node_counts = self.config.expand_node_counts();
 
-        for &dim in &dimensions {
-            for &node_count in &node_counts {
-                for &radius in &radiuses {
-                    for distribution in &self.config.distributions {
-                        current += 1;
-                        eprintln!(
-                            "[{}/{}] Running dim={}, n={}, r={}, dist={}",
-                            current,
-                            total,
-                            dim,
-                            node_count,
-                            radius,
-                            distribution.name()
-                        );
+            eprintln!("Running distribution benchmarks:");
+            eprintln!("  Dimensions: {:?}", dimensions);
+            eprintln!("  Node counts: {:?}", node_counts);
+            eprintln!("  Radiuses: {:?}", radiuses);
+            eprintln!(
+                "  Distributions: {:?}",
+                self.config
+                    .distributions
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .map(|d| d.name())
+                    .collect::<Vec<_>>()
+            );
+            eprintln!();
+            let total = dimensions.len()
+                * node_counts.len()
+                * radiuses.len()
+                * self.config.distributions.as_ref().unwrap().len();
+            let mut current = 0;
 
-                        let results = match dim {
-                            2 => self.run_benchmark_for_config::<2>(
+            for &dim in &dimensions {
+                for &node_count in &node_counts {
+                    for &radius in &radiuses {
+                        for distribution in self.config.distributions.as_ref().unwrap() {
+                            current += 1;
+                            eprintln!(
+                                "[{}/{}] Running dim={}, n={}, r={}, dist={}",
+                                current,
+                                total,
+                                dim,
                                 node_count,
                                 radius,
-                                distribution,
-                            )?,
-                            3 => self.run_benchmark_for_config::<3>(
-                                node_count,
-                                radius,
-                                distribution,
-                            )?,
-                            4 => self.run_benchmark_for_config::<4>(
-                                node_count,
-                                radius,
-                                distribution,
-                            )?,
-                            8 => self.run_benchmark_for_config::<8>(
-                                node_count,
-                                radius,
-                                distribution,
-                            )?,
-                            16 => self.run_benchmark_for_config::<16>(
-                                node_count,
-                                radius,
-                                distribution,
-                            )?,
-                            32 => self.run_benchmark_for_config::<32>(
-                                node_count,
-                                radius,
-                                distribution,
-                            )?,
-                            _ => {
-                                eprintln!("Unsupported dimension: {}", dim);
-                                continue;
-                            }
-                        };
+                                distribution.name()
+                            );
 
-                        all_results.extend(results);
+                            let results = self.run_benchmarks_for_dimension(
+                                dim,
+                                node_count,
+                                radius,
+                                distribution,
+                            )?;
+
+                            all_results.extend(results);
+                        }
                     }
+                }
+            }
+        }
+
+        if let Some(benchmarksets) = &self.config.benchmarksets {
+            for benchmarkset in benchmarksets {
+                for &radius in &radiuses {
+                    assert!(
+                        self.config.path_to_benchmarksets.is_some(),
+                        "path_to_benchmarksets must be specified when using benchmarksets"
+                    );
+                    let path = format!(
+                        "{}/{}",
+                        self.config.path_to_benchmarksets.as_ref().unwrap(),
+                        benchmarkset
+                    );
+                    eprintln!("Running benchmarkset: {} at {}", benchmarkset, path);
+                    let distribution = PointDistribution::Benchmarkset {
+                        path,
+                        name: benchmarkset.clone(),
+                    };
+                    let path = format!(
+                        "{}/{}",
+                        self.config.path_to_benchmarksets.as_ref().unwrap(),
+                        benchmarkset
+                    );
+                    let node_count = fs::read_to_string(path.clone())?.lines().count();
+                    let dimension = fs::read_to_string(path)?
+                        .lines()
+                        .next()
+                        .unwrap()
+                        .split(',')
+                        .count();
+                    let results = self.run_benchmarks_for_dimension(
+                        dimension,
+                        node_count,
+                        radius,
+                        &distribution,
+                    )?;
+                    all_results.extend(results);
                 }
             }
         }
@@ -173,9 +195,9 @@ impl DistributionBenchRunner {
         };
 
         // Get data structures
-        let mut data_structures: Vec<_> = if let Some(ref filter) = self.config.structures {
+        let mut data_structures: Vec<_> = if !self.config.structures.is_empty() {
             rembed::data_structures(&embedding)
-                .filter(|s| filter.contains(&s.name()))
+                .filter(|s| self.config.structures.contains(&s.name()))
                 .collect()
         } else {
             rembed::data_structures(&embedding).collect()
@@ -213,7 +235,7 @@ impl DistributionBenchRunner {
                 dimension: D,
                 node_count,
                 radius,
-                distribution: distribution.name().to_string(),
+                name: distribution.name().to_string(),
                 data_structure: measurement.data_structure_name,
                 wall_time_mean_ns: measurement.measurement.wall_time_mean.as_nanos() as u64,
                 wall_time_stddev_ns: measurement.measurement.wall_time_stddev.as_nanos() as u64,
@@ -269,7 +291,7 @@ impl DistributionBenchRunner {
                 record.dimension,
                 record.node_count,
                 record.radius,
-                record.distribution,
+                record.name,
                 record.data_structure,
                 record.wall_time_mean_ns,
                 record.wall_time_stddev_ns,
@@ -302,7 +324,7 @@ impl DistributionBenchRunner {
                 record.dimension,
                 record.node_count,
                 format!("{}", record.radius), // Convert f64 to string for HashMap key
-                record.distribution.clone(),
+                record.name.clone(),
             );
             grouped.entry(key).or_default().push(record);
         }
@@ -342,5 +364,26 @@ impl DistributionBenchRunner {
         }
 
         Ok(())
+    }
+
+    fn run_benchmarks_for_dimension(
+        &self,
+        dim: usize,
+        node_count: usize,
+        radius: f64,
+        distribution: &PointDistribution,
+    ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
+        match dim {
+            2 => Ok(self.run_benchmark_for_config::<2>(node_count, radius, distribution)?),
+            3 => Ok(self.run_benchmark_for_config::<3>(node_count, radius, distribution)?),
+            4 => Ok(self.run_benchmark_for_config::<4>(node_count, radius, distribution)?),
+            8 => Ok(self.run_benchmark_for_config::<8>(node_count, radius, distribution)?),
+            16 => Ok(self.run_benchmark_for_config::<16>(node_count, radius, distribution)?),
+            32 => Ok(self.run_benchmark_for_config::<32>(node_count, radius, distribution)?),
+            _ => {
+                eprintln!("Unsupported dimension: {}", dim);
+                panic!("Unsupported dimension");
+            }
+        }
     }
 }
