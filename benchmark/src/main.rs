@@ -122,7 +122,7 @@ enum Commands {
     },
 
     /// Compute Missing Intrinsic Dimensions
-    ComputeMissingIntrinsicDimensions,
+    Intrinsic,
 
     /// Run correctness tests (quick by default, extensive with options)
     Test {
