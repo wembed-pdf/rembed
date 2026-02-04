@@ -1,5 +1,7 @@
 use kiddo::{ImmutableKdTree, KdTree, SquaredEuclidean};
 use linreg;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::prelude::*;
 
 use crate::{dvec::DVec, graph::Graph};
 
@@ -25,14 +27,15 @@ pub fn intrinsic_dimension<const D: usize>(positions: &[DVec<D>]) -> f64 {
         .collect();
     let kdtree = ImmutableKdTree::new_from_slice(&kiddo_positions);
 
-    let mut mus = Vec::with_capacity(positions.len());
-    for (i, pos) in kiddo_positions.iter().enumerate() {
-        let results = kdtree.nearest_n::<SquaredEuclidean>(&pos, 3.try_into().unwrap());
-        let r1 = (results[1].distance as f64).sqrt(); // first nearest neighbor (skip self)
-        let r2 = (results[2].distance as f64).sqrt(); // second nearest neighbor
-        let mu = r2 / r1;
-        mus.push(mu);
-    }
+    let mut mus = kiddo_positions
+        .par_iter()
+        .map(|pos| {
+            let results = kdtree.nearest_n::<SquaredEuclidean>(&pos, 3.try_into().unwrap());
+            let r1 = (results[1].distance as f64).sqrt(); // first nearest neighbor (skip self)
+            let r2 = (results[2].distance as f64).sqrt(); // second nearest neighbor
+            r2 / r1
+        })
+        .collect::<Vec<f64>>();
 
     // Step 4: Compute empirical cumulative distribution
     mus.sort_by(|a, b| a.partial_cmp(b).unwrap());

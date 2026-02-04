@@ -121,6 +121,9 @@ enum Commands {
         result_id: i64,
     },
 
+    /// Compute Missing Intrinsic Dimensions
+    ComputeMissingIntrinsicDimensions,
+
     /// Run correctness tests (quick by default, extensive with options)
     Test {
         /// Test all iterations instead of just the last one
@@ -300,6 +303,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 env::var("DATA_DIRECTORY").unwrap_or("../data/".to_string()),
             );
             generator.generate().await?;
+        }
+
+        Commands::ComputeMissingIntrinsicDimensions => {
+            let database_url = env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
+            let pool = PgPool::connect(&database_url).await?;
+
+            benchmark::intrinsic_dim::compute_missing_intrinsic_dimensions(pool).await?;
         }
 
         Commands::GeneratePositions => {
