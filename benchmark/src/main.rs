@@ -305,7 +305,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             generator.generate().await?;
         }
 
-        Commands::ComputeMissingIntrinsicDimensions => {
+        Commands::Intrinsic => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
