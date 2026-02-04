@@ -38,6 +38,8 @@ pub use dim_reduction::LayeredLsh;
 pub use dynamic_queries::DynamicQuery;
 pub use measured_lsh::MeasuredLSH;
 
+pub mod intrinsic_dimension;
+
 pub mod embedder;
 
 pub type NodeId = usize;
@@ -96,6 +98,6 @@ pub fn data_structures<'a, const D: usize>(
             as Box<dyn IndexClone<D> + 'a>,
     ));
 
-    #[cfg(any(feature = "cgal", feature = "boost-rtree", feature = "nanoflann"))]
+    // #[cfg(any(feature = "cgal", feature = "boost-rtree", feature = "nanoflann"))]
     iter.collect::<Vec<_>>().into_iter()
 }

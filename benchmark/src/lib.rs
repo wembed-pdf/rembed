@@ -4,6 +4,7 @@ pub mod code_state;
 pub mod correctness_test;
 mod generate_graphs;
 pub mod generate_positions;
+pub mod intrinsic_dim;
 pub mod job_manager;
 pub mod statistics;
 pub mod synthetic_data;
