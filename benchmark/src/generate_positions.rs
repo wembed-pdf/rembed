@@ -1,6 +1,6 @@
 use crate::job_manager::{JobManager, PositionJob};
 use rembed::Embedding;
-use rembed::dim_reduction::LayeredLsh;
+use rembed::atree::ATree;
 use rembed::embedder::{EmbedderOptions, WEmbedder};
 use rembed::query::{Embedder, SpatialIndex};
 use sha2::{Digest, Sha256};
@@ -148,21 +148,21 @@ fn run_embedding_dynamic(
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match dim {
-        2 => run_embedding::<2, LayeredLsh<2>>(seed, graph, options, output_path),
-        3 => run_embedding::<3, LayeredLsh<3>>(seed, graph, options, output_path),
-        4 => run_embedding::<4, LayeredLsh<4>>(seed, graph, options, output_path),
-        5 => run_embedding::<5, LayeredLsh<5>>(seed, graph, options, output_path),
-        6 => run_embedding::<6, LayeredLsh<6>>(seed, graph, options, output_path),
-        7 => run_embedding::<7, LayeredLsh<7>>(seed, graph, options, output_path),
-        8 => run_embedding::<8, LayeredLsh<8>>(seed, graph, options, output_path),
-        9 => run_embedding::<9, LayeredLsh<9>>(seed, graph, options, output_path),
-        10 => run_embedding::<10, LayeredLsh<10>>(seed, graph, options, output_path),
-        11 => run_embedding::<11, LayeredLsh<11>>(seed, graph, options, output_path),
-        12 => run_embedding::<12, LayeredLsh<12>>(seed, graph, options, output_path),
-        13 => run_embedding::<13, LayeredLsh<13>>(seed, graph, options, output_path),
-        14 => run_embedding::<14, LayeredLsh<14>>(seed, graph, options, output_path),
-        15 => run_embedding::<15, LayeredLsh<15>>(seed, graph, options, output_path),
-        16 => run_embedding::<16, LayeredLsh<16>>(seed, graph, options, output_path),
+        2 => run_embedding::<2, ATree<2>>(seed, graph, options, output_path),
+        3 => run_embedding::<3, ATree<3>>(seed, graph, options, output_path),
+        4 => run_embedding::<4, ATree<4>>(seed, graph, options, output_path),
+        5 => run_embedding::<5, ATree<5>>(seed, graph, options, output_path),
+        6 => run_embedding::<6, ATree<6>>(seed, graph, options, output_path),
+        7 => run_embedding::<7, ATree<7>>(seed, graph, options, output_path),
+        8 => run_embedding::<8, ATree<8>>(seed, graph, options, output_path),
+        9 => run_embedding::<9, ATree<9>>(seed, graph, options, output_path),
+        10 => run_embedding::<10, ATree<10>>(seed, graph, options, output_path),
+        11 => run_embedding::<11, ATree<11>>(seed, graph, options, output_path),
+        12 => run_embedding::<12, ATree<12>>(seed, graph, options, output_path),
+        13 => run_embedding::<13, ATree<13>>(seed, graph, options, output_path),
+        14 => run_embedding::<14, ATree<14>>(seed, graph, options, output_path),
+        15 => run_embedding::<15, ATree<15>>(seed, graph, options, output_path),
+        16 => run_embedding::<16, ATree<16>>(seed, graph, options, output_path),
         32 => run_embedding::<32, Embedding<32>>(seed, graph, options, output_path),
         _ => unreachable!("not compiled for dim {dim}"),
     }
