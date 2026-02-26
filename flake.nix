@@ -60,10 +60,17 @@
         R-with-packages = pkgs.rWrapper.override {
           packages = rPackages;
         };
-        
+
+        # Python with scikit-learn for sklearn feature
+        python-with-sklearn = pkgs.python3.withPackages (ps: with ps; [
+          numpy
+          scikit-learn
+        ]);
+
         # Common development tools
         devTools = with pkgs; [
           R-with-packages
+          python-with-sklearn
           git
         ];
         

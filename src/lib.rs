@@ -34,6 +34,8 @@ pub mod vptree;
 #[cfg(feature = "wembed-snn")]
 pub mod wembed_snn;
 pub mod wrtree;
+#[cfg(feature = "sklearn")]
+pub mod sklearn;
 
 pub use atree::ATree;
 pub use dim_reduction::LayeredLsh;
@@ -110,6 +112,12 @@ pub fn data_structures<'a, const D: usize>(
     let iter = iter.chain(Some(
         Box::new(wembed_snn::WembedSnnWrapper::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
     ));
+
+    #[cfg(feature = "sklearn")]
+    let iter = iter.chain([
+        Box::new(sklearn::SklearnKDTree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(sklearn::SklearnBallTree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+    ]);
 
     iter.collect::<Vec<_>>().into_iter()
 }
