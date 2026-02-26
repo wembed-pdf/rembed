@@ -4,7 +4,7 @@ use crate::{
     query::{self, Graph, Position, SpatialIndex, Update},
 };
 
-const LEAFSIZE: usize = 50;
+const LEAFSIZE: usize = 150;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
