@@ -14,7 +14,7 @@ pub mod runner;
 
 pub mod distribution_bench;
 
-use crate::code_state::RepoCodeStateManager;
+use crate::{code_state::RepoCodeStateManager, pull_files};
 use runner::{BenchmarkResult, BenchmarkType, MeasurementResult};
 
 pub struct Testcase<'a, const D: usize> {
@@ -58,6 +58,7 @@ impl LoadData {
         n_threads: usize,
         benchmarks: Option<Vec<BenchmarkType>>,
         structures: Option<Vec<String>>,
+        dynamic_download: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
 
@@ -129,20 +130,52 @@ impl LoadData {
 
             let path = std::path::Path::new(&pos_path);
             if !path.exists() {
-                return Err(format!(
-                    "File not found: {} \n Please trigger Pull via Command",
-                    pos_path
-                )
-                .into());
+                if dynamic_download {
+                    println!(
+                        "File not found: {} \n Attempting to download dynamically",
+                        pos_path
+                    );
+                    pull_files(
+                        false,
+                        Some(&format!(
+                            "/generated/positions/{}",
+                            path.file_name().unwrap().to_string_lossy()
+                        )),
+                    )
+                    .await?;
+                }
+                if !path.exists() {
+                    return Err(format!(
+                        "File not found: {} \n Please trigger Pull via Command",
+                        pos_path
+                    )
+                    .into());
+                }
             }
 
             let graph_path = std::path::Path::new(&graph_path);
             if !graph_path.exists() {
-                return Err(format!(
-                    "Graph file not found: {} \n Please trigger Pull via Command",
-                    graph_path.display()
-                )
-                .into());
+                if dynamic_download {
+                    println!(
+                        "Graph file not found: {} \n Attempting to download dynamically",
+                        graph_path.display()
+                    );
+                    pull_files(
+                        false,
+                        Some(&format!(
+                            "/generated/graphs/{}",
+                            graph_path.file_name().unwrap().to_string_lossy()
+                        )),
+                    )
+                    .await?;
+                }
+                if !graph_path.exists() {
+                    return Err(format!(
+                        "Graph file not found: {} \n Please trigger Pull via Command",
+                        graph_path.display()
+                    )
+                    .into());
+                }
             }
         }
         println!(

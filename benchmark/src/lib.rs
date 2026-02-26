@@ -46,7 +46,10 @@ pub async fn push_files() -> Result<(), Box<dyn std::error::Error>> {
     println!("File sync completed successfully");
     Ok(())
 }
-pub async fn pull_files(only_graphs: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn pull_files(
+    only_graphs: bool,
+    path: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut sync_destination =
         std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
     let mut sync_source =
@@ -55,6 +58,9 @@ pub async fn pull_files(only_graphs: bool) -> Result<(), Box<dyn std::error::Err
     if only_graphs {
         sync_destination.push_str("/generated/graphs/");
         sync_source.push_str("/generated/graphs/");
+    } else if path.is_some() {
+        sync_destination.push_str(&format!("{}", path.unwrap()));
+        sync_source.push_str(&format!("{}", path.unwrap()));
     }
 
     println!("Syncing files from: {}", sync_destination);

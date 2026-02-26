@@ -69,6 +69,9 @@ enum Commands {
         /// Skip running of unit tests
         #[arg(long)]
         skip_test: bool,
+        /// Enable dynamic downloading of graphs and positions during benchmarking (instead of requiring a prior pull)
+        #[arg(long, default_value_t = false)]
+        dynamic_download: bool,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -201,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Pull => {
-            benchmark::pull_files(false).await?;
+            benchmark::pull_files(false, None).await?;
         }
 
         Commands::Push => {
@@ -223,6 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             structures,
             allow_dirty,
             skip_test,
+            dynamic_download,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
@@ -293,6 +297,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     n_threads,
                     benchmarks,
                     structures,
+                    dynamic_download,
                 )
                 .await?;
         }
