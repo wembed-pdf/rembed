@@ -59,8 +59,8 @@ pub async fn pull_files(
         sync_destination.push_str("/generated/graphs/");
         sync_source.push_str("/generated/graphs/");
     } else if path.is_some() {
-        sync_destination.push_str(&format!("{}", path.unwrap()));
-        sync_source.push_str(&format!("{}", path.unwrap()));
+        sync_destination.push_str(path.unwrap());
+        sync_source.push_str(path.unwrap());
     }
 
     println!("Syncing files from: {}", sync_destination);

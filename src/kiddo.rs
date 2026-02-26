@@ -62,25 +62,14 @@ impl<'a, const D: usize> Update<D> for Kiddo<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for Kiddo<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius_squared = (radius * own_weight.powi(2)).powi(2) as f32;
-
+impl<'a, const D: usize> Query<D> for Kiddo<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        let radius_squared = (radius * radius) as f32;
         self.kdtree
-            .within_unsorted::<SquaredEuclidean>(&own_position.components, scaled_radius_squared)
+            .within_unsorted::<SquaredEuclidean>(&pos.components, radius_squared)
             .into_iter()
             .for_each(|nn| {
-                let data = nn.item as usize;
-                if data == index {
-                    return;
-                }
-                results.push(data);
-                // let other_weight = self.weight(data);
-                // if nn.distance <= (own_weight * other_weight).powi(2) as f32 {
-                //     results.push(data);
-                // }
+                results.push(nn.item as usize);
             });
     }
 }

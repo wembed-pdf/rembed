@@ -85,7 +85,7 @@ impl<'a, const D: usize> Update<D> for Neihbourhood<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for Neihbourhood<'a, D> {
+impl<'a, const D: usize> Query<D> for Neihbourhood<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let scaled_radius_squared = (radius * self.weight(index).powi(2)) as f32;

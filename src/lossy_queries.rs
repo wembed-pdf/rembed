@@ -68,7 +68,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for LossyQuery<'a
     }
 }
 
-impl<'a, const D: usize, ID: Embedder<'a, D>> Query for LossyQuery<'a, D, ID> {
+impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for LossyQuery<'a, D, ID> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         self.structure.nearest_neighbors(index, radius, results)
     }

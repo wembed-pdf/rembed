@@ -87,7 +87,7 @@ impl<'a, const D: usize> Update<D> for HNSWTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for HNSWTree<'a, D> {
+impl<'a, const D: usize> Query<D> for HNSWTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, _radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         // let own_weight = self.weight(index);

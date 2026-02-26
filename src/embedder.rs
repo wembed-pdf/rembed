@@ -96,7 +96,7 @@ impl<const D: usize> AdamOptimizer<D> {
 }
 
 /// Main weighted embedder with generic spatial index
-pub struct WEmbedder<SI: Query, const D: usize> {
+pub struct WEmbedder<SI: Query<D>, const D: usize> {
     // Node data
     positions: Vec<DVec<D>>,
     weights: Vec<f64>,

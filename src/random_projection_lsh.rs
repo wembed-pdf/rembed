@@ -151,20 +151,14 @@ impl<'a, const D: usize> Update<D> for RandomProjectionLsh<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for RandomProjectionLsh<'a, D> {
-    fn nearest_neighbors(&self, index: usize, _radius: f64, results: &mut Vec<NodeId>) {
-        let own_position = self.positions[index];
-
+impl<'a, const D: usize> Query<D> for RandomProjectionLsh<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, _radius: f64, results: &mut Vec<NodeId>) {
         // Special case for single table - no deduplication needed
         if self.num_tables == 1 {
-            let hash_code = self.compute_hash(&own_position, 0);
+            let hash_code = self.compute_hash(&pos, 0);
 
             if let Some(bucket) = self.hash_tables[0].get(&hash_code) {
-                for &candidate_id in bucket {
-                    if candidate_id != index {
-                        results.push(candidate_id);
-                    }
-                }
+                results.extend(bucket.iter().copied());
             }
             return;
         }
@@ -174,7 +168,7 @@ impl<'a, const D: usize> Query for RandomProjectionLsh<'a, D> {
 
         // Query all L hash tables
         for table_idx in 0..self.num_tables {
-            let hash_code = self.compute_hash(&own_position, table_idx);
+            let hash_code = self.compute_hash(&pos, table_idx);
 
             // Get candidates from exact hash match
             if let Some(bucket) = self.hash_tables[table_idx].get(&hash_code) {
@@ -182,12 +176,7 @@ impl<'a, const D: usize> Query for RandomProjectionLsh<'a, D> {
             }
         }
 
-        // Return all candidates except self
-        for candidate_id in candidates {
-            if candidate_id != index {
-                results.push(candidate_id);
-            }
-        }
+        results.extend(candidates);
     }
 }
 

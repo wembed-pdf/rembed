@@ -37,10 +37,8 @@ impl<'a, const D: usize> query::Update<D> for Embedding<'a, D> {
     }
 }
 
-impl<const D: usize> Query for Embedding<'_, D> {
+impl<const D: usize> Query<D> for Embedding<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        // results.extend(0..index);
-        // return;
         let graph = self.graph;
         let own_weight = self.weight(index);
         let own_position = self.position(index);

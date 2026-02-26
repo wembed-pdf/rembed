@@ -62,25 +62,19 @@ impl<'a, const D: usize> Update<D> for KDTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for KDTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
-        let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius_squared = (radius * own_weight.powi(4)) as f32;
-
+impl<'a, const D: usize> Query<D> for KDTree<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<usize>) {
+        let radius_squared = (radius * radius) as f32;
         self.tree
             .within(
-                &own_position.components,
-                scaled_radius_squared,
+                &pos.components,
+                radius_squared,
                 &kdtree::distance::squared_euclidean,
             )
             .into_iter()
             .for_each(|nn| {
                 for data in nn.iter() {
-                    let data_index = *data.1;
-                    if data_index != index {
-                        results.push(data_index);
-                    }
+                    results.push(*data.1);
                 }
             });
     }

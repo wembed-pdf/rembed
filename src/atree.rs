@@ -198,12 +198,31 @@ impl<'a, const D: usize> ATree<'a, D> {
         line_lsh
     }
     fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        self.query_recursive(index, 0, 0, radius as f32, radius, DVec::zero(), results);
+        self.query_recursive(
+            *self.position(index),
+            0,
+            0,
+            radius as f32,
+            radius,
+            DVec::zero(),
+            results,
+        );
+    }
+    pub fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        self.query_recursive(
+            pos,
+            0,
+            0,
+            radius.powi(2) as f32,
+            radius,
+            DVec::zero(),
+            results,
+        );
     }
     #[allow(clippy::too_many_arguments)]
     fn query_recursive(
         &self,
-        index: usize,
+        pos: DVec<D>,
         depth: usize,
         layer_id: usize,
         dim_radius_squared: f32,
@@ -212,7 +231,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         results: &mut Vec<NodeId>,
     ) {
         let layer = &self.layers[layer_id];
-        let own_pos = self.position(index)[depth];
+        let own_pos = pos[depth];
         match layer {
             Layer::Node(node) => {
                 let (left, right) = children(layer_id);
@@ -222,7 +241,7 @@ impl<'a, const D: usize> ATree<'a, D> {
                     (right, left)
                 };
                 self.query_recursive(
-                    index,
+                    pos,
                     (depth + 1) % D,
                     own,
                     dim_radius_squared,
@@ -241,7 +260,7 @@ impl<'a, const D: usize> ATree<'a, D> {
                 }
 
                 self.query_recursive(
-                    index,
+                    pos,
                     (depth + 1) % D,
                     other,
                     reduced_radius,
@@ -251,10 +270,8 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(snn) => {
-                // dbg!(snn, depth);
                 let dim_diff_squared = distances[depth].powi(2);
                 let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
-                // dbg!(dim_diff_squared, radius_sqrt);
                 let min = own_pos - radius_sqrt;
                 let max = own_pos + radius_sqrt;
                 let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
@@ -263,56 +280,32 @@ impl<'a, const D: usize> ATree<'a, D> {
                 }
                 let min_i = snn.lut[idx];
 
-                // let min_i = self.d_pos[snn.offset..(snn.offset + snn.len)]
-                //     .binary_search_by(|a| min.partial_cmp(a).unwrap())
-                //     .unwrap_or(0);
-
-                // for i in 0..(snn.ids.len()) {
-                // for i in (snn.offset)..(snn.offset + snn.len) {
                 for i in (min_i + snn.offset)..(snn.offset + snn.len) {
                     let p = self.d_pos[i];
                     if p > max {
                         break;
                     }
-                    // if p == own_pos && self.node_ids[i] == index {
-                    //     continue;
-                    // }
                     let other_pos = self.positions_sorted[i];
-                    // if self.weight(self.node_ids[i]) > self.weight(index) {
-                    //     continue;
-                    // }
-                    if self.position(index).distance_squared(&other_pos)
-                        <= original_radius_squared as f32
-                    {
-                        // if p < min || p > max {
-                        //     println!("found {p} which is not in bounds {min}..{max}");
-                        //     println!("own_pos: {:?}", self.position(index));
-                        //     println!("other_pos: {other_pos:?}");
-                        //     println!("depth: {depth}");
-                        //     panic!();
-                        // }
+                    if pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
                         results.push(self.node_ids[i]);
                     }
                 }
-                // for i in snn.offset..(snn.offset + snn.len) {
-                //     let other_pos = self.positions_sorted[i];
-                //     let distance_squared = other_pos.distance_squared(self.position(index)) as f64;
-                //     if distance_squared < original_radius_squared {
-                //         results.push(self.node_ids[i]);
-                //     }
-                // }
             }
         }
     }
 }
 
-impl<const D: usize> Query for ATree<'_, D> {
+impl<const D: usize> Query<D> for ATree<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         self.light_nn(
             index,
             (radius * self.weight(index).powi(2)).powi(2),
             results,
         )
+    }
+
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        self.query_radius(pos, radius, results);
     }
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {

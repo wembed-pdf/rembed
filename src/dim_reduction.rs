@@ -213,7 +213,7 @@ impl<'a, const D: usize> LayeredLsh<'a, D> {
     }
 }
 
-impl<const D: usize> Query for LayeredLsh<'_, D> {
+impl<const D: usize> Query<D> for LayeredLsh<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         self.light_nn(index, radius * self.weight(index).powi(4), results)
     }

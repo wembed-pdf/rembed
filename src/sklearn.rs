@@ -104,30 +104,18 @@ impl<'a, const D: usize> Update<D> for SklearnKDTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for SklearnKDTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+impl<'a, const D: usize> Query<D> for SklearnKDTree<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         let tree = match &self.index {
             Some(t) => t,
             None => return,
         };
 
-        if index >= self.positions.len() {
-            return;
-        }
+        let query_point: Vec<f32> = pos.components.to_vec();
 
-        let own_position = &self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius = radius * own_weight.powi(2);
-
-        let query_point: Vec<f32> = own_position.components.to_vec();
-
-        match tree.radius_search(&query_point, scaled_radius) {
+        match tree.radius_search(&query_point, radius) {
             Ok(result) => {
-                for neighbor_idx in result.indices {
-                    if neighbor_idx != index {
-                        results.push(neighbor_idx);
-                    }
-                }
+                results.extend(result.indices);
             }
             Err(e) => {
                 eprintln!("Warning: sklearn KDTree query failed: {}", e);
@@ -252,30 +240,18 @@ impl<'a, const D: usize> Update<D> for SklearnBallTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for SklearnBallTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+impl<'a, const D: usize> Query<D> for SklearnBallTree<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         let tree = match &self.index {
             Some(t) => t,
             None => return,
         };
 
-        if index >= self.positions.len() {
-            return;
-        }
+        let query_point: Vec<f32> = pos.components.to_vec();
 
-        let own_position = &self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius = radius * own_weight.powi(2);
-
-        let query_point: Vec<f32> = own_position.components.to_vec();
-
-        match tree.radius_search(&query_point, scaled_radius) {
+        match tree.radius_search(&query_point, radius) {
             Ok(result) => {
-                for neighbor_idx in result.indices {
-                    if neighbor_idx != index {
-                        results.push(neighbor_idx);
-                    }
-                }
+                results.extend(result.indices);
             }
             Err(e) => {
                 eprintln!("Warning: sklearn BallTree query failed: {}", e);

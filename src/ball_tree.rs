@@ -65,7 +65,7 @@ impl<'a, const D: usize> Update<D> for WBallTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for WBallTree<'a, D> {
+impl<'a, const D: usize> Query<D> for WBallTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
@@ -82,6 +82,16 @@ impl<'a, const D: usize> Query for WBallTree<'a, D> {
                     results.push(data);
                 }
             });
+    }
+
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        let mut query = self.ball_tree.query();
+
+        let query_position: [f64; D] = pos.components.map(|x| x as f64);
+        query.nn_within(&query_position, radius).for_each(|nn| {
+            let data = *nn.2;
+            results.push(data);
+        });
     }
 }
 

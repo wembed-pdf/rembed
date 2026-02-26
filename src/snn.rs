@@ -138,19 +138,16 @@ impl<'a, const D: usize> Update<D> for SNN<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for SNN<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, result: &mut Vec<NodeId>) {
-        let query_radius = radius * self.weight(index).powi(2);
-
-        // project the position of the index
-        let pos_vec =
-            nalgebra::SVector::<f32, D>::from_row_slice(&self.positions[index].components);
+impl<'a, const D: usize> Query<D> for SNN<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, result: &mut Vec<NodeId>) {
+        // project the position
+        let pos_vec = nalgebra::SVector::<f32, D>::from_row_slice(&pos.components);
         let projected_position_vec = pos_vec.transpose() * self.v;
         let projected_position_array: [f32; D] = projected_position_vec.transpose().into();
         let projected_position = DVec::from(projected_position_array);
 
-        let first_dim_lower = projected_position[0] - query_radius as f32;
-        let first_dim_upper = projected_position[0] + query_radius as f32;
+        let first_dim_lower = projected_position[0] - radius as f32;
+        let first_dim_upper = projected_position[0] + radius as f32;
 
         // find the range of indices in the first dimension using binary search
         let start = self
@@ -170,9 +167,9 @@ impl<'a, const D: usize> Query for SNN<'a, D> {
             })
             .unwrap_or_else(|x| x);
 
-        let query_radius = query_radius.powi(2) as f32;
-        for (i, pos) in &self.projected[start..end] {
-            if i != &index && pos.distance_squared(&projected_position) <= query_radius + 0.0001 {
+        let radius_squared = (radius * radius) as f32;
+        for (i, proj_pos) in &self.projected[start..end] {
+            if proj_pos.distance_squared(&projected_position) <= radius_squared + 0.0001 {
                 result.push(*i);
             }
         }

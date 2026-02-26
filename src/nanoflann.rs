@@ -170,7 +170,7 @@ impl<'a, const D: usize> Update<D> for NanoflannIndexWrapper<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Query<D> for NanoflannIndexWrapper<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         if !self.is_valid() || index >= self.positions.len() {
             return;

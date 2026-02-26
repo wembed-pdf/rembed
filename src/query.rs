@@ -23,7 +23,7 @@ impl<const D: usize, T: Clone + Sized + SpatialIndex<D> + Sync> IndexClone<D> fo
     }
 }
 
-pub trait SpatialIndex<const D: usize>: Query + Update<D> + Graph + Position<D> {
+pub trait SpatialIndex<const D: usize>: Query<D> + Update<D> + Graph + Position<D> {
     fn name(&self) -> String;
 
     /// Returns the source code implementation as a string for checksum calculation.
@@ -49,16 +49,25 @@ pub trait SpatialIndex<const D: usize>: Query + Update<D> + Graph + Position<D> 
 //     final_radius:
 // }
 
-pub trait Query {
-    /// Return the list of neighbors in a given radius. You are allowed to return results asymmetricallys e.g only nodes to the left of you
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>);
+pub trait Query<const D: usize>: Position<D> + Graph {
+    fn query_radius(&self, _pos: DVec<D>, _radius: f64, _results: &mut Vec<NodeId>) {
+        unimplemented!(
+            "radius query is not implemented for {}",
+            std::any::type_name::<Self>()
+        );
+    }
+    /// Return the list of neighbors in a given radius. You are allowed to return results asymmetrically e.g only nodes to the left of you
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+        let pos = *self.position(index);
+        let scaled_radius = radius * self.weight(index).powi(2);
+        self.query_radius(pos, scaled_radius, results);
+        results.retain(|&x| x != index);
+    }
     fn nearest_neighbors_owned(&self, index: usize, radius: f64) -> Vec<NodeId> {
         let mut results = Vec::new();
         self.nearest_neighbors(index, radius, &mut results);
         results
     }
-    // fn nearest_neighbors_instrumented(&self, _index: usize, _radius: f64, _stats: &mut Statistics) {
-    // }
 
     /// Runs a batch of nn queries and makes the result symmetric
     fn nearest_neighbors_batched(&self, indices: &[usize]) -> Vec<Vec<usize>> {
@@ -69,14 +78,6 @@ pub trait Query {
                 results[index].push(other_node_id);
             }
         }
-        // let total_sum_pre_dedup: usize = results.iter().map(|x| x.len()).sum();
-        // dbg!(total_sum_pre_dedup);
-
-        // for (i, list) in results.iter().enumerate() {
-        //     for other in list {
-        //         assert!(results[*other].contains(&i));
-        //     }
-        // }
         for vec in &mut results {
             vec.sort_unstable();
             vec.dedup();
@@ -89,7 +90,7 @@ pub trait Update<const D: usize> {
     fn update_positions(&mut self, postions: &[DVec<D>], last_delta: Option<f64>);
 }
 
-pub trait Embedder<'a, const D: usize>: Query + Update<D> + Graph + Position<D> {
+pub trait Embedder<'a, const D: usize>: Query<D> + Update<D> + Graph + Position<D> {
     fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
         self.nearest_neighbors(index, 1., result);
         let pos = self.position(index);

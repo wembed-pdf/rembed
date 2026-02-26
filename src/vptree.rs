@@ -106,20 +106,16 @@ impl<'a, const D: usize> Update<D> for VPTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for VPTree<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        let own_position = self.positions[index];
-        let scaled_radius_squared = (radius * self.weight(index).powi(2)) as f32;
-
+impl<'a, const D: usize> Query<D> for VPTree<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         let query_point = DataPoint {
-            index,
-            position: own_position,
+            index: usize::MAX,
+            position: pos,
         };
 
         self.vptree
-            .k_nearest_within(&query_point, self.positions.len(), scaled_radius_squared)
+            .k_nearest_within(&query_point, self.positions.len(), radius as f32)
             .into_iter()
-            .filter(|nn| nn.item.index != index)
             .for_each(|nn| {
                 results.push(nn.item.index);
             });

@@ -103,7 +103,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for DynamicQuery<
     }
 }
 
-impl<'a, const D: usize, ID: Embedder<'a, D>> Query for DynamicQuery<'a, D, ID> {
+impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for DynamicQuery<'a, D, ID> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         if !self.overquery {
             // TODO find out why this assert fails

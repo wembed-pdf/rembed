@@ -75,7 +75,7 @@ impl<'a, const D: usize> Update<D> for MeasuredLSH<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for MeasuredLSH<'a, D> {
+impl<'a, const D: usize> Query<D> for MeasuredLSH<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         self.lsh.nearest_neighbors(index, radius, results)
     }

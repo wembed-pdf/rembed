@@ -135,37 +135,22 @@ impl<'a, const D: usize> Update<D> for WembedSnnWrapper<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for WembedSnnWrapper<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        if !self.is_valid() || index >= self.positions.len() {
+impl<'a, const D: usize> Query<D> for WembedSnnWrapper<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        if !self.is_valid() {
             return;
         }
 
-        let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius = (radius * own_weight.powi(2)) as f32;
+        let query_point: Vec<f32> = pos.components.iter().copied().collect();
 
-        // Convert query point to flat array
-        let query_point: Vec<f32> = own_position.components.iter().copied().collect();
-
-        // Perform radius search - returns dynamically allocated results
         let mut search_result = unsafe {
-            wembed_snn_radius_search(self.index, query_point.as_ptr(), scaled_radius)
+            wembed_snn_radius_search(self.index, query_point.as_ptr(), radius as f32)
         };
 
-        // Process results
         if !search_result.indices.is_null() && search_result.count > 0 {
             let indices =
                 unsafe { std::slice::from_raw_parts(search_result.indices, search_result.count) };
-
-            // Return all results except self (no additional weight-based filtering)
-            for &neighbor_idx in indices {
-                if neighbor_idx != index {
-                    results.push(neighbor_idx);
-                }
-            }
-
-            // Free the C++ allocated memory
+            results.extend(indices.iter().copied());
             unsafe {
                 wembed_snn_free_result(&mut search_result);
             }

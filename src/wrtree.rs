@@ -108,7 +108,17 @@ impl<'a, const D: usize> Update<D> for WRTree<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Query for WRTree<'a, D> {
+impl<'a, const D: usize> Query<D> for WRTree<'a, D> {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        let radius_squared = (radius * radius) as f32;
+        // Query all weight classes since we don't have a specific weight
+        for rtree in &self.rtrees {
+            for node in rtree.locate_within_distance(pos.components, radius_squared) {
+                results.push(node.data);
+            }
+        }
+    }
+
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
