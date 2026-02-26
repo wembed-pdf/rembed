@@ -109,6 +109,7 @@
             # Rust Development tools
             bacon
             samply
+            cargo-show-asm
             toolchain
             sqlx-cli
             postgresql

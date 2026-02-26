@@ -169,6 +169,7 @@ impl Layer {
         let (a_id, b_id) = children(layer_id);
 
         let depth = if D > 2 { (depth + 1) % D } else { 0 };
+        // let depth = (depth + 1) % D;
 
         Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
         Layer::init(
@@ -239,6 +240,7 @@ impl<'a, const D: usize> ATree<'a, D> {
     ) {
         let layer = &self.layers[layer_id];
         let own_pos = pos[depth];
+        let new_depth = if D > 2 { (depth + 1) % D } else { 0 };
         match layer {
             Layer::Node(node) => {
                 let (left, right) = children(layer_id);
@@ -249,7 +251,7 @@ impl<'a, const D: usize> ATree<'a, D> {
                 };
                 self.query_recursive(
                     pos,
-                    (depth + 1) % D,
+                    new_depth,
                     own,
                     dim_radius_squared,
                     original_radius_squared,
@@ -268,7 +270,7 @@ impl<'a, const D: usize> ATree<'a, D> {
 
                 self.query_recursive(
                     pos,
-                    (depth + 1) % D,
+                    new_depth,
                     other,
                     reduced_radius,
                     original_radius_squared,

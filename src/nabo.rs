@@ -72,18 +72,14 @@ impl<'a, const D: usize> Update<D> for Nabo<'a, D> {
 }
 
 impl<'a, const D: usize> Query<D> for Nabo<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius_squared = (radius * own_weight.powi(4)) as f32;
-
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         let new_results = self.kdtree.knn_advanced(
             self.positions.len() as u32,
-            &own_position,
+            &pos,
             nabo::CandidateContainer::BinaryHeap,
             &nabo::Parameters {
                 epsilon: 0.,
-                max_radius: scaled_radius_squared,
+                max_radius: radius as f32,
                 allow_self_match: false,
                 sort_results: false,
             },
