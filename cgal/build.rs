@@ -67,7 +67,8 @@ fn main() {
         .blocklist_function("qfcvt_r")
         // Generate only what we need
         .allowlist_function("cgal_kdtree_.*")
-        .allowlist_type("CgalKdTreeIndex");
+        .allowlist_type("CgalKdTreeIndex")
+        .allowlist_type("CgalKdTreeResult");
 
     // Add include paths to bindgen
     if let Some(cgal) = pkg_config::Config::new().probe("CGAL").ok() {

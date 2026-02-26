@@ -31,6 +31,8 @@ pub mod random_projection_lsh;
 pub mod sif;
 pub mod snn;
 pub mod vptree;
+#[cfg(feature = "wembed-snn")]
+pub mod wembed_snn;
 pub mod wrtree;
 
 pub use atree::ATree;
@@ -98,6 +100,10 @@ pub fn data_structures<'a, const D: usize>(
             as Box<dyn IndexClone<D> + 'a>,
     ));
 
-    // #[cfg(any(feature = "cgal", feature = "boost-rtree", feature = "nanoflann"))]
+    #[cfg(feature = "wembed-snn")]
+    let iter = iter.chain(Some(
+        Box::new(wembed_snn::WembedSnnWrapper::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+    ));
+
     iter.collect::<Vec<_>>().into_iter()
 }

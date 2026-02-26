@@ -153,41 +153,29 @@ impl<'a, const D: usize> Query for CgalKdTreeWrapper<'a, D> {
         // Convert query point to flat array
         let query_point: Vec<f32> = own_position.components.iter().copied().collect();
 
-        // Allocate buffers for results
-        const MAX_RESULTS: usize = 10000;
-        let mut indices = vec![0usize; MAX_RESULTS];
-        let mut distances_squared = vec![0f32; MAX_RESULTS];
-
         // Use epsilon=0.0 for exact radius search
         let epsilon = 0.0f32;
 
-        let num_found = unsafe {
-            cgal_kdtree_radius_search(
-                self.index,
-                query_point.as_ptr(),
-                scaled_radius_squared,
-                epsilon,
-                indices.as_mut_ptr(),
-                distances_squared.as_mut_ptr(),
-                MAX_RESULTS,
-            )
+        // Perform radius search - returns dynamically allocated results
+        let mut search_result = unsafe {
+            cgal_kdtree_radius_search(self.index, query_point.as_ptr(), scaled_radius_squared, epsilon)
         };
 
-        // Filter results and apply weight-based distance check
-        for i in 0..num_found {
-            let neighbor_idx = indices[i];
-            if neighbor_idx == index {
-                continue; // Skip self
+        // Process results
+        if !search_result.indices.is_null() && search_result.count > 0 {
+            let indices =
+                unsafe { std::slice::from_raw_parts(search_result.indices, search_result.count) };
+
+            // Return all results except self (no additional weight-based filtering)
+            for &neighbor_idx in indices {
+                if neighbor_idx != index {
+                    results.push(neighbor_idx);
+                }
             }
 
-            let other_pos = &self.positions[neighbor_idx];
-            let other_weight = self.weight(neighbor_idx);
-
-            // Apply the same distance check as other implementations
-            if own_position.distance_squared(other_pos)
-                <= (own_weight * other_weight).powi(2) as f32
-            {
-                results.push(neighbor_idx);
+            // Free the C++ allocated memory
+            unsafe {
+                cgal_kdtree_free_result(&mut search_result);
             }
         }
     }

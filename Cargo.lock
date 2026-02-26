@@ -687,6 +687,17 @@ dependencies = [
 
 [[package]]
 name = "displaydoc"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adc2ab4d5a16117f9029e9a6b5e4e79f4c67f6519bc134210d4d4a04ba31f41b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "displaydoc"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
@@ -809,7 +820,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1208,7 +1219,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c6b649701667bbe825c3b7e6388cb521c23d88644678e83c0c4d0a621a34b43"
 dependencies = [
- "displaydoc",
+ "displaydoc 0.2.5",
  "potential_utf",
  "yoke",
  "zerofrom",
@@ -1221,7 +1232,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edba7861004dd3714265b4db54a3c390e880ab658fec5f7db895fae2046b5bb6"
 dependencies = [
- "displaydoc",
+ "displaydoc 0.2.5",
  "litemap",
  "tinystr",
  "writeable",
@@ -1274,7 +1285,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85962cf0ce02e1e0a629cc34e7ca3e373ce20dda4c4d7294bbd0bf1fdb59e614"
 dependencies = [
- "displaydoc",
+ "displaydoc 0.2.5",
  "icu_locale_core",
  "writeable",
  "yoke",
@@ -1466,7 +1477,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.53.5",
 ]
 
 [[package]]
@@ -1503,6 +1514,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d61f7017d8abea1fc23ff7f01a8147b2656dea3aeb24d519aab6e2177eaf671c"
 dependencies = [
  "rustc_version",
+]
+
+[[package]]
+name = "linreg"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8c6fd2f0b9338b6d298dbcee4b4ec2a6ec2e88dc0a5f6f92d5cecd65afdf445"
+dependencies = [
+ "displaydoc 0.1.7",
+ "num-traits",
 ]
 
 [[package]]
@@ -2359,6 +2380,7 @@ dependencies = [
  "hnsw_rs",
  "kdtree",
  "kiddo",
+ "linreg",
  "memmap",
  "nabo",
  "nalgebra",
@@ -2371,6 +2393,7 @@ dependencies = [
  "sha2",
  "sif-kdtree",
  "vec-vp-tree",
+ "wembed-snn",
 ]
 
 [[package]]
@@ -2983,7 +3006,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42d3e9c45c09de15d06dd8acf5f4e0e399e85927b7f00711024eb7ae10fa4869"
 dependencies = [
- "displaydoc",
+ "displaydoc 0.2.5",
  "zerovec",
 ]
 
@@ -3314,6 +3337,15 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "wembed-snn"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "pkg-config",
 ]
 
 [[package]]
@@ -3812,7 +3844,7 @@ version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a59c17a5562d507e4b54960e8569ebee33bee890c70aa3fe7b97e85a9fd7851"
 dependencies = [
- "displaydoc",
+ "displaydoc 0.2.5",
  "yoke",
  "zerofrom",
 ]

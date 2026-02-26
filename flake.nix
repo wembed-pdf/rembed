@@ -104,6 +104,7 @@
             samply
             toolchain
             sqlx-cli
+            postgresql
           ];
 
           NIX_ENFORCE_NO_NATIVE=false;

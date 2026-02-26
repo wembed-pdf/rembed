@@ -6,16 +6,16 @@ use crate::{
     dvec::DVec,
     query::{self, Graph, Position, SpatialIndex, Update},
 };
-use nanoflann::*;
+use wembed_snn::*;
 
-pub struct NanoflannIndexWrapper<'a, const D: usize> {
+pub struct WembedSnnWrapper<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
-    index: *mut NanoflannIndex,
+    index: *mut WembedSnnIndex,
     _phantom: PhantomData<&'a ()>,
 }
 
-impl<'a, const D: usize> Clone for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Clone for WembedSnnWrapper<'a, D> {
     fn clone(&self) -> Self {
         Self::new(&Embedding {
             positions: self.positions.clone(),
@@ -24,7 +24,7 @@ impl<'a, const D: usize> Clone for NanoflannIndexWrapper<'a, D> {
     }
 }
 
-impl<'a, const D: usize> NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> WembedSnnWrapper<'a, D> {
     pub fn new(embedding: &Embedding<'a, D>) -> Self {
         let mut wrapper = Self {
             positions: embedding.positions.clone(),
@@ -56,7 +56,7 @@ impl<'a, const D: usize> NanoflannIndexWrapper<'a, D> {
         if self.index.is_null() {
             0
         } else {
-            unsafe { nanoflann_point_count(self.index) }
+            unsafe { wembed_snn_point_count(self.index) }
         }
     }
 
@@ -65,57 +65,27 @@ impl<'a, const D: usize> NanoflannIndexWrapper<'a, D> {
         if self.index.is_null() {
             D
         } else {
-            unsafe { nanoflann_dimensions(self.index) }
+            unsafe { wembed_snn_dimensions(self.index) }
         }
-    }
-
-    /// Get estimated memory usage
-    pub fn memory_usage(&self) -> usize {
-        if self.index.is_null() {
-            std::mem::size_of::<Self>()
-        } else {
-            unsafe { nanoflann_memory_usage(self.index) }
-        }
-    }
-
-    /// Create index with custom leaf size
-    pub fn with_leaf_size(embedding: Embedding<'a, D>, leaf_max_size: usize) -> Self {
-        let positions = embedding.positions.clone();
-        let mut wrapper = Self {
-            positions: positions.clone(),
-            graph: embedding.graph,
-            index: ptr::null_mut(),
-            _phantom: PhantomData,
-        };
-
-        if !positions.is_empty() {
-            let flat_points = wrapper.positions_to_flat_array();
-            unsafe {
-                wrapper.index =
-                    nanoflann_create_index(flat_points.as_ptr(), positions.len(), D, leaf_max_size);
-            }
-        }
-
-        wrapper
     }
 }
 
-impl<'a, const D: usize> Drop for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Drop for WembedSnnWrapper<'a, D> {
     fn drop(&mut self) {
         if !self.index.is_null() {
             unsafe {
-                nanoflann_destroy_index(self.index);
+                wembed_snn_destroy_index(self.index);
             }
             self.index = ptr::null_mut();
         }
     }
 }
 
-// Implement Send and Sync - nanoflann queries are thread-safe for read-only operations
-unsafe impl<'a, const D: usize> Send for NanoflannIndexWrapper<'a, D> {}
-unsafe impl<'a, const D: usize> Sync for NanoflannIndexWrapper<'a, D> {}
+// Implement Send and Sync - SNN queries are thread-safe for read-only operations
+unsafe impl<'a, const D: usize> Send for WembedSnnWrapper<'a, D> {}
+unsafe impl<'a, const D: usize> Sync for WembedSnnWrapper<'a, D> {}
 
-impl<'a, const D: usize> Graph for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Graph for WembedSnnWrapper<'a, D> {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
         self.graph.is_connected(first, second)
     }
@@ -129,7 +99,7 @@ impl<'a, const D: usize> Graph for NanoflannIndexWrapper<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Position<D> for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Position<D> for WembedSnnWrapper<'a, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
@@ -139,14 +109,14 @@ impl<'a, const D: usize> Position<D> for NanoflannIndexWrapper<'a, D> {
     }
 }
 
-impl<'a, const D: usize> Update<D> for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Update<D> for WembedSnnWrapper<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
 
         // Destroy old index if it exists
         if !self.index.is_null() {
             unsafe {
-                nanoflann_destroy_index(self.index);
+                wembed_snn_destroy_index(self.index);
             }
             self.index = ptr::null_mut();
         }
@@ -155,22 +125,17 @@ impl<'a, const D: usize> Update<D> for NanoflannIndexWrapper<'a, D> {
         if !positions.is_empty() {
             let flat_points = self.positions_to_flat_array();
             unsafe {
-                self.index = nanoflann_create_index(
-                    flat_points.as_ptr(),
-                    positions.len(),
-                    D,
-                    10, // leaf_max_size
-                );
+                self.index = wembed_snn_create_index(flat_points.as_ptr(), positions.len(), D);
             }
 
             if self.index.is_null() {
-                eprintln!("Warning: Failed to create nanoflann index");
+                eprintln!("Warning: Failed to create wembed SNN index");
             }
         }
     }
 }
 
-impl<'a, const D: usize> Query for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> Query for WembedSnnWrapper<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         if !self.is_valid() || index >= self.positions.len() {
             return;
@@ -178,15 +143,14 @@ impl<'a, const D: usize> Query for NanoflannIndexWrapper<'a, D> {
 
         let own_position = self.positions[index];
         let own_weight = self.weight(index);
-        let scaled_radius = radius * own_weight.powi(2);
-        let scaled_radius_squared = (scaled_radius * scaled_radius) as f32;
+        let scaled_radius = (radius * own_weight.powi(2)) as f32;
 
         // Convert query point to flat array
         let query_point: Vec<f32> = own_position.components.iter().copied().collect();
 
         // Perform radius search - returns dynamically allocated results
         let mut search_result = unsafe {
-            nanoflann_radius_search(self.index, query_point.as_ptr(), scaled_radius_squared)
+            wembed_snn_radius_search(self.index, query_point.as_ptr(), scaled_radius)
         };
 
         // Process results
@@ -203,23 +167,23 @@ impl<'a, const D: usize> Query for NanoflannIndexWrapper<'a, D> {
 
             // Free the C++ allocated memory
             unsafe {
-                nanoflann_free_result(&mut search_result);
+                wembed_snn_free_result(&mut search_result);
             }
         }
     }
 }
 
-impl<'a, const D: usize> SpatialIndex<D> for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> SpatialIndex<D> for WembedSnnWrapper<'a, D> {
     fn name(&self) -> String {
-        "nanoflann".to_string()
+        "wembed_snn".to_string()
     }
 
     fn implementation_string(&self) -> &'static str {
-        include_str!("nanoflann.rs")
+        include_str!("wembed_snn.rs")
     }
 }
 
-impl<'a, const D: usize> query::Embedder<'a, D> for NanoflannIndexWrapper<'a, D> {
+impl<'a, const D: usize> query::Embedder<'a, D> for WembedSnnWrapper<'a, D> {
     fn new(embedding: &crate::Embedding<'a, D>) -> Self {
         Self::new(embedding)
     }

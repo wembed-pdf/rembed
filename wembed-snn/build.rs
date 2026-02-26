@@ -1,43 +1,44 @@
 fn main() {
     // Tell cargo to tell rustc to link our C++ library
-    println!("cargo:rustc-link-lib=static=boost_rtree_wrapper");
+    println!("cargo:rustc-link-lib=static=wembed_snn_wrapper");
     println!("cargo:rustc-link-lib=stdc++");
 
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=boost_rtree_wrapper.cpp");
-    println!("cargo:rerun-if-changed=boost_rtree_wrapper.h");
+    // Tell cargo to invalidate the built crate whenever source files change
+    println!("cargo:rerun-if-changed=wembed_snn_wrapper.cpp");
+    println!("cargo:rerun-if-changed=wembed_snn_wrapper.h");
+    println!("cargo:rerun-if-changed=snn.cpp");
+    println!("cargo:rerun-if-changed=snn.h");
+    println!("cargo:rerun-if-changed=eign.cpp");
+    println!("cargo:rerun-if-changed=eign.h");
 
-    // Try to find Boost using pkg-config (works on NixOS and some Linux distributions)
-    let boost = pkg_config::Config::new()
-        .atleast_version("1.65")
-        .probe("boost")
-        .ok();
+    // Find Eigen3 using pkg-config
+    let eigen3 = pkg_config::Config::new().probe("eigen3").ok();
 
-    // Build the C++ wrapper
-    // The cc crate automatically picks up NIX_CFLAGS_COMPILE which contains include paths
-    // for all packages in buildInputs (including boost)
+    // Build the C++ wrapper and original SNN implementation
     let mut build = cc::Build::new();
     build
         .cpp(true)
-        .file("boost_rtree_wrapper.cpp")
+        .file("wembed_snn_wrapper.cpp")
+        .file("snn.cpp")
+        .file("eign.cpp")
+        .include(".")  // For local headers (snn.h, eign.h)
         .flag("-std=c++17")
         .flag("-O3")
         .flag("-march=native")
         .flag("-fPIC");
 
     // Add include paths from pkg-config if available
-    if let Some(boost) = boost.as_ref() {
-        for include in &boost.include_paths {
+    if let Some(eigen3) = eigen3.as_ref() {
+        for include in &eigen3.include_paths {
             build.include(include);
         }
     }
 
-    build.compile("boost_rtree_wrapper");
+    build.compile("wembed_snn_wrapper");
 
     // Generate bindings with bindgen
-    // Pass the same include paths to bindgen's clang
     let mut bindgen_builder = bindgen::Builder::default()
-        .header("boost_rtree_wrapper.h")
+        .header("wembed_snn_wrapper.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .derive_default(true)
         .derive_debug(true)
@@ -52,13 +53,13 @@ fn main() {
         .blocklist_function("qecvt_r")
         .blocklist_function("qfcvt_r")
         // Generate only what we need
-        .allowlist_function("boost_rtree_.*")
-        .allowlist_type("BoostRTreeIndex")
-        .allowlist_type("BoostRTreeResult");
+        .allowlist_function("wembed_snn_.*")
+        .allowlist_type("WembedSnnIndex")
+        .allowlist_type("WembedSnnResult");
 
     // Add include paths to bindgen
-    if let Some(boost) = boost {
-        for include in &boost.include_paths {
+    if let Some(eigen3) = pkg_config::Config::new().probe("eigen3").ok() {
+        for include in &eigen3.include_paths {
             bindgen_builder = bindgen_builder.clang_arg(format!("-I{}", include.display()));
         }
     }

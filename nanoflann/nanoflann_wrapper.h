@@ -11,6 +11,13 @@ extern "C" {
 // Opaque pointer to the nanoflann index
 typedef struct NanoflannIndex NanoflannIndex;
 
+// Result structure for radius search
+typedef struct NanoflannResult {
+    size_t* indices;              // Dynamically allocated array of neighbor indices
+    float* distances_squared;     // Dynamically allocated array of squared distances
+    size_t count;                 // Number of neighbors found
+} NanoflannResult;
+
 // Create a new nanoflann index
 // points: flat array of points [x1, y1, z1, x2, y2, z2, ...]
 // num_points: number of points
@@ -27,25 +34,25 @@ NanoflannIndex* nanoflann_create_index(
 void nanoflann_destroy_index(NanoflannIndex* index);
 
 // Perform k-nearest neighbor search
-// Returns the number of neighbors found (may be less than k if not enough points)
-size_t nanoflann_knn_search(
+// Returns a NanoflannResult with dynamically allocated arrays
+// Caller must free the result with nanoflann_free_result()
+NanoflannResult nanoflann_knn_search(
     const NanoflannIndex* index,
     const float* query_point,
-    size_t k,
-    size_t* out_indices,
-    float* out_distances_squared
+    size_t k
 );
 
 // Perform radius search
-// Returns the number of neighbors found within radius
-size_t nanoflann_radius_search(
+// Returns a NanoflannResult with dynamically allocated arrays
+// Caller must free the result with nanoflann_free_result()
+NanoflannResult nanoflann_radius_search(
     const NanoflannIndex* index,
     const float* query_point,
-    float radius_squared,
-    size_t* out_indices,
-    float* out_distances_squared,
-    size_t max_results
+    float radius_squared
 );
+
+// Free the result from a search
+void nanoflann_free_result(NanoflannResult* result);
 
 // Update the index with new point positions
 // Note: This rebuilds the entire index

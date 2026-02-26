@@ -152,10 +152,8 @@ impl<'a, const D: usize> Update<D> for RandomProjectionLsh<'a, D> {
 }
 
 impl<'a, const D: usize> Query for RandomProjectionLsh<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+    fn nearest_neighbors(&self, index: usize, _radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let _scaled_radius_squared = (radius * own_weight.powi(2)) as f32;
 
         // Special case for single table - no deduplication needed
         if self.num_tables == 1 {
@@ -163,18 +161,7 @@ impl<'a, const D: usize> Query for RandomProjectionLsh<'a, D> {
 
             if let Some(bucket) = self.hash_tables[0].get(&hash_code) {
                 for &candidate_id in bucket {
-                    if candidate_id == index {
-                        continue;
-                    }
-
-                    let other_pos = &self.positions[candidate_id];
-                    let other_weight = self.weight(candidate_id);
-                    let distance_sq = own_position.distance_squared(other_pos);
-
-                    if distance_sq > (own_weight).powi(4) as f32 {
-                        continue;
-                    }
-                    if distance_sq <= (own_weight * other_weight).powi(2) as f32 {
+                    if candidate_id != index {
                         results.push(candidate_id);
                     }
                 }
@@ -195,18 +182,9 @@ impl<'a, const D: usize> Query for RandomProjectionLsh<'a, D> {
             }
         }
 
-        // Filter candidates by actual distance with weight-based threshold
+        // Return all candidates except self
         for candidate_id in candidates {
-            if candidate_id == index {
-                continue;
-            }
-
-            let other_pos = &self.positions[candidate_id];
-            let other_weight = self.weight(candidate_id);
-            let distance_sq = own_position.distance_squared(other_pos);
-
-            // Standard weight-based filter used across implementations
-            if distance_sq <= (own_weight * other_weight).powi(2) as f32 {
+            if candidate_id != index {
                 results.push(candidate_id);
             }
         }

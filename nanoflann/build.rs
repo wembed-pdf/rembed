@@ -40,6 +40,7 @@ fn main() {
         // Generate only what we need
         .allowlist_function("nanoflann_.*")
         .allowlist_type("NanoflannIndex")
+        .allowlist_type("NanoflannResult")
         .generate()
         .expect("Unable to generate bindings");
 

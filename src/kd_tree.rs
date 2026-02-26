@@ -78,14 +78,7 @@ impl<'a, const D: usize> Query for KDTree<'a, D> {
             .for_each(|nn| {
                 for data in nn.iter() {
                     let data_index = *data.1;
-                    if data_index == index {
-                        continue; // Skip the own node
-                    }
-                    let other_pos = &self.positions[data_index];
-                    let other_weight = self.weight(data_index);
-                    if own_position.distance_squared(other_pos)
-                        <= (own_weight * other_weight).powi(2) as f32
-                    {
+                    if data_index != index {
                         results.push(data_index);
                     }
                 }

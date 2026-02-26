@@ -66,13 +66,12 @@ public:
         tree_ = std::make_unique<RTree>(values.begin(), values.end());
     }
 
-    size_t radius_search(
+    BoostRTreeResult radius_search(
         const float* query_point,
-        float radius_squared,
-        size_t* out_indices,
-        float* out_distances_squared,
-        size_t max_results
+        float radius_squared
     ) {
+        BoostRTreeResult result = {nullptr, nullptr, 0};
+
         Point query_pt;
         set_coords<DIM>(query_pt, query_point);
 
@@ -99,14 +98,18 @@ public:
             std::back_inserter(results)
         );
 
-        // Limit results and copy to output arrays
-        size_t count = std::min(results.size(), max_results);
-        for (size_t i = 0; i < count; ++i) {
-            out_indices[i] = results[i].second;
-            out_distances_squared[i] = distance_squared<DIM>(results[i].first, query_point);
+        // Allocate and copy results
+        result.count = results.size();
+        if (result.count > 0) {
+            result.indices = new size_t[result.count];
+            result.distances_squared = new float[result.count];
+            for (size_t i = 0; i < result.count; ++i) {
+                result.indices[i] = results[i].second;
+                result.distances_squared[i] = distance_squared<DIM>(results[i].first, query_point);
+            }
         }
 
-        return count;
+        return result;
     }
 
     size_t point_count() const { return num_points_; }
@@ -174,35 +177,43 @@ void boost_rtree_destroy_index(BoostRTreeIndex* index) {
     delete index;
 }
 
-size_t boost_rtree_radius_search(
+BoostRTreeResult boost_rtree_radius_search(
     const BoostRTreeIndex* index,
     const float* query_point,
-    float radius_squared,
-    size_t* out_indices,
-    float* out_distances_squared,
-    size_t max_results
+    float radius_squared
 ) {
-    if (!index) return 0;
+    BoostRTreeResult result = {nullptr, nullptr, 0};
+    if (!index) return result;
 
     switch (index->dimensions) {
         case 2:
             return static_cast<BoostRTreeImpl<2>*>(index->impl)->radius_search(
-                query_point, radius_squared, out_indices, out_distances_squared, max_results
+                query_point, radius_squared
             );
         case 3:
             return static_cast<BoostRTreeImpl<3>*>(index->impl)->radius_search(
-                query_point, radius_squared, out_indices, out_distances_squared, max_results
+                query_point, radius_squared
             );
         case 4:
             return static_cast<BoostRTreeImpl<4>*>(index->impl)->radius_search(
-                query_point, radius_squared, out_indices, out_distances_squared, max_results
+                query_point, radius_squared
             );
         case 8:
             return static_cast<BoostRTreeImpl<8>*>(index->impl)->radius_search(
-                query_point, radius_squared, out_indices, out_distances_squared, max_results
+                query_point, radius_squared
             );
         default:
-            return 0;
+            return result;
+    }
+}
+
+void boost_rtree_free_result(BoostRTreeResult* result) {
+    if (result) {
+        delete[] result->indices;
+        delete[] result->distances_squared;
+        result->indices = nullptr;
+        result->distances_squared = nullptr;
+        result->count = 0;
     }
 }
 

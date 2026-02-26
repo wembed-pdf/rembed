@@ -5,6 +5,33 @@
 pub struct NanoflannIndex {
     _unused: [u8; 0],
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct NanoflannResult {
+    pub indices: *mut usize,
+    pub distances_squared: *mut f32,
+    pub count: usize,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of NanoflannResult"][::std::mem::size_of::<NanoflannResult>() - 24usize];
+    ["Alignment of NanoflannResult"][::std::mem::align_of::<NanoflannResult>() - 8usize];
+    ["Offset of field: NanoflannResult::indices"]
+        [::std::mem::offset_of!(NanoflannResult, indices) - 0usize];
+    ["Offset of field: NanoflannResult::distances_squared"]
+        [::std::mem::offset_of!(NanoflannResult, distances_squared) - 8usize];
+    ["Offset of field: NanoflannResult::count"]
+        [::std::mem::offset_of!(NanoflannResult, count) - 16usize];
+};
+impl Default for NanoflannResult {
+    fn default() -> Self {
+        let mut s = ::std::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::std::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
 unsafe extern "C" {
     pub fn nanoflann_create_index(
         points: *const f32,
@@ -21,19 +48,17 @@ unsafe extern "C" {
         index: *const NanoflannIndex,
         query_point: *const f32,
         k: usize,
-        out_indices: *mut usize,
-        out_distances_squared: *mut f32,
-    ) -> usize;
+    ) -> NanoflannResult;
 }
 unsafe extern "C" {
     pub fn nanoflann_radius_search(
         index: *const NanoflannIndex,
         query_point: *const f32,
         radius_squared: f32,
-        out_indices: *mut usize,
-        out_distances_squared: *mut f32,
-        max_results: usize,
-    ) -> usize;
+    ) -> NanoflannResult;
+}
+unsafe extern "C" {
+    pub fn nanoflann_free_result(result: *mut NanoflannResult);
 }
 unsafe extern "C" {
     pub fn nanoflann_update_points(

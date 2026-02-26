@@ -71,14 +71,13 @@ public:
         tree_->build();
     }
 
-    size_t radius_search(
+    CgalKdTreeResult radius_search(
         const float* query_point,
         float radius_squared,
-        float epsilon,
-        size_t* out_indices,
-        float* out_distances_squared,
-        size_t max_results
+        float epsilon
     ) {
+        CgalKdTreeResult result = {nullptr, nullptr, 0};
+
         // Convert query point to CGAL point
         std::vector<double> query_coords(DIM);
         for (int d = 0; d < DIM; ++d) {
@@ -91,14 +90,14 @@ public:
         // Create fuzzy sphere for radius search (epsilon=0 for exact)
         CGAL::Fuzzy_sphere<Traits> fuzzy_sphere(query_pt, radius, epsilon);
 
-        std::vector<Point_d> results;
-        tree_->search(std::back_inserter(results), fuzzy_sphere);
+        std::vector<Point_d> search_results;
+        tree_->search(std::back_inserter(search_results), fuzzy_sphere);
 
-        // Map results back to indices using hash map
-        size_t count = 0;
-        for (const auto& result_pt : results) {
-            if (count >= max_results) break;
+        // Collect valid results
+        std::vector<size_t> indices;
+        std::vector<float> distances;
 
+        for (const auto& result_pt : search_results) {
             auto it = point_to_index_.find(result_pt);
             if (it == point_to_index_.end()) continue;
 
@@ -111,13 +110,23 @@ public:
 
             // Verify within radius (fuzzy sphere may include points slightly outside)
             if (dist_sq <= radius_squared) {
-                out_indices[count] = it->second;
-                out_distances_squared[count] = dist_sq;
-                ++count;
+                indices.push_back(it->second);
+                distances.push_back(dist_sq);
             }
         }
 
-        return count;
+        // Allocate and copy results
+        result.count = indices.size();
+        if (result.count > 0) {
+            result.indices = new size_t[result.count];
+            result.distances_squared = new float[result.count];
+            for (size_t i = 0; i < result.count; ++i) {
+                result.indices[i] = indices[i];
+                result.distances_squared[i] = distances[i];
+            }
+        }
+
+        return result;
     }
 
     size_t point_count() const { return num_points_; }
@@ -187,36 +196,44 @@ void cgal_kdtree_destroy_index(CgalKdTreeIndex* index) {
     delete index;
 }
 
-size_t cgal_kdtree_radius_search(
+CgalKdTreeResult cgal_kdtree_radius_search(
     const CgalKdTreeIndex* index,
     const float* query_point,
     float radius_squared,
-    float epsilon,
-    size_t* out_indices,
-    float* out_distances_squared,
-    size_t max_results
+    float epsilon
 ) {
-    if (!index) return 0;
+    CgalKdTreeResult result = {nullptr, nullptr, 0};
+    if (!index) return result;
 
     switch (index->dimensions) {
         case 2:
             return static_cast<CgalKdTreeImpl<2>*>(index->impl)->radius_search(
-                query_point, radius_squared, epsilon, out_indices, out_distances_squared, max_results
+                query_point, radius_squared, epsilon
             );
         case 3:
             return static_cast<CgalKdTreeImpl<3>*>(index->impl)->radius_search(
-                query_point, radius_squared, epsilon, out_indices, out_distances_squared, max_results
+                query_point, radius_squared, epsilon
             );
         case 4:
             return static_cast<CgalKdTreeImpl<4>*>(index->impl)->radius_search(
-                query_point, radius_squared, epsilon, out_indices, out_distances_squared, max_results
+                query_point, radius_squared, epsilon
             );
         case 8:
             return static_cast<CgalKdTreeImpl<8>*>(index->impl)->radius_search(
-                query_point, radius_squared, epsilon, out_indices, out_distances_squared, max_results
+                query_point, radius_squared, epsilon
             );
         default:
-            return 0;
+            return result;
+    }
+}
+
+void cgal_kdtree_free_result(CgalKdTreeResult* result) {
+    if (result) {
+        delete[] result->indices;
+        delete[] result->distances_squared;
+        result->indices = nullptr;
+        result->distances_squared = nullptr;
+        result->count = 0;
     }
 }
 

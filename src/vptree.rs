@@ -109,8 +109,7 @@ impl<'a, const D: usize> Update<D> for VPTree<'a, D> {
 impl<'a, const D: usize> Query for VPTree<'a, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
         let own_position = self.positions[index];
-        let own_weight = self.weight(index);
-        let scaled_radius_squared = (radius * own_weight.powi(2)) as f32;
+        let scaled_radius_squared = (radius * self.weight(index).powi(2)) as f32;
 
         let query_point = DataPoint {
             index,
@@ -120,16 +119,7 @@ impl<'a, const D: usize> Query for VPTree<'a, D> {
         self.vptree
             .k_nearest_within(&query_point, self.positions.len(), scaled_radius_squared)
             .into_iter()
-            .filter(|nn| {
-                let data = nn.item.index;
-                if data == index {
-                    return false;
-                }
-                let other_pos = &self.positions[data];
-                let other_weight = self.weight(data);
-                own_position.distance_squared(other_pos)
-                    <= (own_weight * other_weight).powi(2) as f32
-            })
+            .filter(|nn| nn.item.index != index)
             .for_each(|nn| {
                 results.push(nn.item.index);
             });

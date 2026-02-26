@@ -78,11 +78,7 @@ impl<'a, const D: usize> Query for WBallTree<'a, D> {
             .nn_within(&query_position, scaled_radius_squared as f64)
             .for_each(|nn| {
                 let data = *nn.2;
-                let other_pos = &self.positions[data];
-                let other_weight = self.weight(data);
-                if own_position.distance_squared(other_pos)
-                    <= (own_weight * other_weight).powi(2) as f32
-                {
+                if data != index {
                     results.push(data);
                 }
             });
