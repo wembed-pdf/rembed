@@ -16,14 +16,10 @@ default-run = "rembed"
 
 [dependencies]
 acap = "0.4.0"
-ball-tree = "0.5.1"
 crossbeam = "0.8.4"
-fnntw = "0.4.1"
-kdtree = "0.7.0"
 kiddo = { version = "5.0.3", features = ["simd"] }
 memmap = "0.7.0"
 nabo = "0.5.0"
-nalgebra = "0.33.2"
 nanoflann = { version = "0.1.0", path = "nanoflann", optional = true }
 boost-rtree = { version = "0.1.0", path = "boost-rtree", optional = true }
 cgal = { version = "0.1.0", path = "cgal", optional = true }
@@ -32,12 +28,10 @@ sklearn = { version = "0.1.0", path = "sklearn", optional = true }
 neighbourhood = "0.0.1"
 rand = "0.9.1"
 rayon = "1.10.0"
-rstar = "0.12.2"
 rustc-hash = "2.1.0"
 sha2 = "0.10.9"
 sif-kdtree = "0.7.0"
 vec-vp-tree = "0.1.1"
-hnsw_rs = "0.3.2"
 linreg = "0.2.0"
 
 [dev-dependencies]

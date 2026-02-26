@@ -39,8 +39,7 @@ fn main() -> io::Result<()> {
         graph: &graph,
     };
 
-    // let lossy_queries = ATree::new(&embedding);
-    let lossy_queries = dim_reduction::LayeredLsh::new(&embedding.clone());
+    let lossy_queries = ATree::new(&embedding);
     // let lossy_queries = Kiddo::new(embedding.clone());
     // let lossy_queries = embedding.clone();
     // let lossy_queries =
