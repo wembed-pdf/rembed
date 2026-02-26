@@ -20,7 +20,7 @@ pub struct HNSWTree<'a, const D: usize> {
 impl<'a, const D: usize> Clone for HNSWTree<'a, D> {
     fn clone(&self) -> Self {
         let positions = self.positions.clone();
-        let hnsw = Hnsw::new(32, positions.len(), 4, 100, DistL2::default());
+        let hnsw = Hnsw::new(32, positions.len(), 4, 100, DistL2);
         for (i, pos) in positions.iter().enumerate() {
             hnsw.insert((&pos.components, i));
         }
@@ -38,7 +38,7 @@ impl<'a, const D: usize> HNSWTree<'a, D> {
         let mut tree = Self {
             positions,
             graph: embedding.graph,
-            hnsw: Hnsw::new(5, embedding.positions.len(), 3, 100, DistL2::default()),
+            hnsw: Hnsw::new(5, embedding.positions.len(), 3, 100, DistL2),
         };
         tree.update_positions(&embedding.positions, None);
         tree
@@ -75,7 +75,7 @@ impl<'a, const D: usize> Update<D> for HNSWTree<'a, D> {
         // M is future expected k
         // max_nb = M_max should be maybe 2 times M
         // TODO test higher ef_construction values
-        self.hnsw = Hnsw::new(8, self.positions.len(), 3, 10, DistL2::default());
+        self.hnsw = Hnsw::new(8, self.positions.len(), 3, 10, DistL2);
 
         let data: Vec<(Vec<f32>, usize)> = positions
             .iter()

@@ -1,9 +1,9 @@
-use kiddo::{ImmutableKdTree, KdTree, SquaredEuclidean};
+use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use linreg;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::prelude::*;
 
-use crate::{dvec::DVec, graph::Graph};
+use crate::dvec::DVec;
 
 // Using the method from Estimating the intrinsic dimension  of datasets by a minimal  neighborhood information
 // https://www.nature.com/articles/s41598-017-11873-y
@@ -19,8 +19,8 @@ pub fn intrinsic_dimension<const D: usize>(positions: &[DVec<D>]) -> f64 {
         .iter()
         .map(|p| {
             let mut arr = [0.0f32; D];
-            for i in 0..D {
-                arr[i] = p.components[i] as f32;
+            for (i, item) in arr.iter_mut().enumerate() {
+                *item = p.components[i];
             }
             arr
         })
@@ -30,7 +30,7 @@ pub fn intrinsic_dimension<const D: usize>(positions: &[DVec<D>]) -> f64 {
     let mut mus = kiddo_positions
         .par_iter()
         .map(|pos| {
-            let results = kdtree.nearest_n::<SquaredEuclidean>(&pos, 3.try_into().unwrap());
+            let results = kdtree.nearest_n::<SquaredEuclidean>(pos, 3.try_into().unwrap());
             let r1 = (results[1].distance as f64).sqrt(); // first nearest neighbor (skip self)
             let r2 = (results[2].distance as f64).sqrt(); // second nearest neighbor
             r2 / r1
@@ -46,7 +46,7 @@ pub fn intrinsic_dimension<const D: usize>(positions: &[DVec<D>]) -> f64 {
     for (i, &mu) in mus.iter().enumerate() {
         let f_emp: f64 = (i as f64) / n;
         log_mu.push(mu.ln());
-        log_one_minus_f_emp.push(-1.0 * (1.0 - f_emp).ln());
+        log_one_minus_f_emp.push(-(1.0 - f_emp).ln());
     }
 
     // Step 5: Fit a line through the origin to the points (log_mu, log_one_minus_f_emp)
@@ -63,9 +63,7 @@ pub fn intrinsic_dimension<const D: usize>(positions: &[DVec<D>]) -> f64 {
         y_vals.push(-log_one_minus_f_emp[i]);
     }
 
-    let slope = linreg::linear_regression(&x_vals, &y_vals)
+    linreg::linear_regression(&x_vals, &y_vals)
         .expect("Linear regression failed")
-        .0;
-
-    slope
+        .0
 }

@@ -1,15 +1,6 @@
 use std::time::Instant;
 
-use rembed::{
-    embedder::{EmbedderOptions, WEmbedder},
-    kiddo::Kiddo,
-    lossy_queries::LossyQuery,
-    query::Embedder,
-    random_projection_lsh::RandomProjectionLsh,
-    snn::SNN,
-    wrtree::WRTree,
-    *,
-};
+use rembed::{embedder::EmbedderOptions, *};
 
 fn main() -> io::Result<()> {
     let graph_name = "rel8";
@@ -18,7 +9,7 @@ fn main() -> io::Result<()> {
     const D: usize = 12;
     let dim_hint = 8;
 
-    let graph = format!("data/{}/graph", graph_name);
+    let _graph = format!("data/{}/graph", graph_name);
     // let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
     // let graph = "data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
@@ -29,7 +20,7 @@ fn main() -> io::Result<()> {
     // let graph = "../../cpp/sample/edge_lists_real/web-spam";
     let graph = "../../cpp/sample/edge_lists_real/rel7";
     // let graph = "../../cpp/sample/edge_lists_real/rel6";
-    let graph = graph::Graph::parse_from_edge_list_file(&graph, D, dim_hint)?;
+    let graph = graph::Graph::parse_from_edge_list_file(graph, D, dim_hint)?;
 
     let count = graph.nodes.len();
     eprintln!("n: {count}");

@@ -1,4 +1,4 @@
-use kiddo::{ImmutableKdTree, KdTree, SquaredEuclidean};
+use kiddo::{ImmutableKdTree, SquaredEuclidean};
 
 use crate::{
     Embedding, NodeId, Query,

@@ -53,7 +53,7 @@ class SnnModel {
                 distance_buffer.resize(rows);
             }
 
-            for (size_t i = 0; i < cols; ++i) {
+            for (int i = 0; i < cols; ++i) {
                 query_buffer[i] = query[i] - mu[i];
             }
 

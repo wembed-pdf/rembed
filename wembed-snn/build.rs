@@ -58,7 +58,7 @@ fn main() {
         .allowlist_type("WembedSnnResult");
 
     // Add include paths to bindgen
-    if let Some(eigen3) = pkg_config::Config::new().probe("eigen3").ok() {
+    if let Ok(eigen3) = pkg_config::Config::new().probe("eigen3") {
         for include in &eigen3.include_paths {
             bindgen_builder = bindgen_builder.clang_arg(format!("-I{}", include.display()));
         }

@@ -49,8 +49,3 @@ wembed-snn = ["dep:wembed-snn"]
 
 [profile.release]
 debug = true
-
-
-[[bench]]
-name = "fruitfly_8"
-harness = false

@@ -1,11 +1,10 @@
-use std::sync::Mutex;
 use crate::{
-    NodeId,
+    ATree, NodeId,
     dvec::DVec,
-    query::{Embedder, Graph, Position, SpatialIndex, Update, Query},
+    query::{Embedder, Graph, Position, Query, SpatialIndex, Update},
     random_projection_lsh::RandomProjectionLsh,
-    ATree,
 };
+use std::sync::Mutex;
 
 pub struct MeasuredLSH<'a, const D: usize> {
     pub lsh: RandomProjectionLsh<'a, D>,
@@ -24,10 +23,7 @@ impl<'a, const D: usize> Clone for MeasuredLSH<'a, D> {
 }
 
 impl<'a, const D: usize> MeasuredLSH<'a, D> {
-    pub fn new(
-        lsh: RandomProjectionLsh<'a, D>,
-        ground_truth: ATree<'a, D>,
-    ) -> Self {
+    pub fn new(lsh: RandomProjectionLsh<'a, D>, ground_truth: ATree<'a, D>) -> Self {
         Self {
             lsh,
             ground_truth,
@@ -95,7 +91,7 @@ impl<'a, const D: usize> SpatialIndex<D> for MeasuredLSH<'a, D> {
 }
 
 impl<'a, const D: usize> Embedder<'a, D> for MeasuredLSH<'a, D> {
-    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+    fn new(_embedding: &crate::Embedding<'a, D>) -> Self {
         panic!("MeasuredLSH requires explicit construction with both LSH and ground truth")
     }
 
@@ -103,7 +99,8 @@ impl<'a, const D: usize> Embedder<'a, D> for MeasuredLSH<'a, D> {
     fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
         // Get ground truth repelling nodes
         let mut ground_truth_nodes = Vec::new();
-        self.ground_truth.repelling_nodes(index, &mut ground_truth_nodes);
+        self.ground_truth
+            .repelling_nodes(index, &mut ground_truth_nodes);
 
         // Get LSH repelling nodes
         self.lsh.repelling_nodes(index, result);
@@ -112,8 +109,7 @@ impl<'a, const D: usize> Embedder<'a, D> for MeasuredLSH<'a, D> {
         if !ground_truth_nodes.is_empty() {
             let ground_truth_set: std::collections::HashSet<_> =
                 ground_truth_nodes.iter().copied().collect();
-            let lsh_set: std::collections::HashSet<_> =
-                result.iter().copied().collect();
+            let lsh_set: std::collections::HashSet<_> = result.iter().copied().collect();
 
             let intersection_size = ground_truth_set.intersection(&lsh_set).count();
             let recall = intersection_size as f64 / ground_truth_nodes.len() as f64;

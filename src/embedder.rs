@@ -81,7 +81,7 @@ impl<const D: usize> AdamOptimizer<D> {
 
             // Update parameters
             let update = m_hat * (cooling * self.learning_rate as f32)
-                / v_hat.map(|v| (v.sqrt() + self.epsilon as f32));
+                / v_hat.map(|v| v.sqrt() + self.epsilon as f32);
             positions[i] += update;
         }
     }
@@ -193,7 +193,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         let update_start = std::time::Instant::now();
         // Save old positions
         self.old_positions.clone_from(&self.positions);
-        if self.iteration % 10 == 0 {
+        if self.iteration.is_multiple_of(10) {
             self.positions_log
                 .push((self.iteration as u64, self.old_positions.clone()));
         }
@@ -216,7 +216,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         self.optimizer.update(&mut self.positions, &self.forces);
         let optimizer_update = update_start.elapsed();
 
-        if self.iteration % 100 == 0 && self.print_timings {
+        if self.iteration.is_multiple_of(100) && self.print_timings {
             println!("reset: {}μs", reset.as_micros());
             println!("update index: {}ms", (update_end - reset).as_millis());
             println!(

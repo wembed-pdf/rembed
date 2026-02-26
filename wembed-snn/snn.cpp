@@ -38,7 +38,7 @@ SOFTWARE.
 using Matrix = Eigen::MatrixXd;
 using Vector = Eigen::VectorXd;
 using Eigen::seqN;
-using Eigen::placeholders::all;
+using Eigen::all;
 using RawVec = Eigen::Map<Eigen::VectorXd>;
 
 void argsort(const Vector& input, std::vector<int>& output) {
@@ -59,13 +59,13 @@ void reorderArray1D(const Vector& input, Vector& output, const std::vector<int>&
 
 void reorderArray2D(const Matrix& input, Matrix& output, const std::vector<int>& index) {
     assert(input.rows() == output.rows() && input.cols() == output.cols());
-    for (size_t i = 0; i < input.rows(); ++i) {
+    for (Eigen::Index i = 0; i < input.rows(); ++i) {
         output(i, all) = input(index[i], all);
     }
 }
 
 void calculate_matrix_mean(const Matrix& mat, Vector& ret) {
-    for (size_t i = 0; i < mat.cols(); i++){
+    for (Eigen::Index i = 0; i < mat.cols(); i++){
         ret[i] = mat(all, i).sum() / static_cast<double>(mat.rows());
     }
 }
@@ -112,7 +112,7 @@ SnnModel::SnnModel(double *data, int r, int c): rows(r), cols(c) {
     // standardize data
     mu.resize(cols);
     calculate_matrix_mean(tempNormData, mu);
-    for (size_t i = 0; i < rows; ++i) {
+    for (int i = 0; i < rows; ++i) {
         tempNormData(i, all) -= mu;
     }
 
@@ -141,7 +141,7 @@ SnnModel::SnnModel(double *data, int r, int c): rows(r), cols(c) {
 
     // precompute distances to center
     xxt.resize(rows);
-    for (size_t i = 0; i < normData.rows(); ++i) {
+    for (Eigen::Index i = 0; i < normData.rows(); ++i) {
         xxt[i] = normData(i, all).dot(normData(i, all));
     }
 }

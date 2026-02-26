@@ -293,6 +293,7 @@ impl<const D: usize> MulAssign<f32> for DVec<D> {
 impl<const D: usize> Div<f32> for DVec<D> {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, scalar: f32) -> Self::Output {
         assert!(scalar != 0.0, "Division by zero");
         let divisor_recip = scalar.recip();

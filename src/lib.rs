@@ -38,7 +38,13 @@ pub mod wrtree;
 pub use atree::ATree;
 pub use dim_reduction::LayeredLsh;
 pub use dynamic_queries::DynamicQuery;
+pub use embedder::WEmbedder;
+pub use kiddo::Kiddo;
+pub use lossy_queries::LossyQuery;
 pub use measured_lsh::MeasuredLSH;
+pub use random_projection_lsh::RandomProjectionLsh;
+pub use snn::SNN;
+pub use wrtree::WRTree;
 
 pub mod intrinsic_dimension;
 

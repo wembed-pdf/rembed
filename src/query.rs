@@ -1,5 +1,3 @@
-use rand::seq::IteratorRandom;
-
 use crate::{Embedding, NodeId, dvec::DVec};
 
 pub trait Graph {

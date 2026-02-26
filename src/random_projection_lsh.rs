@@ -144,7 +144,7 @@ impl<'a, const D: usize> Update<D> for RandomProjectionLsh<'a, D> {
 
                 self.hash_tables[table_idx]
                     .entry(hash_code)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(node_id);
             }
         }

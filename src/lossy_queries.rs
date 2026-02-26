@@ -1,4 +1,4 @@
-use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use rand::{rngs::SmallRng, seq::SliceRandom};
 
 use crate::{
     NodeId, Query,
@@ -70,7 +70,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for LossyQuery<'a
 
 impl<'a, const D: usize, ID: Embedder<'a, D>> Query for LossyQuery<'a, D, ID> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
-        return self.structure.nearest_neighbors(index, radius, results);
+        self.structure.nearest_neighbors(index, radius, results)
     }
 }
 impl<'a, const D: usize, ID: Embedder<'a, D>> SpatialIndex<D> for LossyQuery<'a, D, ID> {
