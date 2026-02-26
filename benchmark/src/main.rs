@@ -150,6 +150,9 @@ enum Commands {
         /// List of datastructures to bench (default: all)
         #[arg(long)]
         structures: Option<Vec<String>>,
+        /// Enable dynamic downloading of graphs and positions during benchmarking (instead of requiring a prior pull)
+        #[arg(long, default_value_t = false)]
+        dynamic_download: bool,
     },
 
     /// Benchmark data structures with synthetic distributions
@@ -235,7 +238,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !skip_test {
                 let test_manager = CorrectnessTestManager::new(pool.clone());
                 test_manager
-                    .run_tests(false, false, Some(1), None, None, true, Vec::new())
+                    .run_tests(
+                        false,
+                        false,
+                        Some(1),
+                        None,
+                        None,
+                        true,
+                        Vec::new(),
+                        dynamic_download,
+                    )
                     .await?;
             }
 
@@ -436,6 +448,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             dim,
             run_unit_tests,
             structures,
+            dynamic_download,
         } => {
             // pull_files().await?;
             let database_url = env::var("DATABASE_URL")
@@ -452,6 +465,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     dim,
                     run_unit_tests,
                     structures.unwrap_or_default(),
+                    dynamic_download,
                 )
                 .await?;
         }

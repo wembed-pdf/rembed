@@ -1,3 +1,4 @@
+use crate::pull_files;
 use chrono::{DateTime, Utc};
 use rembed::query::SpatialIndex;
 use rembed::{NodeId, Query, convert_to_embeddings, data_structures};
@@ -232,6 +233,7 @@ impl CorrectnessTestManager {
         dim_filter: Option<i32>,
         run_unit_tests: bool,
         structures: Vec<String>,
+        dynamic_download: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if run_unit_tests {
             println!("Running unit tests from main crate...");
@@ -333,24 +335,49 @@ impl CorrectnessTestManager {
 
             match result.embedding_dim {
                 2 => {
-                    self.run_test_for_result::<2>(result.result_id, !all_iterations, structures)
-                        .await?
+                    self.run_test_for_result::<2>(
+                        result.result_id,
+                        !all_iterations,
+                        structures,
+                        dynamic_download,
+                    )
+                    .await?
                 }
                 4 => {
-                    self.run_test_for_result::<4>(result.result_id, !all_iterations, structures)
-                        .await?
+                    self.run_test_for_result::<4>(
+                        result.result_id,
+                        !all_iterations,
+                        structures,
+                        dynamic_download,
+                    )
+                    .await?
                 }
                 8 => {
-                    self.run_test_for_result::<8>(result.result_id, !all_iterations, structures)
-                        .await?
+                    self.run_test_for_result::<8>(
+                        result.result_id,
+                        !all_iterations,
+                        structures,
+                        dynamic_download,
+                    )
+                    .await?
                 }
                 16 => {
-                    self.run_test_for_result::<16>(result.result_id, !all_iterations, structures)
-                        .await?
+                    self.run_test_for_result::<16>(
+                        result.result_id,
+                        !all_iterations,
+                        structures,
+                        dynamic_download,
+                    )
+                    .await?
                 }
                 32 => {
-                    self.run_test_for_result::<32>(result.result_id, !all_iterations, structures)
-                        .await?
+                    self.run_test_for_result::<32>(
+                        result.result_id,
+                        !all_iterations,
+                        structures,
+                        dynamic_download,
+                    )
+                    .await?
                 }
                 _ => println!("Skipping unsupported dimension: {}", result.embedding_dim),
             }
@@ -364,6 +391,7 @@ impl CorrectnessTestManager {
         result_id: i64,
         last_iteration_only: bool,
         structure_selection: &[String],
+        dynamic_download: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Get test file info
         let test_record = sqlx::query_as!(
@@ -387,6 +415,22 @@ impl CorrectnessTestManager {
         let pos_path = format!("{}/{}", self.data_directory, result.file_path);
         let graph_path = format!("{}/{}", self.data_directory, result.graph_path);
         let test_file_path = format!("{}/{}", self.data_directory, test_record.file_path);
+
+        // If dynamic download is enabled, ensure files are present (this is a no-op if they already exist)
+        if dynamic_download {
+            if !Path::new(&graph_path).exists() {
+                println!("Graph file not found locally. Downloading...");
+                pull_files(false, Some(result.graph_path.as_str())).await?;
+            }
+            if !Path::new(&pos_path).exists() {
+                println!("Positions file not found locally. Downloading...");
+                pull_files(false, Some(result.file_path.as_str())).await?;
+            }
+            if !Path::new(&test_file_path).exists() {
+                println!("Test file not found locally. Downloading...");
+                pull_files(false, Some(test_record.file_path.as_str())).await?;
+            }
+        }
 
         let graph = rembed::graph::Graph::parse_from_edge_list_file(
             &graph_path,
