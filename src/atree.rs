@@ -102,7 +102,12 @@ impl Layer {
         offset: usize,
     ) {
         // For leaf nodes, we need full sorting for the lookup table
-        if nodes.len() <= LEAFSIZE {
+        let leafsize = if D > 2 {
+            LEAFSIZE
+        } else {
+            atree.positions.len().isqrt()
+        };
+        if nodes.len() <= leafsize {
             nodes.sort_unstable_by_key(|i| {
                 i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
             });
@@ -163,12 +168,14 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        Layer::init(a_ids, a_dpos, layers, (depth + 1) % D, a_id, atree, offset);
+        let depth = if D > 2 { (depth + 1) % D } else { 0 };
+
+        Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
         Layer::init(
             b_ids,
             b_dpos,
             layers,
-            (depth + 1) % D,
+            depth,
             b_id,
             atree,
             offset + split_pos,
