@@ -159,13 +159,6 @@ impl LoadData {
 
         let data_directory = std::env::var("DATA_DIRECTORY").unwrap_or(String::from("../data/"));
 
-        println!(
-            "Found {} graphs matching parameters, starting benchmarks",
-            position_results.len()
-        );
-
-        std::process::exit(0);
-
         // check if the results exist
         for result in &position_results {
             let pos_path: String = result.get::<String, _>("pos_path");
