@@ -251,7 +251,7 @@ impl CorrectnessTestManager {
         if all_graphs {
             println!("Running extensive correctness tests...");
         } else {
-            println!("Running quick correctness tests...");
+            println!("Running quick correctness tests on graphs with n < 5000...");
         }
 
         struct TestResult {
