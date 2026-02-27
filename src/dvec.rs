@@ -176,6 +176,12 @@ impl<const D: usize> DVec<D> {
     pub fn abs(&self) -> Self {
         self.map(|x| x.abs())
     }
+
+    pub(crate) fn splat(value: f32) -> DVec<D> {
+        Self {
+            components: [value; D],
+        }
+    }
 }
 
 // From implementations
