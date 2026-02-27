@@ -3,9 +3,33 @@
 //! This crate provides efficient Rust bindings to scikit-learn's KDTree and BallTree
 //! implementations using PyO3 and NumPy for minimal data transfer overhead.
 
+use std::sync::Once;
+
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+
+static PYTHON_INIT: Once = Once::new();
+
+/// Initialize Python without installing signal handlers.
+/// This preserves Ctrl+C behavior in the host application.
+fn ensure_python_initialized() {
+    PYTHON_INIT.call_once(|| {
+        unsafe {
+            // Pre-initialize with config to disable signal handlers
+            let mut preconfig: pyo3::ffi::PyPreConfig = std::mem::zeroed();
+            pyo3::ffi::PyPreConfig_InitIsolatedConfig(&mut preconfig);
+            pyo3::ffi::Py_PreInitialize(&preconfig);
+
+            let mut config: pyo3::ffi::PyConfig = std::mem::zeroed();
+            pyo3::ffi::PyConfig_InitIsolatedConfig(&mut config);
+            config.install_signal_handlers = 0;
+
+            pyo3::ffi::Py_InitializeFromConfig(&config);
+            pyo3::ffi::PyConfig_Clear(&mut config);
+        }
+    });
+}
 
 /// Opaque handle to a scikit-learn KDTree
 pub struct SklearnKDTreeIndex {
@@ -40,6 +64,7 @@ impl SklearnKDTreeIndex {
         dimensions: usize,
         leaf_size: usize,
     ) -> PyResult<Self> {
+        ensure_python_initialized();
         Python::with_gil(|py| {
             let sklearn_neighbors = py.import("sklearn.neighbors")?;
             let kdtree_class = sklearn_neighbors.getattr("KDTree")?;
@@ -116,6 +141,7 @@ impl SklearnBallTreeIndex {
         dimensions: usize,
         leaf_size: usize,
     ) -> PyResult<Self> {
+        ensure_python_initialized();
         Python::with_gil(|py| {
             let sklearn_neighbors = py.import("sklearn.neighbors")?;
             let balltree_class = sklearn_neighbors.getattr("BallTree")?;
