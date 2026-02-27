@@ -471,19 +471,21 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
     };
 
     let mut code_states = HashMap::new();
-    for structure in &mut data_structures {
-        if let Ok(Some(code_state)) = load_data
-            .repo_code_manager
-            .get_code_state(&structure.name(), &structure.checksum())
-            .await
-        {
-            let Ok(skiplist) = load_data
-                .skip_list(result_id, code_state.code_state_id)
+    if load_data.store {
+        for structure in &mut data_structures {
+            if let Ok(code_state) = load_data
+                .repo_code_manager
+                .get_or_create_code_state(&structure.name(), &structure.checksum())
                 .await
-            else {
-                continue;
-            };
-            code_states.insert(structure.name(), (code_state, skiplist));
+            {
+                let Ok(skiplist) = load_data
+                    .skip_list(result_id, code_state.code_state_id)
+                    .await
+                else {
+                    continue;
+                };
+                code_states.insert(structure.name(), (code_state, skiplist));
+            }
         }
     }
 
