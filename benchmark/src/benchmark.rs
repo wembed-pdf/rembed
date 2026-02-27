@@ -423,7 +423,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
     }
     let mut data_structures = if let Some(structures) = structures {
         rembed::data_structures(&embeddings[0].1)
-            .filter(|s| structures.contains(&s.name()))
+            .filter(|s| structures.contains(&s.name()) || structures.is_empty())
             .collect()
     } else {
         rembed::data_structures(&embeddings[0].1).collect::<Vec<_>>()
