@@ -451,7 +451,10 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
     let embeddings: Vec<_> = embeddings().collect();
 
     let embeddings = if only_last_iteration {
-        &embeddings[(embeddings.len().max(2) - 2)..]
+        match embeddings.last() {
+            Some(last) => std::slice::from_ref(last),
+            None => &[],
+        }
     } else {
         embeddings.as_slice()
     };
