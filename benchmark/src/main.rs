@@ -33,15 +33,24 @@ enum Commands {
         /// Range graph sizes (node count) to benchmark (e.g. "100-1000")
         #[arg(long, short)]
         n: Option<String>,
+        /// Specific graph sizes to select (e.g. "100,200,300")
+        #[arg(long, value_delimiter = ',')]
+        n_selection: Option<Vec<String>>,
         /// Range of dimensionality of the embeddings (e.g. "8-9")
         #[arg(long)]
         dim: Option<String>,
+        /// Specific dimensions to select (e.g. "8,16,32")
+        #[arg(long, value_delimiter = ',')]
+        dim_selection: Option<Vec<String>>,
         /// Range of average node degrees (e.g. "10-100")
         #[arg(long)]
         deg: Option<String>,
         /// Range of PLE values (e.g. "0.1-0.9")
         #[arg(long)]
         ple: Option<String>,
+        /// Specific PLE values to select (e.g. "2.2,2.5,2.8")
+        #[arg(long, value_delimiter = ',')]
+        ple_selection: Option<Vec<String>>,
         /// Range of alpha values (e.g. "0.1-0.9")
         #[arg(long)]
         alpha: Option<String>,
@@ -217,9 +226,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Bench {
             only_last_iteration,
             n,
+            n_selection,
             dim,
+            dim_selection,
             deg,
             ple,
+            ple_selection,
             alpha,
             seed,
             wseed,
@@ -300,9 +312,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .run_benchmarks(
                     only_last_iteration,
                     n_range,
+                    n_selection,
                     dim_range,
+                    dim_selection,
                     deg_range,
                     ple_range,
+                    ple_selection,
                     alpha_range,
                     seed_range,
                     wseed_range,

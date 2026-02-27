@@ -49,9 +49,12 @@ impl LoadData {
         &self,
         only_last_iteration: bool,
         n_range: (usize, usize),
+        n_selection: Option<Vec<String>>,
         dim_range: (usize, usize),
+        dim_selection: Option<Vec<String>>,
         deg_range: (usize, usize),
         ple_range: (f64, f64),
+        ple_selection: Option<Vec<String>>,
         alpha_range: (f64, f64),
         seed_range: (usize, usize),
         wseed_range: (usize, usize),
@@ -76,14 +79,32 @@ impl LoadData {
                 || alpha_range.1 > 0.0
             {
                 let mut conditions = vec![];
+                if dim_range.1 > 0 && !dim_selection.is_none() {
+                    return Err("Cannot specify both dim_range and dim_selection"
+                        .to_string()
+                        .into());
+                }
+                if let Some(dim_selection) = &dim_selection {
+                    let dim_values = dim_selection.join(",");
+                    conditions.push(format!("embedding_dim IN ({})", dim_values));
+                }
                 if dim_range.1 > 0 {
                     conditions.push(format!(
                         "embedding_dim >= {} AND embedding_dim <= {}",
                         dim_range.0, dim_range.1
                     ));
                 }
+                if n_range.1 > 0 && !n_selection.is_none() {
+                    return Err("Cannot specify both n_range and n_selection"
+                        .to_string()
+                        .into());
+                }
                 if n_range.1 > 0 {
                     conditions.push(format!("n >= {} AND n <= {}", n_range.0, n_range.1));
+                }
+                if let Some(n_selection) = &n_selection {
+                    let n_values = n_selection.join(",");
+                    conditions.push(format!("n IN ({})", n_values));
                 }
                 if deg_range.1 > 0 {
                     conditions.push(format!("deg >= {} AND deg <= {}", deg_range.0, deg_range.1));
@@ -101,8 +122,17 @@ impl LoadData {
                     ));
                 }
 
+                if ple_range.1 > 0. && !ple_selection.is_none() {
+                    return Err("Cannot specify both ple_range and ple_selection"
+                        .to_string()
+                        .into());
+                }
                 if ple_range.1 > 0.0 {
                     conditions.push(format!("ple >= {} AND ple <= {}", ple_range.0, ple_range.1));
+                }
+                if let Some(ple_selection) = &ple_selection {
+                    let ple_values = ple_selection.join(",");
+                    conditions.push(format!("ple IN ({})", ple_values));
                 }
                 if alpha_range.1 > 0.0 {
                     conditions.push(format!(
