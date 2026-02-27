@@ -53,7 +53,8 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
 
         let num_leafs = node_ids.len().ilog2() - LEAFSIZE.ilog2();
         // let mut d_pos = vec![0.; node_ids.len() + num_leafs * 4];
-        let mut d_pos = vec![f32::INFINITY; node_ids.len() + (1usize << num_leafs as usize) * 2];
+        let mut d_pos =
+            vec![f32::INFINITY; node_ids.len() + (1usize << num_leafs as usize) * 2 * 4];
         let mut layers = std::mem::take(&mut self.layers);
         if layers.len() < node_ids.len() {
             layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
@@ -71,6 +72,10 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         self.layers = layers;
         self.node_ids = node_ids;
         self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
+        for _ in 0..4 {
+            d_pos.push(f32::INFINITY);
+            self.positions_sorted.push(DVec::splat(f32::INFINITY));
+        }
         self.d_pos = d_pos;
         // println!("dpos: {:?}", self.d_pos);
     }
@@ -122,7 +127,8 @@ impl Layer {
             }
             let mut lut = vec![];
             let min = d_pos[0].floor();
-            let max = d_pos.iter().rev().nth(1).unwrap().ceil();
+            let slack = d_pos.len() - nodes.len();
+            let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let resolution = 50. / (max - min);
             for i in 0..(((max - min) * resolution) as i32) {
                 let pos_idx = d_pos
@@ -294,15 +300,28 @@ impl<'a, const D: usize> ATree<'a, D> {
                 let min_i = snn.lut[idx];
                 // let max_i = snn.lut_end[end_idx];
 
-                for i in min_i.. {
+                let mut i = min_i;
+                loop {
+                    results.reserve(4);
+                    // for i in min_i.. {
                     let p = self.d_pos[i + snn.dpos_offset];
                     // dbg!(p);
-                    if p > max {
-                        break;
+                    let b = p > max;
+                    // if p > max {
+                    //     break;
+                    // }
+                    for j in 0..2 {
+                        // let i = (i + j).min(self.node_ids.len() - 1);
+                        let i = i + j;
+                        let other_pos = self.positions_sorted[i];
+                        if !b && pos.distance_squared(&other_pos) <= original_radius_squared as f32
+                        {
+                            results.push(self.node_ids[i]);
+                        }
                     }
-                    let other_pos = self.positions_sorted[i];
-                    if pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
-                        results.push(self.node_ids[i]);
+                    i += 2;
+                    if b {
+                        break;
                     }
                 }
             }

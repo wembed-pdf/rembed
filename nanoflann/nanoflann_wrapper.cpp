@@ -99,6 +99,18 @@ struct NanoflannIndex {
             case 8:
                 impl = new NanoflannWrapperImpl<8>(points, num_points, dims, leaf_max_size);
                 break;
+            case 10:
+                impl = new NanoflannWrapperImpl<10>(points, num_points, dims, leaf_max_size);
+                break;
+            case 12:
+                impl = new NanoflannWrapperImpl<12>(points, num_points, dims, leaf_max_size);
+                break;
+            case 14:
+                impl = new NanoflannWrapperImpl<14>(points, num_points, dims, leaf_max_size);
+                break;
+            case 16:
+                impl = new NanoflannWrapperImpl<16>(points, num_points, dims, leaf_max_size);
+                break;
             default:
                 // For dynamic dimensions, use -1 template parameter
                 impl = new NanoflannWrapperImpl<-1>(points, num_points, dims, leaf_max_size);
@@ -112,6 +124,10 @@ struct NanoflannIndex {
             case 3: delete static_cast<NanoflannWrapperImpl<3>*>(impl); break;
             case 4: delete static_cast<NanoflannWrapperImpl<4>*>(impl); break;
             case 8: delete static_cast<NanoflannWrapperImpl<8>*>(impl); break;
+            case 10: delete static_cast<NanoflannWrapperImpl<10>*>(impl); break;
+            case 12: delete static_cast<NanoflannWrapperImpl<12>*>(impl); break;
+            case 14: delete static_cast<NanoflannWrapperImpl<14>*>(impl); break;
+            case 16: delete static_cast<NanoflannWrapperImpl<16>*>(impl); break;
             default: delete static_cast<NanoflannWrapperImpl<-1>*>(impl); break;
         }
     }
@@ -175,6 +191,10 @@ struct NanoflannIndex {
             case 3: return knn_search_impl<3>(query_point, k);
             case 4: return knn_search_impl<4>(query_point, k);
             case 8: return knn_search_impl<8>(query_point, k);
+            case 10: return knn_search_impl<10>(query_point, k);
+            case 12: return knn_search_impl<12>(query_point, k);
+            case 14: return knn_search_impl<14>(query_point, k);
+            case 16: return knn_search_impl<16>(query_point, k);
             default: return knn_search_impl<-1>(query_point, k);
         }
     }
@@ -185,6 +205,10 @@ struct NanoflannIndex {
             case 3: return radius_search_impl<3>(query_point, radius_sq);
             case 4: return radius_search_impl<4>(query_point, radius_sq);
             case 8: return radius_search_impl<8>(query_point, radius_sq);
+            case 10: return radius_search_impl<10>(query_point, radius_sq);
+            case 12: return radius_search_impl<12>(query_point, radius_sq);
+            case 14: return radius_search_impl<14>(query_point, radius_sq);
+            case 16: return radius_search_impl<16>(query_point, radius_sq);
             default: return radius_search_impl<-1>(query_point, radius_sq);
         }
     }
@@ -195,6 +219,10 @@ struct NanoflannIndex {
             case 3: update_points_impl<3>(points, num_points); break;
             case 4: update_points_impl<4>(points, num_points); break;
             case 8: update_points_impl<8>(points, num_points); break;
+            case 10: update_points_impl<10>(points, num_points); break;
+            case 12: update_points_impl<12>(points, num_points); break;
+            case 14: update_points_impl<14>(points, num_points); break;
+            case 16: update_points_impl<16>(points, num_points); break;
             default: update_points_impl<-1>(points, num_points); break;
         }
     }
@@ -205,6 +233,10 @@ struct NanoflannIndex {
             case 3: return point_count_impl<3>();
             case 4: return point_count_impl<4>();
             case 8: return point_count_impl<8>();
+            case 10: return point_count_impl<10>();
+            case 12: return point_count_impl<12>();
+            case 14: return point_count_impl<14>();
+            case 16: return point_count_impl<16>();
             default: return point_count_impl<-1>();
         }
     }
