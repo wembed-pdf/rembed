@@ -149,6 +149,7 @@ BoostRTreeIndex* boost_rtree_create_index(
         case 2: return create_impl<2>(points, num_points, dimensions);
         case 3: return create_impl<3>(points, num_points, dimensions);
         case 4: return create_impl<4>(points, num_points, dimensions);
+        case 6: return create_impl<6>(points, num_points, dimensions);
         case 8: return create_impl<8>(points, num_points, dimensions);
         case 10: return create_impl<10>(points, num_points, dimensions);
         case 12: return create_impl<12>(points, num_points, dimensions);
@@ -172,6 +173,9 @@ void boost_rtree_destroy_index(BoostRTreeIndex* index) {
             break;
         case 4:
             delete static_cast<BoostRTreeImpl<4>*>(index->impl);
+            break;
+        case 6:
+            delete static_cast<BoostRTreeImpl<6>*>(index->impl);
             break;
         case 8:
             delete static_cast<BoostRTreeImpl<8>*>(index->impl);
@@ -212,6 +216,10 @@ BoostRTreeResult boost_rtree_radius_search(
             );
         case 4:
             return static_cast<BoostRTreeImpl<4>*>(index->impl)->radius_search(
+                query_point, radius_squared
+            );
+        case 6:
+            return static_cast<BoostRTreeImpl<6>*>(index->impl)->radius_search(
                 query_point, radius_squared
             );
         case 8:
@@ -266,6 +274,9 @@ void boost_rtree_update_points(
         case 4:
             static_cast<BoostRTreeImpl<4>*>(index->impl)->rebuild(points, num_points);
             break;
+        case 6:
+            static_cast<BoostRTreeImpl<6>*>(index->impl)->rebuild(points, num_points);
+            break;
         case 8:
             static_cast<BoostRTreeImpl<8>*>(index->impl)->rebuild(points, num_points);
             break;
@@ -294,6 +305,8 @@ size_t boost_rtree_point_count(const BoostRTreeIndex* index) {
             return static_cast<BoostRTreeImpl<3>*>(index->impl)->point_count();
         case 4:
             return static_cast<BoostRTreeImpl<4>*>(index->impl)->point_count();
+        case 6:
+            return static_cast<BoostRTreeImpl<6>*>(index->impl)->point_count();
         case 8:
             return static_cast<BoostRTreeImpl<8>*>(index->impl)->point_count();
         case 10:

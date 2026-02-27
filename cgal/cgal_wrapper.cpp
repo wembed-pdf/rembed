@@ -168,6 +168,7 @@ CgalKdTreeIndex* cgal_kdtree_create_index(
         case 2: return create_impl<2>(points, num_points, dimensions);
         case 3: return create_impl<3>(points, num_points, dimensions);
         case 4: return create_impl<4>(points, num_points, dimensions);
+        case 6: return create_impl<6>(points, num_points, dimensions);
         case 8: return create_impl<8>(points, num_points, dimensions);
         case 10: return create_impl<10>(points, num_points, dimensions);
         case 12: return create_impl<12>(points, num_points, dimensions);
@@ -191,6 +192,9 @@ void cgal_kdtree_destroy_index(CgalKdTreeIndex* index) {
             break;
         case 4:
             delete static_cast<CgalKdTreeImpl<4>*>(index->impl);
+            break;
+        case 6:
+            delete static_cast<CgalKdTreeImpl<6>*>(index->impl);
             break;
         case 8:
             delete static_cast<CgalKdTreeImpl<8>*>(index->impl);
@@ -232,6 +236,10 @@ CgalKdTreeResult cgal_kdtree_radius_search(
             );
         case 4:
             return static_cast<CgalKdTreeImpl<4>*>(index->impl)->radius_search(
+                query_point, radius_squared, epsilon
+            );
+        case 6:
+            return static_cast<CgalKdTreeImpl<6>*>(index->impl)->radius_search(
                 query_point, radius_squared, epsilon
             );
         case 8:
@@ -286,6 +294,9 @@ void cgal_kdtree_update_points(
         case 4:
             static_cast<CgalKdTreeImpl<4>*>(index->impl)->rebuild(points, num_points);
             break;
+        case 6:
+            static_cast<CgalKdTreeImpl<6>*>(index->impl)->rebuild(points, num_points);
+            break;
         case 8:
             static_cast<CgalKdTreeImpl<8>*>(index->impl)->rebuild(points, num_points);
             break;
@@ -314,6 +325,8 @@ size_t cgal_kdtree_point_count(const CgalKdTreeIndex* index) {
             return static_cast<CgalKdTreeImpl<3>*>(index->impl)->point_count();
         case 4:
             return static_cast<CgalKdTreeImpl<4>*>(index->impl)->point_count();
+        case 6:
+            return static_cast<CgalKdTreeImpl<6>*>(index->impl)->point_count();
         case 8:
             return static_cast<CgalKdTreeImpl<8>*>(index->impl)->point_count();
         case 10:
