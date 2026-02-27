@@ -52,6 +52,7 @@ impl LoadData {
         n_selection: Option<Vec<String>>,
         dim_range: (usize, usize),
         dim_selection: Option<Vec<String>>,
+        graph_dim_range: (usize, usize),
         deg_range: (usize, usize),
         ple_range: (f64, f64),
         ple_selection: Option<Vec<String>>,
@@ -74,6 +75,7 @@ impl LoadData {
         let position_results = {
             if n_range.1 > 0
                 || dim_range.1 > 0
+                || graph_dim_range.1 > 0
                 || deg_range.1 > 0
                 || ple_range.1 > 0.0
                 || alpha_range.1 > 0.0
@@ -92,6 +94,12 @@ impl LoadData {
                     conditions.push(format!(
                         "embedding_dim >= {} AND embedding_dim <= {}",
                         dim_range.0, dim_range.1
+                    ));
+                }
+                if graph_dim_range.1 > 0 {
+                    conditions.push(format!(
+                        "dim >= {} AND dim <= {}",
+                        graph_dim_range.0, graph_dim_range.1
                     ));
                 }
                 if n_range.1 > 0 && !n_selection.is_none() {
@@ -150,6 +158,13 @@ impl LoadData {
         };
 
         let data_directory = std::env::var("DATA_DIRECTORY").unwrap_or(String::from("../data/"));
+
+        println!(
+            "Found {} graphs matching parameters, starting benchmarks",
+            position_results.len()
+        );
+
+        std::process::exit(0);
 
         // check if the results exist
         for result in &position_results {

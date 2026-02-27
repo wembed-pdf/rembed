@@ -42,6 +42,9 @@ enum Commands {
         /// Specific dimensions to select (e.g. "8,16,32")
         #[arg(long, value_delimiter = ',')]
         dim_selection: Option<Vec<String>>,
+        /// Range of sampling dimensions of the original graph (e.g. "2-4")
+        #[arg(long)]
+        graph_dim: Option<String>,
         /// Range of average node degrees (e.g. "10-100")
         #[arg(long)]
         deg: Option<String>,
@@ -229,6 +232,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             n_selection,
             dim,
             dim_selection,
+            graph_dim,
             deg,
             ple,
             ple_selection,
@@ -269,6 +273,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let dim_range = match dim {
+                Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
+                None => (0, 0),
+            };
+
+            let graph_dim_range = match graph_dim {
                 Some(range) => parse_usize_range(&range).map_err(|e| e.to_string())?,
                 None => (0, 0),
             };
@@ -315,6 +324,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     n_selection,
                     dim_range,
                     dim_selection,
+                    graph_dim_range,
                     deg_range,
                     ple_range,
                     ple_selection,
