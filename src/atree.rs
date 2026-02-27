@@ -199,17 +199,6 @@ impl<'a, const D: usize> ATree<'a, D> {
         }
         line_lsh
     }
-    fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        self.query_recursive(
-            *self.position(index),
-            0,
-            0,
-            radius as f32,
-            radius,
-            DVec::zero(),
-            results,
-        );
-    }
     pub fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         self.query_recursive(
             pos,
@@ -299,16 +288,9 @@ impl<'a, const D: usize> ATree<'a, D> {
 }
 
 impl<const D: usize> Query<D> for ATree<'_, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
-        self.light_nn(
-            index,
-            (radius * self.weight(index).powi(2)).powi(2),
-            results,
-        )
-    }
-
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
-        self.query_radius(pos, radius, results);
+        let radius = radius.powi(2);
+        self.query_recursive(pos, 0, 0, radius as f32, radius, DVec::zero(), results);
     }
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
