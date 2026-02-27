@@ -1,7 +1,7 @@
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
-    query::{self, Graph, Position, SpatialIndex, Update},
+    query::{self, Position, SpatialIndex, Update},
 };
 
 const LEAFSIZE: usize = 150;
@@ -50,7 +50,10 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         }
 
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
-        let mut d_pos = vec![0.; node_ids.len()];
+
+        let num_leafs = node_ids.len().ilog2() - LEAFSIZE.ilog2();
+        // let mut d_pos = vec![0.; node_ids.len() + num_leafs * 4];
+        let mut d_pos = vec![f32::INFINITY; node_ids.len() + (1usize << num_leafs as usize) * 2];
         let mut layers = std::mem::take(&mut self.layers);
         if layers.len() < node_ids.len() {
             layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
@@ -63,11 +66,13 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
             0,
             self,
             0,
+            0,
         );
         self.layers = layers;
         self.node_ids = node_ids;
         self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
         self.d_pos = d_pos;
+        // println!("dpos: {:?}", self.d_pos);
     }
 }
 
@@ -78,8 +83,9 @@ struct Node {
 
 #[derive(Clone, Debug, Default)]
 struct Snn {
-    offset: usize,
     len: usize,
+    dpos_offset: usize,
+    end: usize,
     lut: Vec<usize>,
     min: f32,
     resolution: f32,
@@ -100,6 +106,7 @@ impl Layer {
         layer_id: usize,
         atree: &ATree<D>,
         offset: usize,
+        dpos_offset: usize,
     ) {
         // For leaf nodes, we need full sorting for the lookup table
         if nodes.len() <= { LEAFSIZE } {
@@ -115,19 +122,20 @@ impl Layer {
             }
             let mut lut = vec![];
             let min = d_pos[0].floor();
-            let max = d_pos.last().unwrap().ceil();
+            let max = d_pos.iter().rev().nth(1).unwrap().ceil();
             let resolution = 50. / (max - min);
             for i in 0..(((max - min) * resolution) as i32) {
                 let pos_idx = d_pos
                     .iter()
                     .take_while(|&&x| x < ((i as f32 / resolution) + min))
                     .count();
-                lut.push(pos_idx);
+                lut.push(pos_idx + offset);
             }
 
             layers[layer_id] = Self::Leaf(Snn {
-                offset,
                 len: nodes.len(),
+                dpos_offset: dpos_offset - offset,
+                end: nodes.len() + offset,
                 lut,
                 min: d_pos[0].floor(),
                 resolution,
@@ -158,14 +166,24 @@ impl Layer {
             }
         }
 
+        let slack = d_pos.len() - nodes.len();
         let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
-        let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos);
+        let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos + slack / 2);
 
         let (a_id, b_id) = children(layer_id);
 
         let depth = (depth + 1) % D;
 
-        Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
+        Layer::init(
+            a_ids,
+            a_dpos,
+            layers,
+            depth,
+            a_id,
+            atree,
+            offset,
+            dpos_offset,
+        );
         Layer::init(
             b_ids,
             b_dpos,
@@ -174,6 +192,7 @@ impl Layer {
             b_id,
             atree,
             offset + split_pos,
+            dpos_offset + split_pos + slack / 2,
         );
 
         let node = Node { split };
@@ -266,14 +285,18 @@ impl<'a, const D: usize> ATree<'a, D> {
                 let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
                 let min = own_pos - radius_sqrt;
                 let max = own_pos + radius_sqrt;
-                let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
+                let idx =
+                    (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len().max(1) - 1);
+                // let end_idx = (((max - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
                 if snn.lut.is_empty() {
                     return;
                 }
                 let min_i = snn.lut[idx];
+                // let max_i = snn.lut_end[end_idx];
 
-                for i in (min_i + snn.offset)..(snn.offset + snn.len) {
-                    let p = self.d_pos[i];
+                for i in min_i.. {
+                    let p = self.d_pos[i + snn.dpos_offset];
+                    // dbg!(p);
                     if p > max {
                         break;
                     }
