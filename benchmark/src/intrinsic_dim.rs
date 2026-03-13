@@ -123,7 +123,7 @@ pub async fn compute_missing_intrinsic_dimensions(
             );
             (result_id, intrinsic_dims, only_last_iteration)
         })
-        .for_each(|(result_id, intrinsic_dims, only_last_iteration)| {
+        .for_each(|(result_id, intrinsic_dims, _)| {
             for (iteration_number, intrinsic_dim) in intrinsic_dims {
                 tx.send((result_id, iteration_number, intrinsic_dim))
                     .unwrap();
