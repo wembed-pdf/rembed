@@ -137,7 +137,11 @@ enum Commands {
     },
 
     /// Compute Missing Intrinsic Dimensions
-    Intrinsic { only_last_iteration: bool },
+    Intrinsic {
+        /// Only compute intrinsic dimensions for the last iteration of each result (default: false)
+        #[arg(long)]
+        only_last_iteration: bool,
+    },
 
     /// Run correctness tests (quick by default, extensive with options)
     Test {
