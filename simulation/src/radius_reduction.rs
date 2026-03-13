@@ -151,6 +151,7 @@ impl<const D: usize> DimReduction<D> {
         results: &mut Vec<usize>,
         stats: &mut Statistics,
         use_radius_reduction: bool,
+        use_snn: bool,
     ) {
         self.query_impl(
             self.positions[id],
@@ -161,6 +162,7 @@ impl<const D: usize> DimReduction<D> {
             &self.root,
             stats,
             use_radius_reduction,
+            use_snn,
         );
     }
 
@@ -174,10 +176,21 @@ impl<const D: usize> DimReduction<D> {
         layer: &Layer<D>,
         statistics: &mut Statistics,
         use_radius_reduction: bool,
+        use_snn: bool,
     ) {
         // println!("final_radius: {}", 1. - spatial_offset.magnitude());
         if let Layer::BruteForce(positions) = layer {
-            statistics.num_comparionsons += positions.len();
+            if use_snn {
+                //project onto next dimension and check if in radius there
+                for (i, p) in positions.iter().enumerate() {
+                    let projected_distance = (pos - *p).magnitude() - spatial_offset.magnitude();
+                    if projected_distance <= radius {
+                        statistics.num_comparionsons += 1;
+                    }
+                }
+            } else {
+                statistics.num_comparionsons += positions.len();
+            }
             // return;
         }
 
@@ -241,6 +254,7 @@ impl<const D: usize> DimReduction<D> {
                         child,
                         statistics,
                         use_radius_reduction,
+                        use_snn,
                     );
                 }
             }

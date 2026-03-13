@@ -1,4 +1,4 @@
-use rembed::{dim_reduction::LayeredLsh, embedder::EmbedderOptions, *};
+use rembed::{embedder::EmbedderOptions, *};
 use simulation::radius_reduction::Statistics;
 
 fn main() -> io::Result<()> {
@@ -43,7 +43,7 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
         max_iterations: 500,
         ..Default::default()
     };
-    let mut embedder: embedder::WEmbedder<LayeredLsh<_>, D> =
+    let mut embedder: embedder::WEmbedder<ATree<_>, D> =
         embedder::WEmbedder::random(42, graph, options);
 
     embedder.embed_with_callback(|e| {
@@ -57,21 +57,25 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
     let analysis = simulation::radius_reduction::DimReduction::new(pos.to_vec());
 
     let mut stats_normal = Statistics::default();
+    let mut stats_reduced_radius = Statistics::default();
+    let mut stats_reduced_snn = Statistics::default();
     let mut stats_reduced = Statistics::default();
+
+    println!("D, id, normal, reduction_radius, reduction_snn, reduction_both");
+
     for i in 0..pos.len() {
         let mut results = Vec::new();
-        analysis.query(i, 1., &mut results, &mut stats_normal, false);
-        analysis.query(i, 1., &mut results, &mut stats_reduced, true);
+        analysis.query(i, 1., &mut results, &mut stats_normal, false, false);
+        analysis.query(i, 1., &mut results, &mut stats_reduced_radius, true, false);
+        analysis.query(i, 1., &mut results, &mut stats_reduced_snn, false, true);
+        analysis.query(i, 1., &mut results, &mut stats_reduced, true, true);
     }
-    eprintln!(
-        "normal: {} distance calculations\nreduction: {} distance calculations\n percent: {:.2}%",
-        stats_normal.num_comparionsons,
-        stats_reduced.num_comparionsons,
-        stats_reduced.num_comparionsons as f64 * 100. / stats_normal.num_comparionsons as f64
-    );
-    dbg!(&stats_reduced);
     println!(
-        "{}, {}, {}",
-        D, stats_normal.num_comparionsons, stats_reduced.num_comparionsons,
+        "{D}, {normal}, {reduction_radius}, {reduction_snn}, {reduction_both}",
+        D = D,
+        normal = stats_normal.num_comparionsons,
+        reduction_radius = stats_reduced_radius.num_comparionsons,
+        reduction_snn = stats_reduced_snn.num_comparionsons,
+        reduction_both = stats_reduced.num_comparionsons,
     );
 }

@@ -2,7 +2,7 @@
 members = [
     ".",
     "benchmark",
-    # "simulation",
+    "simulation",
     # "nanoflann"
     # "sklearn"
 ]
