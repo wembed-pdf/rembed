@@ -3,9 +3,9 @@ use sqlx::{Pool, Postgres, Row};
 use tokio::runtime;
 
 macro_rules! dispatch_dim {
-    ($dim:ident, $file_path:ident, $($c_dim:literal,)*) => {
+    ($dim:ident, $file_path:ident, $only_last_iteration:expr, $($c_dim:literal,)*) => {
         match  $dim {
-            $($c_dim => compute_intrinsic_dimension::<$c_dim>($file_path),)*
+            $($c_dim => compute_intrinsic_dimension::<$c_dim>($file_path, $only_last_iteration),)*
             _ => panic!("dim {} not covered",$dim),
         }
     };
@@ -13,6 +13,7 @@ macro_rules! dispatch_dim {
 
 pub async fn compute_missing_intrinsic_dimensions(
     pool: Pool<Postgres>,
+    only_last_iteration: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut tx = pool.begin().await?;
 
@@ -100,11 +101,29 @@ pub async fn compute_missing_intrinsic_dimensions(
             let result_id = row.1;
             let dim = row.2;
             let intrinsic_dims = dispatch_dim!(
-                dim, file_path, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 32,
+                dim,
+                file_path,
+                only_last_iteration,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                32,
             );
-            (result_id, intrinsic_dims)
+            (result_id, intrinsic_dims, only_last_iteration)
         })
-        .for_each(|(result_id, intrinsic_dims)| {
+        .for_each(|(result_id, intrinsic_dims, only_last_iteration)| {
             for (iteration_number, intrinsic_dim) in intrinsic_dims {
                 tx.send((result_id, iteration_number, intrinsic_dim))
                     .unwrap();
@@ -113,9 +132,18 @@ pub async fn compute_missing_intrinsic_dimensions(
     Ok(())
 }
 
-fn compute_intrinsic_dimension<const D: usize>(file_path: &str) -> Vec<(usize, f64)> {
+fn compute_intrinsic_dimension<const D: usize>(
+    file_path: &str,
+    only_last_iteration: bool,
+) -> Vec<(usize, f64)> {
     let iterations: rembed::parsing::Iterations<D> =
         rembed::parsing::parse_positions_file(file_path).unwrap();
+    if only_last_iteration {
+        let last_iteration = iterations.iterations().last().unwrap();
+        let intrinsic_dim =
+            rembed::intrinsic_dimension::intrinsic_dimension(last_iteration.positions.as_ref());
+        return vec![(last_iteration.number, intrinsic_dim)];
+    }
     iterations
         .iterations()
         .iter()
