@@ -5,34 +5,34 @@ fn main() -> io::Result<()> {
     let dim = 8;
     let dim_hint = 8;
 
-    let graph = "../data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
+    // let graph = "../data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "../data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
-    // let graph = "../data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
+    let graph = "../data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "../data/generated/graphs/1217_girg_n-1000000_deg-15_dim-4_ple-2.5_alpha-inf_wseed-12_pseed-130_sseed-1400";
     let graph = graph::Graph::parse_from_edge_list_file(graph, dim, dim_hint)?;
 
     embedd_and_calc_stats::<2>(&graph);
-    embedd_and_calc_stats::<3>(&graph);
+    // embedd_and_calc_stats::<3>(&graph);
     embedd_and_calc_stats::<4>(&graph);
-    embedd_and_calc_stats::<5>(&graph);
+    // embedd_and_calc_stats::<5>(&graph);
     embedd_and_calc_stats::<6>(&graph);
-    embedd_and_calc_stats::<7>(&graph);
+    // embedd_and_calc_stats::<7>(&graph);
     embedd_and_calc_stats::<8>(&graph);
-    embedd_and_calc_stats::<9>(&graph);
+    // embedd_and_calc_stats::<9>(&graph);
     embedd_and_calc_stats::<10>(&graph);
-    embedd_and_calc_stats::<11>(&graph);
+    // embedd_and_calc_stats::<11>(&graph);
     embedd_and_calc_stats::<12>(&graph);
-    embedd_and_calc_stats::<13>(&graph);
-    embedd_and_calc_stats::<14>(&graph);
-    embedd_and_calc_stats::<15>(&graph);
+    // embedd_and_calc_stats::<13>(&graph);
+    // embedd_and_calc_stats::<14>(&graph);
+    // embedd_and_calc_stats::<15>(&graph);
     embedd_and_calc_stats::<16>(&graph);
-    embedd_and_calc_stats::<17>(&graph);
-    embedd_and_calc_stats::<18>(&graph);
-    embedd_and_calc_stats::<19>(&graph);
+    // embedd_and_calc_stats::<17>(&graph);
+    // embedd_and_calc_stats::<18>(&graph);
+    // embedd_and_calc_stats::<19>(&graph);
     embedd_and_calc_stats::<20>(&graph);
-    embedd_and_calc_stats::<21>(&graph);
-    embedd_and_calc_stats::<22>(&graph);
-    embedd_and_calc_stats::<23>(&graph);
+    // embedd_and_calc_stats::<21>(&graph);
+    // embedd_and_calc_stats::<22>(&graph);
+    // embedd_and_calc_stats::<23>(&graph);
     embedd_and_calc_stats::<24>(&graph);
 
     Ok(())
@@ -61,7 +61,7 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
     let mut stats_reduced_snn = Statistics::default();
     let mut stats_reduced = Statistics::default();
 
-    println!("D, id, normal, reduction_radius, reduction_snn, reduction_both");
+    // println!("D, id, normal, reduction_radius, reduction_snn, reduction_both");
 
     for i in 0..pos.len() {
         let mut results = Vec::new();
@@ -71,11 +71,12 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
         analysis.query(i, 1., &mut results, &mut stats_reduced, true, true);
     }
     println!(
-        "{D}, {normal}, {reduction_radius}, {reduction_snn}, {reduction_both}",
+        "{D}, {normal}, {reduction_radius}, {reduction_snn}, {reduction_both}, {ground_truth}",
         D = D,
         normal = stats_normal.num_comparionsons,
         reduction_radius = stats_reduced_radius.num_comparionsons,
         reduction_snn = stats_reduced_snn.num_comparionsons,
         reduction_both = stats_reduced.num_comparionsons,
+        ground_truth = stats_reduced.ground_truth_comparisons,
     );
 }

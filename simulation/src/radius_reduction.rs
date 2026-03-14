@@ -19,7 +19,10 @@ pub struct DimReduction<const D: usize> {
 
 #[derive(Debug)]
 pub enum Layer<const D: usize> {
-    BruteForce(Vec<DVec<D>>),
+    BruteForce {
+        positions: Vec<DVec<D>>,
+        dim: usize,
+    },
     Split {
         strategy: SplitStrategy,
         dim: usize,
@@ -30,10 +33,10 @@ pub enum Layer<const D: usize> {
 
 impl<const D: usize> Layer<D> {
     fn new(mut positions: Vec<DVec<D>>, depth: usize) -> Self {
-        if positions.len() <= 1 {
-            return Self::BruteForce(positions);
-        }
         let dim = depth % D;
+        if positions.len() <= 20 {
+            return Self::BruteForce { positions, dim };
+        }
         // dbg!(positions.len(), dim);
 
         // Sort by the specified dimension
@@ -46,8 +49,8 @@ impl<const D: usize> Layer<D> {
 
         let spatial_split = Self::spatial_split(positions, dim, RESOLUTION, depth);
 
-        // element_split
-        spatial_split
+        element_split
+        // spatial_split
     }
 
     fn element_split(
@@ -90,8 +93,11 @@ impl<const D: usize> Layer<D> {
         let max = positions.last().unwrap()[dim].mul(resolution).floor();
         let num_buckets = (max - min) as usize + 1;
 
-        if num_buckets <= 1 {
-            return Self::BruteForce(positions);
+        if num_buckets <= 50 {
+            return Self::BruteForce {
+                positions,
+                dim: depth,
+            };
         }
 
         let mut buckets = vec![Vec::new(); num_buckets];
@@ -136,6 +142,7 @@ pub struct Statistics {
     pub num_comparionsons: usize,
     pub num_splits: usize,
     pub num_reductions: usize,
+    pub ground_truth_comparisons: usize,
 }
 
 impl<const D: usize> DimReduction<D> {
@@ -179,13 +186,19 @@ impl<const D: usize> DimReduction<D> {
         use_snn: bool,
     ) {
         // println!("final_radius: {}", 1. - spatial_offset.magnitude());
-        if let Layer::BruteForce(positions) = layer {
+        if let Layer::BruteForce { positions, dim } = layer {
             if use_snn {
+                let mut new_spatial_offset = spatial_offset;
+                let dim = *dim;
+                new_spatial_offset[dim] = 0.;
                 //project onto next dimension and check if in radius there
                 for (i, p) in positions.iter().enumerate() {
-                    let projected_distance = (pos - *p).magnitude() - spatial_offset.magnitude();
+                    let projected_distance = (pos[dim] - p[dim]).abs() - spatial_offset.magnitude();
                     if projected_distance <= radius {
                         statistics.num_comparionsons += 1;
+                        if (pos - *p).magnitude_squared() < radius.powi(2) {
+                            statistics.ground_truth_comparisons += 1;
+                        }
                     }
                 }
             } else {
