@@ -1,0 +1,242 @@
+use crate::{
+    Embedding, NodeId, Query,
+    dvec::DVec,
+    query::{self, Graph, Position, SpatialIndex, Update},
+};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
+const LEAFSIZE: usize = 150;
+
+#[derive(Clone)]
+pub struct AGrid<'a, const D: usize> {
+    pub positions: Vec<DVec<D>>,
+    pub graph: &'a crate::graph::Graph,
+    layer: Layer<D>,
+}
+
+#[derive(Clone)]
+struct LineProjection<const D: usize> {
+    offset: i32,
+    buckets: Vec<Layer<D>>,
+}
+
+#[derive(Clone, Default)]
+struct Snn<const D: usize> {
+    offset: f32,
+    resolution: f32,
+    lut: Vec<usize>,
+    ids: Vec<NodeId>,
+    d_pos: Vec<f32>,
+    pos: Vec<DVec<D>>,
+}
+
+#[derive(Clone)]
+enum Layer<const D: usize> {
+    Grid(LineProjection<D>),
+    Snn(Snn<D>),
+    Empty,
+}
+
+impl<'a, const D: usize> crate::query::Graph for AGrid<'a, D> {
+    fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
+        self.graph.is_connected(first, second)
+    }
+
+    fn neighbors(&self, index: NodeId) -> &[NodeId] {
+        self.graph.neighbors(index)
+    }
+
+    fn weight(&self, index: NodeId) -> f64 {
+        self.graph.weight(index)
+    }
+}
+impl<'a, const D: usize> query::Position<D> for AGrid<'a, D> {
+    fn position(&self, index: NodeId) -> &DVec<D> {
+        &self.positions[index]
+    }
+
+    fn num_nodes(&self) -> usize {
+        self.positions.len()
+    }
+}
+impl<'a, const D: usize> query::Update<D> for AGrid<'a, D> {
+    fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
+        self.positions = postions.to_vec();
+        let node_ids: Vec<_> = (0..postions.len()).collect();
+        self.layer = Layer::new(0, &node_ids, &self.positions)
+    }
+}
+
+impl<const D: usize> Layer<D> {
+    fn new(depth: usize, nodes: &[NodeId], positions: &[DVec<D>]) -> Self {
+        if nodes.is_empty() {
+            return Self::Empty;
+        }
+        if nodes.len() < LEAFSIZE || depth == D - 1 {
+            let mut nodes: Vec<_> = nodes.iter().map(|x| (*x, positions[*x][depth])).collect();
+            nodes.sort_unstable_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap());
+            let ids: Vec<_> = nodes.iter().map(|(x, _)| *x).collect();
+            let mut d_pos: Vec<_> = nodes.iter().map(|(_, p)| *p).collect();
+            let pos = ids.iter().map(|i| positions[*i]).collect();
+
+            let mut lut = vec![];
+            // let mut pos_idx = 0;
+            let min = d_pos[0].floor() as i32;
+            let max = d_pos.last().unwrap().ceil() as i32;
+            let resolution = LEAFSIZE as f64 / (max - min) as f64;
+            for i in 0..(((max - min) as f64 * resolution) as i32) {
+                let pos_idx = d_pos
+                    .iter()
+                    .take_while(|&&x| x < ((i as f64 / resolution) + min as f64) as f32)
+                    .count();
+                lut.push(pos_idx);
+            }
+            d_pos.push(f32::MAX);
+
+            let snn = Snn {
+                offset: min as f32,
+                resolution: resolution as f32,
+                lut,
+                ids,
+                d_pos,
+                pos,
+            };
+            return Self::Snn(snn);
+        }
+
+        let node_index = || nodes.iter().map(|x| (positions[*x][depth]).floor() as i32);
+        let min = node_index().min().unwrap_or(0);
+        let max = node_index().max().unwrap_or(0);
+
+        let mut temp_buckets = vec![vec![]; (max + 1 - min) as usize];
+        for (&node_id, bucket) in nodes.iter().zip(node_index()) {
+            temp_buckets[(bucket - min) as usize].push(node_id);
+        }
+
+        let buckets = if depth < 1 {
+            temp_buckets
+                .par_iter()
+                .map(|nodes| Self::new(depth + 1, nodes, positions))
+                .collect()
+        } else {
+            temp_buckets
+                .iter()
+                .map(|nodes| Self::new(depth + 1, nodes, positions))
+                .collect()
+        };
+
+        Layer::Grid(LineProjection {
+            offset: min,
+            buckets,
+        })
+    }
+}
+impl<'a, const D: usize> AGrid<'a, D> {
+    pub fn new(embedding: &Embedding<'a, D>) -> Self {
+        let mut line_lsh = AGrid {
+            positions: embedding.positions.clone(),
+            graph: embedding.graph,
+            layer: Layer::Snn(Default::default()),
+        };
+        line_lsh.update_positions(&embedding.positions, None);
+        line_lsh
+    }
+    fn light_nn(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+        self.query_recursive(index, 0, &self.layer, radius, radius, results);
+    }
+    fn query_recursive(
+        &self,
+        index: usize,
+        depth: usize,
+        layer: &Layer<D>,
+        dim_radius_squared: f64,
+        original_radius_squared: f64,
+        results: &mut Vec<NodeId>,
+    ) {
+        let full_pos = self.position(index);
+        let pos = self.position(index)[depth];
+        // TODO: Increase resolution for subsequent dimensions based on estimated radius reduction / switch to different metric
+        match layer {
+            Layer::Grid(line_lsh) => {
+                let offset_position = pos as f64 - line_lsh.offset as f64;
+                let min_bucket = (offset_position + (-(dim_radius_squared)).floor()) as usize;
+                let max_bucket = ((offset_position + dim_radius_squared) as usize + 1)
+                    .min(line_lsh.buckets.len() - 1);
+                for i in min_bucket..=max_bucket {
+                    let diff = if (i as f64) < offset_position {
+                        (offset_position - i as f64 - 1.).max(0.)
+                    } else {
+                        i as f64 - offset_position
+                    };
+                    let new_dim_radius = dim_radius_squared - diff.powi(2);
+                    if new_dim_radius > 0. {
+                        let layer = &line_lsh.buckets[i];
+                        self.query_recursive(
+                            index,
+                            depth + 1,
+                            layer,
+                            new_dim_radius,
+                            original_radius_squared,
+                            results,
+                        );
+                    }
+                }
+            }
+            Layer::Snn(snn) => {
+                let radius_sqrt = (dim_radius_squared as f32).sqrt();
+                let min = pos - radius_sqrt;
+                let max = pos + radius_sqrt;
+                let idx = (((min - snn.offset) * snn.resolution) as usize).min(snn.lut.len() - 1);
+                if snn.lut.is_empty() {
+                    return;
+                }
+                let min_i = snn.lut[idx];
+
+                for i in min_i.. {
+                    let p = snn.d_pos[i];
+                    if p > max {
+                        break;
+                    }
+                    if snn.ids[i] == index {
+                        continue;
+                    }
+                    let other_pos = snn.pos[i];
+                    if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
+                        results.push(snn.ids[i]);
+                    }
+                }
+            }
+            Layer::Empty => (),
+        }
+    }
+}
+
+impl<const D: usize> Query<D> for AGrid<'_, D> {
+    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
+        self.light_nn(
+            index,
+            (radius * self.weight(index).powi(2)).powi(2),
+            results,
+        )
+    }
+}
+impl<const D: usize> SpatialIndex<D> for AGrid<'_, D> {
+    fn name(&self) -> String {
+        String::from("agrid")
+    }
+    fn implementation_string(&self) -> &'static str {
+        include_str!("agrid.rs")
+    }
+}
+
+impl<'a, const D: usize> query::Embedder<'a, D> for AGrid<'a, D> {
+    fn new(embedding: &crate::Embedding<'a, D>) -> Self {
+        Self::new(embedding)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn simple() {}
+}

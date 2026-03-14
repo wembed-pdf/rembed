@@ -4,6 +4,7 @@ pub use query::Query;
 pub use std::io;
 use std::ops::Deref;
 
+pub mod agrid;
 pub mod atree;
 #[cfg(feature = "boost-rtree")]
 pub mod boost_rtree;
@@ -60,8 +61,10 @@ pub fn convert_to_embeddings<'a, const D: usize>(
 pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
+    use query::Embedder;
     let iter = [
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
