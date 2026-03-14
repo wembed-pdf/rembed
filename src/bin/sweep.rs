@@ -44,18 +44,19 @@ impl Default for SweepConfig {
         Self {
             // Graph and embedding
             graph_path: "data/generated/graphs/73_girg_n-10000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400",
-            embedding_dim: 8,
-            dim_hint: 8,
+            // graph_path;  "data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400",
+            embedding_dim: 12,
+            dim_hint: 12,
             max_iterations: 500,
 
             // What to sweep
             sweep_lsh: true,
-            sweep_lossy: true,
+            sweep_lossy: false,
 
             // LSH ranges
-            lsh_num_tables_range: 1..=4,
-            lsh_num_projections_start: 8,
-            lsh_num_projections_end: 64,
+            lsh_num_tables_range: 1..=3,
+            lsh_num_projections_start: 4,
+            lsh_num_projections_end: 28,
             lsh_num_projections_step: 8,
 
             // LossyQuery settings
@@ -70,7 +71,8 @@ impl Default for SweepConfig {
             ],
 
             // LSH measurement options
-            lsh_measure_recall: true,
+            // lsh_measure_recall: true,
+            lsh_measure_recall: false,
             lsh_measure_time: true,
         }
     }
