@@ -2,6 +2,7 @@ pub mod benchmark;
 pub mod cleanup;
 pub mod code_state;
 pub mod correctness_test;
+pub mod fscore;
 mod generate_graphs;
 pub mod generate_positions;
 pub mod intrinsic_dim;

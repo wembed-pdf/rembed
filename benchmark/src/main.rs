@@ -93,8 +93,12 @@ enum Commands {
 
     /// Compute F-Scores for position embeddings
     FScores {
-        /// Result ID to compute F-Scores for
-        result_id: i64,
+        /// Only compute fscore for the last iteration of each result (default: false)
+        #[arg(long, default_value_t = false)]
+        only_last_iteration: bool,
+        /// Compute F-Scores for a specific result ID
+        #[arg(long)]
+        result_id: Option<i64>,
     },
 
     /// Show job queue status
@@ -381,10 +385,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             generator.run_daemon().await?;
         }
 
-        Commands::FScores { result_id } => {
-            let statistic_generator = benchmark::statistics::StatisticGenerator::new();
-            statistic_generator.compute_f_scores(result_id).await?;
-            println!("F-Scores computed for result ID: {}", result_id);
+        Commands::FScores {
+            only_last_iteration,
+            result_id,
+        } => {
+            if let Some(result_id) = result_id {
+                let statistic_generator = benchmark::statistics::StatisticGenerator::new();
+                statistic_generator.compute_f_scores(result_id).await?;
+                println!("F-Scores computed for result ID: {}", result_id);
+            } else {
+                let database_url = env::var("DATABASE_URL")
+                    .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
+                let pool = PgPool::connect(&database_url).await?;
+
+                benchmark::fscore::compute_missing_fscores(pool, only_last_iteration).await?;
+                println!("F-Scores computed for all missing entries");
+            }
         }
 
         Commands::Status { v } => {
