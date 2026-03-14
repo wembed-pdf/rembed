@@ -553,10 +553,10 @@ fn query_list_for_type<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> Vec<NodeId> {
     match ty {
-        BenchmarkType::MixedNodes => query_sparse(embedding, 1000),
-        BenchmarkType::LightNodes => query_light(embedding, 1000),
+        BenchmarkType::MixedNodes => query_sparse(embedding, 10000),
+        BenchmarkType::LightNodes => query_light(embedding, 10000),
         BenchmarkType::AllNodes => query_sparse(embedding, embedding.positions.len()),
-        BenchmarkType::HeavyNodes => query_heavy(embedding, 1000),
+        BenchmarkType::HeavyNodes => query_heavy(embedding, 10000),
         BenchmarkType::PositionUpdate => (0..embedding.positions.len()).collect(),
     }
 }
