@@ -139,6 +139,29 @@ impl<const D: usize> Layer<D> {
     }
 }
 
+pub struct QueryParams {
+    use_radius_reduction: bool,
+    use_snn: bool,
+    best_snn_dim: bool,
+    approx_snn_dim: bool,
+}
+
+impl QueryParams {
+    pub fn new(
+        use_radius_reduction: bool,
+        use_snn: bool,
+        best_snn_dim: bool,
+        approx_snn_dim: bool,
+    ) -> Self {
+        Self {
+            use_radius_reduction,
+            use_snn,
+            best_snn_dim,
+            approx_snn_dim,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Statistics {
     pub num_comparionsons: usize,
@@ -159,8 +182,7 @@ impl<const D: usize> DimReduction<D> {
         radius: f32,
         results: &mut Vec<usize>,
         stats: &mut Statistics,
-        use_radius_reduction: bool,
-        use_snn: bool,
+        params: &QueryParams,
     ) {
         self.query_impl(
             self.positions[id],
@@ -170,8 +192,7 @@ impl<const D: usize> DimReduction<D> {
             0,
             &self.root,
             stats,
-            use_radius_reduction,
-            use_snn,
+            params,
         );
     }
 
@@ -184,25 +205,40 @@ impl<const D: usize> DimReduction<D> {
         depth: usize,
         layer: &Layer<D>,
         statistics: &mut Statistics,
-        use_radius_reduction: bool,
-        use_snn: bool,
+        params: &QueryParams,
     ) {
         // println!("final_radius: {}", 1. - spatial_offset.magnitude());
         if let Layer::BruteForce { positions, dim } = layer {
-            if use_snn {
-                let mut new_spatial_offset = spatial_offset;
-                let dim = *dim;
-                new_spatial_offset[dim] = 0.;
-                //project onto next dimension and check if in radius there
-                for (i, p) in positions.iter().enumerate() {
-                    let projected_distance = (pos[dim] - p[dim]).abs() - spatial_offset.magnitude();
-                    if projected_distance <= radius {
-                        statistics.num_comparionsons += 1;
-                        if (pos - *p).magnitude_squared() < radius.powi(2) {
-                            statistics.ground_truth_comparisons += 1;
+            if params.use_snn {
+                let parameter_dim = *dim;
+                let mut min_checks = usize::MAX;
+                let range = if params.best_snn_dim {
+                    0..D
+                } else {
+                    parameter_dim..(parameter_dim + 1)
+                };
+                for dim in range {
+                    let mut new_spatial_offset = spatial_offset;
+                    new_spatial_offset[dim] = 0.;
+                    let mut num_comparisons = 0;
+                    //project onto next dimension and check if in radius there
+                    for p in positions.iter() {
+                        let projected_distance =
+                            (pos[dim] - p[dim]).abs() - spatial_offset.magnitude();
+                        if projected_distance <= radius {
+                            num_comparisons += 1;
+                            // if dim == parameter_dim
+                            //     && (pos - *p).magnitude_squared() < radius.powi(2)
+                            // {
+                            //     statistics.ground_truth_comparisons += 1;
+                            // }
                         }
                     }
+                    if min_checks > num_comparisons {
+                        min_checks = num_comparisons;
+                    }
                 }
+                statistics.num_comparionsons += min_checks;
             } else {
                 statistics.num_comparionsons += positions.len();
             }
@@ -256,8 +292,8 @@ impl<const D: usize> DimReduction<D> {
                         end
                     );
                 }
-                if should_recurse_red && use_radius_reduction
-                    || should_recurse && !use_radius_reduction
+                if should_recurse_red && params.use_radius_reduction
+                    || should_recurse && !params.use_radius_reduction
                 {
                     // if should_recurse {
                     self.query_impl(
@@ -268,8 +304,7 @@ impl<const D: usize> DimReduction<D> {
                         depth + 1,
                         child,
                         statistics,
-                        use_radius_reduction,
-                        use_snn,
+                        params,
                     );
                 }
             }
