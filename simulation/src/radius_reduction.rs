@@ -31,10 +31,12 @@ pub enum Layer<const D: usize> {
     },
 }
 
+const LEAFSIZE: usize = 150;
+
 impl<const D: usize> Layer<D> {
     fn new(mut positions: Vec<DVec<D>>, depth: usize) -> Self {
         let dim = depth % D;
-        if positions.len() <= 20 {
+        if positions.len() <= LEAFSIZE {
             return Self::BruteForce { positions, dim };
         }
         // dbg!(positions.len(), dim);
