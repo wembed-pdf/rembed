@@ -140,6 +140,11 @@ pub fn profile_datastructure_query<'a, const D: usize>(
         format_number(statistics.cycles_mean),
         format_number(statistics.cycles_stddev)
     );
+    eprintln!(
+        "\tRef Cycles: {} σ: {}\n",
+        format_number(statistics.ref_cycles_mean),
+        format_number(statistics.ref_cycles_stddev)
+    );
     MeasurementResult {
         data_structure_name: structure.name(),
         sample_count: samples.num_samples(),

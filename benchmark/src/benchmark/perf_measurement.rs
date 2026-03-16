@@ -7,15 +7,23 @@ pub struct PerfMeasurement {
     pub wall_time: Duration,
     pub instructions: u64,
     pub cycles: u64,
+    pub ref_cycles: u64,
     pub iterations: u64,
 }
 
 impl PerfMeasurement {
-    pub fn new(wall_time: Duration, instructions: u64, cycles: u64, iterations: u64) -> Self {
+    pub fn new(
+        wall_time: Duration,
+        instructions: u64,
+        cycles: u64,
+        ref_cycles: u64,
+        iterations: u64,
+    ) -> Self {
         Self {
             wall_time,
             instructions,
             cycles,
+            ref_cycles,
             iterations,
         }
     }
@@ -26,6 +34,7 @@ pub struct PerfCounter {
     perf_group: Group,
     instruction_counter: Counter,
     cycles_counter: Counter,
+    ref_cycles_counter: Counter,
 }
 
 impl Default for PerfCounter {
@@ -35,7 +44,8 @@ impl Default for PerfCounter {
 }
 
 impl PerfCounter {
-    fn create_perf_group() -> Result<(Group, Counter, Counter), Box<dyn std::error::Error>> {
+    fn create_perf_group() -> Result<(Group, Counter, Counter, Counter), Box<dyn std::error::Error>>
+    {
         let mut group = Group::new()?;
 
         // Add instruction counter
@@ -44,13 +54,16 @@ impl PerfCounter {
         // Add cycles counter
         let cycles = group.add(&Builder::new(Hardware::CPU_CYCLES))?;
 
-        Ok((group, instructions, cycles))
+        // Add ref cycles counter
+        let ref_cycles = group.add(&Builder::new(Hardware::REF_CPU_CYCLES))?;
+
+        Ok((group, instructions, cycles, ref_cycles))
     }
 }
 
 impl PerfCounter {
     pub fn new() -> Self {
-        let (mut perf_group, instructions, cycles) =
+        let (mut perf_group, instructions, cycles, ref_cycles) =
             Self::create_perf_group().expect("Failed to create perf event group");
 
         perf_group
@@ -63,6 +76,7 @@ impl PerfCounter {
             perf_group,
             instruction_counter: instructions,
             cycles_counter: cycles,
+            ref_cycles_counter: ref_cycles,
         }
     }
     pub fn start(&mut self) {
@@ -90,8 +104,12 @@ impl PerfCounter {
             .get(&self.cycles_counter)
             .map(|c| c.value())
             .unwrap_or(0);
+        let ref_cycles = counts
+            .get(&self.ref_cycles_counter)
+            .map(|c| c.value())
+            .unwrap_or(0);
 
-        PerfMeasurement::new(wall_time, instructions, cycles, iterations)
+        PerfMeasurement::new(wall_time, instructions, cycles, ref_cycles, iterations)
     }
 }
 
@@ -128,6 +146,7 @@ impl PerfMeasurements {
                     wall_time: x.wall_time / divisor as u32,
                     instructions: x.instructions / divisor,
                     cycles: x.cycles / divisor,
+                    ref_cycles: x.ref_cycles / divisor,
                     iterations: x.iterations,
                 }
             })
@@ -160,6 +179,12 @@ impl PerfMeasurements {
 
         let cycles_mean = measurements.iter().map(|m| m.cycles as f64).sum::<f64>() / count;
 
+        let ref_cycles_mean = measurements
+            .iter()
+            .map(|m| m.ref_cycles as f64)
+            .sum::<f64>()
+            / count;
+
         // Calculate standard deviations
         let wall_time_variance = measurements
             .iter()
@@ -188,6 +213,15 @@ impl PerfMeasurements {
             .sum::<f64>()
             / count;
 
+        let ref_cycles_variance = measurements
+            .iter()
+            .map(|m| {
+                let diff = m.ref_cycles as f64 - ref_cycles_mean;
+                diff * diff
+            })
+            .sum::<f64>()
+            / count;
+
         PerfStatistics {
             wall_time_mean: Duration::from_nanos(wall_time_mean as u64),
             wall_time_stddev: Duration::from_nanos(wall_time_variance.sqrt() as u64),
@@ -195,6 +229,8 @@ impl PerfMeasurements {
             instructions_stddev: instructions_variance.sqrt(),
             cycles_mean,
             cycles_stddev: cycles_variance.sqrt(),
+            ref_cycles_mean,
+            ref_cycles_stddev: ref_cycles_variance.sqrt(),
         }
     }
 
@@ -211,6 +247,8 @@ pub struct PerfStatistics {
     pub instructions_stddev: f64,
     pub cycles_mean: f64,
     pub cycles_stddev: f64,
+    pub ref_cycles_mean: f64,
+    pub ref_cycles_stddev: f64,
 }
 
 #[cfg(test)]

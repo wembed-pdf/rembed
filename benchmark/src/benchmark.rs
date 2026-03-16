@@ -342,8 +342,8 @@ impl LoadData {
                     code_state_id, result_id, iteration_number, sample_count,
                     hostname, architecture, benchmark_type,
                     wall_time_mean, wall_time_stddev, 
-                    instruction_count_mean, instruction_count_stddev, cycles_mean, cycles_stddev
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    instruction_count_mean, instruction_count_stddev, cycles_mean, cycles_stddev, ref_cycles_mean, ref_cycles_stddev
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 "#,
             code_state.code_state_id,
             result.result_id,
@@ -358,6 +358,8 @@ impl LoadData {
             result.measurement.instructions_stddev,
             result.measurement.cycles_mean,
             result.measurement.cycles_stddev,
+            result.measurement.ref_cycles_mean,
+            result.measurement.ref_cycles_stddev,
         )
         .execute(&self.pool)
         .await?;
