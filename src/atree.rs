@@ -92,6 +92,7 @@ struct Snn {
     dpos_offset: usize,
     end: usize,
     lut: Vec<usize>,
+    end_lut: Vec<usize>,
     min: f32,
     resolution: f32,
 }
@@ -129,16 +130,21 @@ impl Layer {
                 *d_pos = pos[depth];
             }
             let mut lut = vec![];
+            let mut end_lut = vec![];
             let min = d_pos[0].floor();
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
-            let resolution = 50. / (max - min);
-            for i in 0..(((max - min) * resolution) as i32) {
-                let pos_idx = d_pos
-                    .iter()
-                    .take_while(|&&x| x < ((i as f32 / resolution) + min))
-                    .count();
-                lut.push(pos_idx + offset);
+            let resolution = 100. / (max - min);
+            let num_buckets = ((max - min) * resolution) as i32;
+            for i in 0..num_buckets {
+                let boundary = (i as f32 / resolution) + min;
+                let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
+                lut.push(start_idx + offset);
+                // Use the next bucket's boundary so end_lut[i] is an upper bound
+                // for any value that truncates to bucket i
+                let next_boundary = ((i + 1) as f32 / resolution) + min;
+                let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
+                end_lut.push(end_idx + offset);
             }
 
             layers[layer_id] = Self::Leaf(Snn {
@@ -146,6 +152,7 @@ impl Layer {
                 dpos_offset: dpos_offset - offset,
                 end: nodes.len() + offset,
                 lut,
+                end_lut,
                 min: d_pos[0].floor(),
                 resolution,
             });
@@ -319,36 +326,43 @@ impl<'a, const D: usize> ATree<'a, D> {
         let min = own_pos - radius_sqrt;
         let max = own_pos + radius_sqrt;
         let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len().max(1) - 1);
-        // let end_idx = (((max - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
+        let end_idx = (((max - snn.min) * snn.resolution) as usize).min(snn.end_lut.len() - 1);
         if snn.lut.is_empty() {
             return;
         }
         let min_i = snn.lut[idx];
-        // let max_i = snn.lut_end[end_idx];
+        let max_i = snn.end_lut[end_idx];
 
-        let mut i = min_i;
-        loop {
-            // results.reserve(4);
-            // for i in min_i.. {
-            let p = self.d_pos[i + snn.dpos_offset];
+        // let mut i = min_i;
+        // loop {
+        // results.reserve(4);
+        // for i in min_i.. {
+        for i in min_i..max_i {
+            // let p = self.d_pos[i + snn.dpos_offset];
             // dbg!(p);
-            let b = p > max;
+            // let b = p > max;
             // if p > max {
+            //     if i > max_i {
+            //         panic!(
+            //             "min i: {min_i}, {i} > max_i {max_i}, own_pos: {own_pos}, max: {max} d_pos: {:?}",
+            //             &self.d_pos[max_i..i]
+            //         );
+            //     }
             //     break;
             // }
-            let unroll = 2;
-            for j in 0..unroll {
-                // let i = (i + j).min(self.node_ids.len() - 1);
-                let i = i + j;
-                let other_pos = self.positions_sorted[i];
-                if !b && pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
-                    results.push(self.node_ids[i]);
-                }
+            // let unroll = 2;
+            // for j in 0..unroll {
+            //     // let i = (i + j).min(self.node_ids.len() - 1);
+            //     let i = i + j;
+            let other_pos = self.positions_sorted[i];
+            if pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
+                results.push(self.node_ids[i]);
             }
-            i += unroll;
-            if b {
-                break;
-            }
+            // }
+            // // i += unroll;
+            // if b {
+            //     break;
+            // }
         }
     }
 }
