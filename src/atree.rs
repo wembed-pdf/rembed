@@ -51,7 +51,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
 
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
 
-        let num_leafs = node_ids.len().ilog2() - LEAFSIZE.ilog2();
+        let num_leafs = node_ids.len().max(LEAFSIZE).ilog2() - LEAFSIZE.ilog2();
         // let mut d_pos = vec![0.; node_ids.len() + num_leafs * 4];
         let mut d_pos =
             vec![f32::INFINITY; node_ids.len() + (1usize << num_leafs as usize) * 2 * 4];
@@ -101,6 +101,9 @@ enum Layer {
     Node(Node),
     Leaf(Snn),
 }
+// IDEAS: use end_lut
+// approximate square root
+// stop reducing radius after first couple of tries
 
 impl Layer {
     fn init<const D: usize>(
@@ -236,7 +239,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         );
     }
     #[allow(clippy::too_many_arguments)]
-    fn query_recursive(
+    pub(crate) fn query_recursive(
         &self,
         pos: DVec<D>,
         depth: usize,
@@ -266,12 +269,10 @@ impl<'a, const D: usize> ATree<'a, D> {
                     distances,
                     results,
                 );
-                let mut reduced_radius = dim_radius_squared;
-                let dist = own_pos - node.split;
-                let d_2 = dist - distances[depth];
-                let x = 2. * distances[depth] * d_2 + d_2.powi(2);
+                let current_delta = distances[depth];
+                let dist = (own_pos - node.split).powi(2);
+                let reduced_radius = dim_radius_squared + current_delta - dist;
                 distances[depth] = dist;
-                reduced_radius -= x;
                 if reduced_radius <= 0. {
                     return;
                 }
@@ -287,43 +288,66 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(snn) => {
-                let dim_diff_squared = distances[depth].powi(2);
-                let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
-                let min = own_pos - radius_sqrt;
-                let max = own_pos + radius_sqrt;
-                let idx =
-                    (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len().max(1) - 1);
-                // let end_idx = (((max - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
-                if snn.lut.is_empty() {
-                    return;
-                }
-                let min_i = snn.lut[idx];
-                // let max_i = snn.lut_end[end_idx];
+                self.snn(
+                    pos,
+                    depth,
+                    dim_radius_squared,
+                    original_radius_squared,
+                    distances,
+                    results,
+                    own_pos,
+                    snn,
+                );
+            }
+        }
+    }
 
-                let mut i = min_i;
-                loop {
-                    results.reserve(4);
-                    // for i in min_i.. {
-                    let p = self.d_pos[i + snn.dpos_offset];
-                    // dbg!(p);
-                    let b = p > max;
-                    // if p > max {
-                    //     break;
-                    // }
-                    for j in 0..2 {
-                        // let i = (i + j).min(self.node_ids.len() - 1);
-                        let i = i + j;
-                        let other_pos = self.positions_sorted[i];
-                        if !b && pos.distance_squared(&other_pos) <= original_radius_squared as f32
-                        {
-                            results.push(self.node_ids[i]);
-                        }
-                    }
-                    i += 2;
-                    if b {
-                        break;
-                    }
+    #[inline(never)]
+    fn snn(
+        &self,
+        pos: DVec<D>,
+        depth: usize,
+        dim_radius_squared: f32,
+        original_radius_squared: f64,
+        distances: DVec<D>,
+        results: &mut Vec<usize>,
+        own_pos: f32,
+        snn: &Snn,
+    ) {
+        let dim_diff_squared = distances[depth];
+        let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
+        let min = own_pos - radius_sqrt;
+        let max = own_pos + radius_sqrt;
+        let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len().max(1) - 1);
+        // let end_idx = (((max - snn.min) * snn.resolution) as usize).min(snn.lut.len() - 1);
+        if snn.lut.is_empty() {
+            return;
+        }
+        let min_i = snn.lut[idx];
+        // let max_i = snn.lut_end[end_idx];
+
+        let mut i = min_i;
+        loop {
+            // results.reserve(4);
+            // for i in min_i.. {
+            let p = self.d_pos[i + snn.dpos_offset];
+            // dbg!(p);
+            let b = p > max;
+            // if p > max {
+            //     break;
+            // }
+            let unroll = 2;
+            for j in 0..unroll {
+                // let i = (i + j).min(self.node_ids.len() - 1);
+                let i = i + j;
+                let other_pos = self.positions_sorted[i];
+                if !b && pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
+                    results.push(self.node_ids[i]);
                 }
+            }
+            i += unroll;
+            if b {
+                break;
             }
         }
     }
