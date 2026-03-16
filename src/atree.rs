@@ -51,10 +51,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
 
         let mut node_ids: Vec<_> = (0..postions.len()).collect();
 
-        let num_leafs = node_ids.len().max(LEAFSIZE).ilog2() - LEAFSIZE.ilog2();
-        // let mut d_pos = vec![0.; node_ids.len() + num_leafs * 4];
-        let mut d_pos =
-            vec![f32::INFINITY; node_ids.len() + (1usize << num_leafs as usize) * 2 * 4];
+        let mut d_pos = vec![0.; node_ids.len()];
         let mut layers = std::mem::take(&mut self.layers);
         if layers.len() < node_ids.len() {
             layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
@@ -66,7 +63,6 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
             0,
             0,
             self,
-            0,
             0,
         );
         self.layers = layers;
@@ -88,9 +84,6 @@ struct Node {
 
 #[derive(Clone, Debug, Default)]
 struct Snn {
-    len: usize,
-    dpos_offset: usize,
-    end: usize,
     lut: Vec<usize>,
     end_lut: Vec<usize>,
     min: f32,
@@ -102,9 +95,6 @@ enum Layer {
     Node(Node),
     Leaf(Snn),
 }
-// IDEAS: use end_lut
-// approximate square root
-// stop reducing radius after first couple of tries
 
 impl Layer {
     fn init<const D: usize>(
@@ -115,7 +105,6 @@ impl Layer {
         layer_id: usize,
         atree: &ATree<D>,
         offset: usize,
-        dpos_offset: usize,
     ) {
         // For leaf nodes, we need full sorting for the lookup table
         if nodes.len() <= { LEAFSIZE } {
@@ -134,7 +123,7 @@ impl Layer {
             let min = d_pos[0].floor();
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
-            let resolution = 100. / (max - min);
+            let resolution = (LEAFSIZE / 2) as f32 / (max - min);
             let num_buckets = ((max - min) * resolution) as i32;
             for i in 0..num_buckets {
                 let boundary = (i as f32 / resolution) + min;
@@ -148,9 +137,6 @@ impl Layer {
             }
 
             layers[layer_id] = Self::Leaf(Snn {
-                len: nodes.len(),
-                dpos_offset: dpos_offset - offset,
-                end: nodes.len() + offset,
                 lut,
                 end_lut,
                 min: d_pos[0].floor(),
@@ -190,16 +176,7 @@ impl Layer {
 
         let depth = (depth + 1) % D;
 
-        Layer::init(
-            a_ids,
-            a_dpos,
-            layers,
-            depth,
-            a_id,
-            atree,
-            offset,
-            dpos_offset,
-        );
+        Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
         Layer::init(
             b_ids,
             b_dpos,
@@ -208,7 +185,6 @@ impl Layer {
             b_id,
             atree,
             offset + split_pos,
-            dpos_offset + split_pos + slack / 2,
         );
 
         let node = Node { split };
