@@ -302,14 +302,13 @@ impl<'a, const D: usize> ATree<'a, D> {
                     original_radius_squared,
                     distances,
                     results,
-                    own_pos,
                     snn,
                 );
             }
         }
     }
 
-    #[inline(never)]
+    // #[inline(never)]
     fn snn(
         &self,
         pos: DVec<D>,
@@ -318,51 +317,27 @@ impl<'a, const D: usize> ATree<'a, D> {
         original_radius_squared: f64,
         distances: DVec<D>,
         results: &mut Vec<usize>,
-        own_pos: f32,
         snn: &Snn,
     ) {
+        let own_pos = pos[depth] - snn.min;
         let dim_diff_squared = distances[depth];
         let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
         let min = own_pos - radius_sqrt;
         let max = own_pos + radius_sqrt;
-        let idx = (((min - snn.min) * snn.resolution) as usize).min(snn.lut.len().max(1) - 1);
-        let end_idx = (((max - snn.min) * snn.resolution) as usize).min(snn.end_lut.len() - 1);
         if snn.lut.is_empty() {
             return;
         }
+        let max_idx = snn.lut.len() - 1;
+        let idx = ((min * snn.resolution) as usize).min(max_idx);
+        let end_idx = ((max * snn.resolution) as usize).min(max_idx);
         let min_i = snn.lut[idx];
         let max_i = snn.end_lut[end_idx];
 
-        // let mut i = min_i;
-        // loop {
-        // results.reserve(4);
-        // for i in min_i.. {
         for i in min_i..max_i {
-            // let p = self.d_pos[i + snn.dpos_offset];
-            // dbg!(p);
-            // let b = p > max;
-            // if p > max {
-            //     if i > max_i {
-            //         panic!(
-            //             "min i: {min_i}, {i} > max_i {max_i}, own_pos: {own_pos}, max: {max} d_pos: {:?}",
-            //             &self.d_pos[max_i..i]
-            //         );
-            //     }
-            //     break;
-            // }
-            // let unroll = 2;
-            // for j in 0..unroll {
-            //     // let i = (i + j).min(self.node_ids.len() - 1);
-            //     let i = i + j;
             let other_pos = self.positions_sorted[i];
             if pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
                 results.push(self.node_ids[i]);
             }
-            // }
-            // // i += unroll;
-            // if b {
-            //     break;
-            // }
         }
     }
 }
@@ -370,6 +345,7 @@ impl<'a, const D: usize> ATree<'a, D> {
 impl<const D: usize> Query<D> for ATree<'_, D> {
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         let radius = radius.powi(2);
+        assert_eq!(self.positions.len(), self.node_ids.len());
         self.query_recursive(pos, 0, 0, radius as f32, radius, DVec::zero(), results);
     }
 }
