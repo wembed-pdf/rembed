@@ -1,15 +1,43 @@
+use std::{f32::RADIX, ops::Mul};
+
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
     query::{self, Position, SpatialIndex, Update},
 };
 
+#[derive(Clone, Copy, Debug)]
+pub struct Point<const D: usize> {
+    pos: DVec<D>,
+    squared_half: f32,
+}
+
+impl<const D: usize> Point<D> {
+    fn new(pos: DVec<D>) -> Self {
+        Self {
+            pos,
+            squared_half: pos.magnitude_squared() / 2.,
+        }
+    }
+    fn closer_than(&self, other: &Self, radius_squared_half: f32) -> bool {
+        self.squared_half - self.pos.mul(other.pos).components.iter().sum::<f32>()
+            <= radius_squared_half - other.squared_half
+    }
+}
+impl<const D: usize> std::ops::Index<usize> for Point<D> {
+    type Output = f32;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.pos.components[index]
+    }
+}
+
 const LEAFSIZE: usize = 150;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
-    pub positions_sorted: Vec<DVec<D>>,
+    pub positions_sorted: Vec<Point<D>>,
     pub node_ids: Vec<usize>,
     pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
@@ -67,10 +95,15 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         );
         self.layers = layers;
         self.node_ids = node_ids;
-        self.positions_sorted = self.node_ids.iter().map(|id| *self.position(*id)).collect();
+        self.positions_sorted = self
+            .node_ids
+            .iter()
+            .map(|id| Point::new(*self.position(*id)))
+            .collect();
         for _ in 0..4 {
             d_pos.push(f32::INFINITY);
-            self.positions_sorted.push(DVec::splat(f32::INFINITY));
+            self.positions_sorted
+                .push(Point::new(DVec::splat(f32::INFINITY)));
         }
         self.d_pos = d_pos;
         // println!("dpos: {:?}", self.d_pos);
@@ -221,7 +254,7 @@ impl<'a, const D: usize> ATree<'a, D> {
     }
     pub fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         self.query_recursive(
-            pos,
+            Point::new(pos),
             0,
             0,
             radius.powi(2) as f32,
@@ -233,7 +266,7 @@ impl<'a, const D: usize> ATree<'a, D> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn query_recursive(
         &self,
-        pos: DVec<D>,
+        pos: Point<D>,
         depth: usize,
         layer_id: usize,
         dim_radius_squared: f32,
@@ -297,7 +330,7 @@ impl<'a, const D: usize> ATree<'a, D> {
     #[inline(never)]
     fn snn(
         &self,
-        pos: DVec<D>,
+        pos: Point<D>,
         depth: usize,
         reduced_radius: f32,
         original_radius_squared: f64,
@@ -334,7 +367,23 @@ impl<'a, const D: usize> ATree<'a, D> {
             if D >= 4 && other_pos[depth] > max {
                 break;
             }
-            let is_in_radius = pos.distance_squared(&other_pos) <= original_radius_squared as f32;
+            let is_in_radius = if D < 8 {
+                pos.pos.distance_squared(&other_pos.pos) <= original_radius_squared as f32
+            } else {
+                pos.closer_than(&other_pos, original_radius_squared as f32 / 2. + 2e-2)
+            };
+            // let is_in_radius2 =
+            //     pos.pos.distance_squared(&other_pos.pos) <= original_radius_squared as f32;
+            // if is_in_radius2 && !is_in_radius {
+            //     dbg!(
+            //         pos,
+            //         other_pos,
+            //         original_radius_squared,
+            //         is_in_radius,
+            //         is_in_radius2
+            //     );
+            //     panic!();
+            // }
             unsafe { *results.get_unchecked_mut(len) = *self.node_ids.get_unchecked(i) };
             len += is_in_radius as usize;
         }
@@ -346,7 +395,15 @@ impl<const D: usize> Query<D> for ATree<'_, D> {
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         let radius = radius.powi(2);
         assert_eq!(self.positions.len(), self.node_ids.len());
-        self.query_recursive(pos, 0, 0, radius as f32, radius, DVec::zero(), results);
+        self.query_recursive(
+            Point::new(pos),
+            0,
+            0,
+            radius as f32,
+            radius,
+            DVec::zero(),
+            results,
+        );
     }
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
@@ -366,6 +423,101 @@ impl<'a, const D: usize> query::Embedder<'a, D> for ATree<'a, D> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+
+    #[test]
+    fn closer_than_precision() {
+        let q = Point::<2>::new(DVec {
+            components: [164.52911, 155.07126],
+        });
+        let p = Point::<2>::new(DVec {
+            components: [164.10321, 154.9621],
+        });
+        let radius_squared: f64 = 0.19342680447225016;
+
+        // Direct computation (ground truth)
+        let diff = [
+            q.pos.components[0] - p.pos.components[0],
+            q.pos.components[1] - p.pos.components[1],
+        ];
+        let dist_sq_direct = diff[0] * diff[0] + diff[1] * diff[1];
+        println!("=== Direct (a-b)² approach ===");
+        println!("  diff = {:?}", diff);
+        println!("  diff² = [{}, {}]", diff[0] * diff[0], diff[1] * diff[1]);
+        println!("  dist² = {dist_sq_direct}");
+        println!("  R²    = {}", radius_squared as f32);
+        println!("  in_radius = {}", dist_sq_direct <= radius_squared as f32);
+
+        // Precomputed-norm approach (Eq. 4)
+        let dot: f32 = q
+            .pos
+            .components
+            .iter()
+            .zip(p.pos.components.iter())
+            .map(|(a, b)| a * b)
+            .sum();
+        let lhs = q.squared_half - dot;
+        let rhs = radius_squared as f32 / 2. - p.squared_half;
+        println!("\n=== Precomputed-norm approach ===");
+        println!("  q.squared_half = {:.10} (||q||²/2)", q.squared_half);
+        println!("  p.squared_half = {:.10} (||p||²/2)", p.squared_half);
+        println!("  dot(q, p)      = {:.10}", dot);
+        println!(
+            "  LHS = q.squared_half - dot = {:.10} - {:.10} = {:.10}",
+            q.squared_half, dot, lhs
+        );
+        println!(
+            "  RHS = R²/2 - p.squared_half = {:.10} - {:.10} = {:.10}",
+            radius_squared as f32 / 2.,
+            p.squared_half,
+            rhs
+        );
+        println!("  in_radius = {} (LHS <= RHS)", lhs <= rhs);
+
+        // Show the cancellation: how many significant digits are lost?
+        println!("\n=== Precision analysis ===");
+        println!("  q.squared_half magnitude: ~{:.0}", q.squared_half);
+        println!("  dot magnitude:            ~{:.0}", dot);
+        println!("  LHS result magnitude:     ~{:.6}", lhs);
+        println!(
+            "  Ratio (big/small):        {:.0}x",
+            q.squared_half / lhs.abs()
+        );
+        println!(
+            "  f32 epsilon at {:.0}: {:.6}",
+            q.squared_half,
+            q.squared_half * f32::EPSILON
+        );
+        println!(
+            "  LHS error budget:         {:.6} (result needs this many digits)",
+            lhs.abs()
+        );
+
+        // f64 reference
+        let dot_f64: f64 = q
+            .pos
+            .components
+            .iter()
+            .zip(p.pos.components.iter())
+            .map(|(a, b)| *a as f64 * *b as f64)
+            .sum();
+        let lhs_f64 = q.squared_half as f64 - dot_f64;
+        let rhs_f64 = radius_squared / 2. - p.squared_half as f64;
+        println!("\n=== f64 reference ===");
+        println!("  LHS_f64 = {:.10}", lhs_f64);
+        println!("  RHS_f64 = {:.10}", rhs_f64);
+        println!("  in_radius_f64 = {}", lhs_f64 <= rhs_f64);
+        println!("  LHS error (f32 vs f64) = {:.10}", (lhs as f64) - lhs_f64);
+
+        let direct = dist_sq_direct <= radius_squared as f32;
+        let optimized = q.closer_than(&p, radius_squared as f32 / 2.);
+
+        assert_eq!(
+            direct, optimized,
+            "direct={direct}, optimized={optimized}, dist²={dist_sq_direct}, R²={radius_squared}",
+        );
+    }
+
     #[test]
     fn simple() {}
 }
