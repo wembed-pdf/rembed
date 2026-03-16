@@ -55,7 +55,7 @@ impl PerfCounter {
         let cycles = group.add(&Builder::new(Hardware::CPU_CYCLES))?;
 
         // Add ref cycles counter
-        let ref_cycles = group.add(&Builder::new(Hardware::REF_CPU_CYCLES))?;
+        let ref_cycles = group.add(&Builder::new(Hardware::CPU_CYCLES))?;
 
         Ok((group, instructions, cycles, ref_cycles))
     }
