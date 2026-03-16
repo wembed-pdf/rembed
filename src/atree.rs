@@ -191,6 +191,8 @@ impl Layer {
         layers[layer_id] = Self::Node(node);
     }
 }
+
+#[inline(always)]
 fn children(index: usize) -> (usize, usize) {
     (index * 2 + 1, index * 2 + 2)
 }
@@ -271,12 +273,13 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(snn) => {
+                let dim_diff_squared = distances[depth];
+                let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
                 self.snn(
                     pos,
                     depth,
-                    dim_radius_squared,
+                    reduced_radius,
                     original_radius_squared,
-                    distances,
                     results,
                     snn,
                 );
@@ -284,22 +287,19 @@ impl<'a, const D: usize> ATree<'a, D> {
         }
     }
 
-    // #[inline(never)]
+    #[inline(never)]
     fn snn(
         &self,
         pos: DVec<D>,
         depth: usize,
-        dim_radius_squared: f32,
+        reduced_radius: f32,
         original_radius_squared: f64,
-        distances: DVec<D>,
         results: &mut Vec<usize>,
         snn: &Snn,
     ) {
         let own_pos = pos[depth] - snn.min;
-        let dim_diff_squared = distances[depth];
-        let radius_sqrt = (dim_radius_squared + dim_diff_squared).sqrt();
-        let min = own_pos - radius_sqrt;
-        let max = own_pos + radius_sqrt;
+        let min = own_pos - reduced_radius;
+        let max = own_pos + reduced_radius;
         if snn.lut.is_empty() {
             return;
         }
@@ -309,11 +309,31 @@ impl<'a, const D: usize> ATree<'a, D> {
         let min_i = snn.lut[idx];
         let max_i = snn.end_lut[end_idx];
 
-        for i in min_i..max_i {
-            let other_pos = self.positions_sorted[i];
-            if pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
-                results.push(self.node_ids[i]);
+        const U: usize = 4;
+        // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
+        results.reserve(max_i - min_i + U);
+        let mut len = results.len();
+        for i in (min_i / U)..(max_i / U) {
+            let mut neighbours = [false; U];
+            for j in 0..U {
+                let idx = i * U + j;
+                let other_pos = self.positions_sorted[idx];
+                neighbours[j] = pos.distance_squared(&other_pos) <= original_radius_squared as f32;
             }
+            for (j, cond) in neighbours.into_iter().enumerate() {
+                let idx = i * U + j;
+                unsafe { *results.get_unchecked_mut(len) = *self.node_ids.get_unchecked(idx) };
+                len += cond as usize;
+            }
+        }
+        unsafe { results.set_len(len) };
+        for i in ((max_i / U) * U)..max_i {
+            let other_pos = self.positions_sorted[i];
+            let result_len = results.len();
+
+            unsafe { *results.get_unchecked_mut(result_len) = *self.node_ids.get_unchecked(i) };
+            let is_neighbour = pos.distance_squared(&other_pos) <= original_radius_squared as f32;
+            unsafe { results.set_len(results.len() + is_neighbour as usize) };
         }
     }
 }
