@@ -61,7 +61,6 @@ pub fn convert_to_embeddings<'a, const D: usize>(
 pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
-    use query::Embedder;
     let iter = [
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
