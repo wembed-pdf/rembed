@@ -10,13 +10,15 @@ use crate::{
 pub struct Point<const D: usize> {
     pos: DVec<D>,
     squared_half: f32,
+    node_id: u32,
 }
 
 impl<const D: usize> Point<D> {
-    fn new(pos: DVec<D>) -> Self {
+    fn new(pos: DVec<D>, id: usize) -> Self {
         Self {
             pos,
             squared_half: pos.magnitude_squared() / 2.,
+            node_id: id as u32,
         }
     }
     #[inline(always)]
@@ -34,7 +36,7 @@ impl<const D: usize> std::ops::Index<usize> for Point<D> {
     }
 }
 
-const LEAFSIZE: usize = 150;
+const LEAFSIZE: usize = 220;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
@@ -100,15 +102,9 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         self.positions_sorted = self
             .node_ids
             .iter()
-            .map(|id| Point::new(*self.position(*id)))
+            .map(|id| Point::new(*self.position(*id), *id))
             .collect();
-        for _ in 0..4 {
-            d_pos.push(f32::INFINITY);
-            self.positions_sorted
-                .push(Point::new(DVec::splat(f32::INFINITY)));
-        }
         self.d_pos = d_pos;
-        // println!("dpos: {:?}", self.d_pos);
     }
 }
 
@@ -159,13 +155,13 @@ impl Layer {
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let multiplier = match D {
-                x if x < 8 => 0.5,
-                x if x <= 12 => 1.,
+                x if x < 8 => 0.2,
+                x if x <= 12 => 0.5,
                 // x if x <= 12 => 1.5,
-                x if x > 12 => 2.,
+                x if x > 12 => 1.5,
                 _ => unreachable!(),
             };
-            let resolution = LEAFSIZE as f32 * multiplier / (max - min);
+            let resolution = nodes.len() as f32 * multiplier / (max - min);
             let num_buckets = ((max - min) * resolution) as i32;
             for i in 0..num_buckets {
                 let boundary = (i as f32 / resolution) + min;
@@ -256,7 +252,7 @@ impl<'a, const D: usize> ATree<'a, D> {
     }
     pub fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         self.query_recursive(
-            Point::new(pos),
+            Point::new(pos, 0),
             0,
             0,
             radius.powi(2) as f32,
@@ -361,7 +357,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             } else {
                 pos.closer_than(&other_pos, original_radius_squared)
             };
-            unsafe { *results.get_unchecked_mut(len) = *self.node_ids.get_unchecked(i) };
+            unsafe { *results.get_unchecked_mut(len) = other_pos.node_id as usize };
             len += is_in_radius as usize;
         }
         unsafe { results.set_len(len) };
@@ -373,7 +369,7 @@ impl<const D: usize> Query<D> for ATree<'_, D> {
         let radius = radius.powi(2);
         assert_eq!(self.positions.len(), self.node_ids.len());
         self.query_recursive(
-            Point::new(pos),
+            Point::new(pos, 0),
             0,
             0,
             radius as f32,
