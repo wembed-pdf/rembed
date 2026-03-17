@@ -36,7 +36,7 @@ impl<const D: usize> std::ops::Index<usize> for Point<D> {
     }
 }
 
-const LEAFSIZE: usize = 220;
+const LEAFSIZE: usize = 160;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
@@ -137,8 +137,15 @@ impl Layer {
         atree: &ATree<D>,
         offset: usize,
     ) {
-        // For leaf nodes, we need full sorting for the lookup table
-        if nodes.len() <= { LEAFSIZE } {
+        // if nodes.len()
+        //     <= ((atree.positions.len() as f64).powf((D as f64).recip()) as usize).max(LEAFSIZE)
+        // {
+        if nodes.len() <= (atree.positions.len().isqrt()).max(LEAFSIZE) {
+            // if nodes.len() <= { 900 } {
+            // if nodes.len() <= { 156 } {
+            let depth = D - 1;
+            // let depth = 0;
+            // For leaf nodes, we need full sorting for the lookup table
             nodes.sort_unstable_by_key(|i| {
                 i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
             });
@@ -155,14 +162,18 @@ impl Layer {
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let multiplier = match D {
-                x if x < 8 => 0.2,
-                x if x <= 12 => 0.5,
+                x if x <= 2 => 0.1,
+                x if x < 8 => 0.5,
+                x if x <= 12 => 1.,
                 // x if x <= 12 => 1.5,
-                x if x > 12 => 1.5,
+                x if x > 12 => 2.,
                 _ => unreachable!(),
             };
-            let resolution = nodes.len() as f32 * multiplier / (max - min);
-            let num_buckets = ((max - min) * resolution) as i32;
+            // let multiplier = 2.;
+            let resolution = (nodes.len().max(10) as f32 * multiplier) / (max - min);
+            // let resolution = 1.;
+            let num_buckets = ((max - min) * resolution).ceil() as i32;
+            // dbg!(num_buckets, max - min, resolution, nodes.len(), multiplier);
             for i in 0..num_buckets {
                 let boundary = (i as f32 / resolution) + min;
                 let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
@@ -212,7 +223,8 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        let depth = (depth + 1) % D;
+        let depth = (depth + 1) % (D - 1);
+        // let depth = (depth + 1) % D;
 
         Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
         Layer::init(
@@ -274,7 +286,8 @@ impl<'a, const D: usize> ATree<'a, D> {
     ) {
         let layer = &self.layers[layer_id];
         let own_pos = pos[depth];
-        let new_depth = (depth + 1) % D;
+        let new_depth = (depth + 1) % (D - 1);
+        // let new_depth = (depth + 1) % D;
         match layer {
             Layer::Node(node) => {
                 let (left, right) = children(layer_id);
@@ -311,8 +324,8 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(snn) => {
-                let dim_diff_squared = distances[depth];
-                let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
+                let depth = D - 1;
+                let reduced_radius = (dim_radius_squared).sqrt();
                 self.snn(
                     pos,
                     depth,
@@ -325,7 +338,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         }
     }
 
-    #[inline(never)]
+    // #[inline(never)]
     fn snn(
         &self,
         pos: Point<D>,
