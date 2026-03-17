@@ -36,7 +36,7 @@ impl<const D: usize> std::ops::Index<usize> for Point<D> {
     }
 }
 
-const LEAFSIZE: usize = 160;
+const LEAFSIZE: usize = 150;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
@@ -162,9 +162,9 @@ impl Layer {
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let multiplier = match D {
-                x if x <= 2 => 0.1,
-                x if x < 8 => 0.5,
-                x if x <= 12 => 1.,
+                x if x <= 2 => 0.11,
+                x if x <= 8 => 0.5,
+                x if x <= 12 => 0.8,
                 // x if x <= 12 => 1.5,
                 x if x > 12 => 2.,
                 _ => unreachable!(),
@@ -325,6 +325,8 @@ impl<'a, const D: usize> ATree<'a, D> {
             }
             Layer::Leaf(snn) => {
                 let depth = D - 1;
+                // let dim_diff_squared = distances[depth];
+                // let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
                 let reduced_radius = (dim_radius_squared).sqrt();
                 self.snn(
                     pos,
