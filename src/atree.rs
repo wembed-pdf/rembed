@@ -124,7 +124,7 @@ impl Layer {
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let multiplier = match D {
-                x if x <= 4 => 0.5,
+                x if x < 4 => 0.5,
                 x if x <= 8 => 1.,
                 x if x <= 12 => 1.5,
                 x if x > 12 => 2.,
@@ -313,14 +313,15 @@ impl<'a, const D: usize> ATree<'a, D> {
         let max_idx = snn.lut.len() - 1;
         let idx = ((min * snn.resolution) as usize).min(max_idx);
         let end_idx = ((max * snn.resolution) as usize).min(max_idx);
-        let mut min_i = snn.lut[idx];
+        let original_min_i = snn.lut[idx];
+        let mut min_i = original_min_i;
         let max_i = snn.end_lut[end_idx];
 
         // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
         results.reserve(max_i - min_i);
         let mut len = results.len();
-        if D > 12 {
-            for i in min_i..max_i {
+        if D >= 4 {
+            for i in original_min_i..max_i {
                 let other_pos = self.positions_sorted[i];
                 if other_pos[depth] >= min {
                     break;
@@ -330,7 +331,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         }
         for i in min_i..max_i {
             let other_pos = self.positions_sorted[i];
-            if D > 12 && other_pos[depth] > max {
+            if D >= 4 && other_pos[depth] > max {
                 break;
             }
             let is_in_radius = pos.distance_squared(&other_pos) <= original_radius_squared as f32;
