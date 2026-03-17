@@ -394,7 +394,7 @@ impl<const D: usize> Query<D> for ATree<'_, D> {
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
     fn name(&self) -> String {
-        String::from("atree")
+        String::from("atree2")
     }
     fn implementation_string(&self) -> &'static str {
         include_str!("atree.rs")
