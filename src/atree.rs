@@ -123,7 +123,14 @@ impl Layer {
             let min = d_pos[0].floor();
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
-            let resolution = (LEAFSIZE / 2) as f32 / (max - min);
+            let multiplier = match D {
+                x if x <= 4 => 0.5,
+                x if x <= 8 => 1.,
+                x if x <= 12 => 1.5,
+                x if x > 12 => 2.,
+                _ => unreachable!(),
+            };
+            let resolution = LEAFSIZE as f32 * multiplier / (max - min);
             let num_buckets = ((max - min) * resolution) as i32;
             for i in 0..num_buckets {
                 let boundary = (i as f32 / resolution) + min;
@@ -306,14 +313,26 @@ impl<'a, const D: usize> ATree<'a, D> {
         let max_idx = snn.lut.len() - 1;
         let idx = ((min * snn.resolution) as usize).min(max_idx);
         let end_idx = ((max * snn.resolution) as usize).min(max_idx);
-        let min_i = snn.lut[idx];
+        let mut min_i = snn.lut[idx];
         let max_i = snn.end_lut[end_idx];
 
         // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
         results.reserve(max_i - min_i);
         let mut len = results.len();
+        if D > 12 {
+            for i in min_i..max_i {
+                let other_pos = self.positions_sorted[i];
+                if other_pos[depth] >= min {
+                    break;
+                }
+                min_i = i;
+            }
+        }
         for i in min_i..max_i {
             let other_pos = self.positions_sorted[i];
+            if D > 12 && other_pos[depth] > max {
+                break;
+            }
             let is_in_radius = pos.distance_squared(&other_pos) <= original_radius_squared as f32;
             unsafe { *results.get_unchecked_mut(len) = *self.node_ids.get_unchecked(i) };
             len += is_in_radius as usize;
