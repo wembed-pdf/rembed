@@ -20,24 +20,41 @@ impl<const D: usize> Point<D> {
         }
     }
     // #[inline(never)]
-    fn closer_than(&self, other: &Self, half_radius_threshold: f32) -> bool {
+    fn closer_than(&self, other: &Self) -> f32 {
         let a = &self.pos.components;
         let b = &other.pos.components;
-        let dot: f32 = if D % 4 == 0 {
-            let mut acc = [0.0f32; 4];
+        let dot: f32 = if D >= 4 && D.is_multiple_of(4) {
+            let mut acc = [a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]];
             let chunks = D / 4;
-            for i in 0..chunks {
+            for i in 1..chunks {
                 let base = i * 4;
                 acc[0] += a[base] * b[base];
                 acc[1] += a[base + 1] * b[base + 1];
                 acc[2] += a[base + 2] * b[base + 2];
                 acc[3] += a[base + 3] * b[base + 3];
             }
-            (acc[0] + acc[1]) + (acc[2] + acc[3])
-        } else if D % 2 == 0 {
-            let mut acc = [0.0f32; 2];
+            // Reduce: adjacent pairs first (matches vhaddps pattern)
+            let s01 = acc[0] + acc[1];
+            let s23 = acc[2] + acc[3];
+            s01 + s23
+        } else if D >= 6 && D % 4 == 2 {
+            let mut acc = [a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]];
+            let chunks = D / 4;
+            for i in 1..chunks {
+                let base = i * 4;
+                acc[0] += a[base] * b[base];
+                acc[1] += a[base + 1] * b[base + 1];
+                acc[2] += a[base + 2] * b[base + 2];
+                acc[3] += a[base + 3] * b[base + 3];
+            }
+            let tail = chunks * 4;
+            let s01 = acc[0] + acc[1];
+            let s23 = acc[2] + acc[3];
+            s01 + s23 + (a[tail] * b[tail] + a[tail + 1] * b[tail + 1])
+        } else if D >= 2 && D.is_multiple_of(2) {
+            let mut acc = [a[0] * b[0], a[1] * b[1]];
             let chunks = D / 2;
-            for i in 0..chunks {
+            for i in 1..chunks {
                 let base = i * 2;
                 acc[0] += a[base] * b[base];
                 acc[1] += a[base + 1] * b[base + 1];
@@ -46,7 +63,7 @@ impl<const D: usize> Point<D> {
         } else {
             a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum()
         };
-        (self.squared_half + other.squared_half) - dot <= half_radius_threshold
+        (self.squared_half + other.squared_half) - dot
     }
 }
 impl<const D: usize> std::ops::Index<usize> for Point<D> {
@@ -183,7 +200,7 @@ impl Layer {
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let multiplier = match D {
-                x if x <= 2 => 0.13,
+                x if x <= 2 => 0.125,
                 x if x <= 8 => 0.5,
                 x if x <= 12 => 0.8,
                 // x if x <= 12 => 1.5,
@@ -389,13 +406,11 @@ impl<'a, const D: usize> ATree<'a, D> {
         let mut len = results.len();
         let half_radius_threshold = original_radius_squared as f32 / 2. + 1e-4;
         let radius_sq_f32 = original_radius_squared as f32;
-        // dbg!(max_i - min_i);
-        for i in min_i..max_i {
-            let other_pos = self.positions_sorted[i];
+        for other_pos in &self.positions_sorted[min_i..max_i] {
             let is_in_radius = if D < 8 {
                 pos.pos.distance_squared(&other_pos.pos) <= radius_sq_f32
             } else {
-                pos.closer_than(&other_pos, half_radius_threshold)
+                pos.closer_than(other_pos) <= half_radius_threshold
             };
             unsafe { *results.get_unchecked_mut(len) = other_pos.node_id as usize };
             len += is_in_radius as usize;

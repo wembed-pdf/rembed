@@ -109,8 +109,63 @@ impl<const D: usize> DVec<D> {
     pub fn distance(&self, other: &Self) -> f32 {
         (*self - *other).magnitude()
     }
+    // #[inline(never)]
     pub fn distance_squared(&self, other: &Self) -> f32 {
-        (*self - *other).magnitude_squared()
+        let a = &self.components;
+        let b = &other.components;
+        if D % 4 == 0 {
+            let mut acc = [0.0f32; 4];
+            let chunks = D / 4;
+            for i in 0..chunks {
+                let base = i * 4;
+                let d0 = a[base] - b[base];
+                let d1 = a[base + 1] - b[base + 1];
+                let d2 = a[base + 2] - b[base + 2];
+                let d3 = a[base + 3] - b[base + 3];
+                acc[0] += d0 * d0;
+                acc[1] += d1 * d1;
+                acc[2] += d2 * d2;
+                acc[3] += d3 * d3;
+            }
+            (acc[0] + acc[1]) + (acc[2] + acc[3])
+        } else if D % 4 == 2 {
+            let mut acc = [0.0f32; 4];
+            let chunks = D / 4;
+            for i in 0..chunks {
+                let base = i * 4;
+                let d0 = a[base] - b[base];
+                let d1 = a[base + 1] - b[base + 1];
+                let d2 = a[base + 2] - b[base + 2];
+                let d3 = a[base + 3] - b[base + 3];
+                acc[0] += d0 * d0;
+                acc[1] += d1 * d1;
+                acc[2] += d2 * d2;
+                acc[3] += d3 * d3;
+            }
+            let tail = chunks * 4;
+            let d0 = a[tail] - b[tail];
+            let d1 = a[tail + 1] - b[tail + 1];
+            (acc[0] + acc[1]) + (acc[2] + acc[3]) + (d0 * d0 + d1 * d1)
+        } else if D % 2 == 0 {
+            let mut acc = [0.0f32; 2];
+            let chunks = D / 2;
+            for i in 0..chunks {
+                let base = i * 2;
+                let d0 = a[base] - b[base];
+                let d1 = a[base + 1] - b[base + 1];
+                acc[0] += d0 * d0;
+                acc[1] += d1 * d1;
+            }
+            acc[0] + acc[1]
+        } else {
+            a.iter()
+                .zip(b.iter())
+                .map(|(&x, &y)| {
+                    let d = x - y;
+                    d * d
+                })
+                .sum()
+        }
     }
 
     pub fn manhattan_distance(&self, other: &Self) -> f32 {
@@ -177,7 +232,7 @@ impl<const D: usize> DVec<D> {
         self.map(|x| x.abs())
     }
 
-    pub(crate) fn splat(value: f32) -> DVec<D> {
+    pub fn splat(value: f32) -> DVec<D> {
         Self {
             components: [value; D],
         }
