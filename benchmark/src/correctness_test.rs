@@ -567,12 +567,17 @@ impl CorrectnessTestManager {
         let mut extra: Vec<_> = actual.difference(expected).collect();
         missing.sort_unstable();
         extra.sort_unstable();
+        extra.truncate(20);
 
         if !missing.is_empty() {
             println!("  Missing: {:?}", missing);
         }
         if !extra.is_empty() {
-            println!("  Extra: {:?}", extra);
+            if extra.len() < 100 {
+                println!("  Extra: {:?}", extra);
+            } else {
+                println!("  Extra: {:?}… [{}]", extra, extra.len());
+            }
         }
     }
 }

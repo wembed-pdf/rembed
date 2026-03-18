@@ -197,9 +197,9 @@ impl<'a, const D: usize> AGrid<'a, D> {
                     if p > max {
                         break;
                     }
-                    if snn.ids[i] == index {
-                        continue;
-                    }
+                    // if snn.ids[i] == index {
+                    //     continue;
+                    // }
                     let other_pos = snn.pos[i];
                     if full_pos.distance_squared(&other_pos) <= original_radius_squared as f32 {
                         results.push(snn.ids[i]);

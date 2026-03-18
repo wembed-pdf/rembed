@@ -265,7 +265,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .run_tests(
                         false,
                         false,
-                        Some(1),
+                        None,
                         None,
                         None,
                         true,

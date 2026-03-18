@@ -163,7 +163,7 @@ impl Layer {
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
             let multiplier = match D {
-                x if x <= 2 => 0.11,
+                x if x <= 2 => 0.13,
                 x if x <= 8 => 0.5,
                 x if x <= 12 => 0.8,
                 // x if x <= 12 => 1.5,
@@ -328,7 +328,7 @@ impl<'a, const D: usize> ATree<'a, D> {
                 // let depth = D - 1;
                 let dim_diff_squared = distances[depth];
                 let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
-                let reduced_radius = (dim_radius_squared).sqrt();
+                // let reduced_radius = (dim_radius_squared).sqrt();
                 self.snn(
                     pos,
                     depth,
@@ -366,6 +366,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
         results.reserve(max_i - min_i);
         let mut len = results.len();
+        // dbg!(max_i - min_i);
         for i in min_i..max_i {
             let other_pos = self.positions_sorted[i];
             let is_in_radius = if D < 8 {
