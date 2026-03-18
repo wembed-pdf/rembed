@@ -93,8 +93,8 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     structure: &(dyn IndexClone<D> + 'a),
 ) -> MeasurementResult {
     let mut samples = PerfMeasurements::new(1000);
-    let warmup = Duration::from_secs(3);
-    let measure = Duration::from_secs(20);
+    let warmup = Duration::from_secs(10);
+    let measure = Duration::from_secs(200);
     let queries = query_list.len();
     let sample_count = 10;
     c.warm_up_time(warmup);
