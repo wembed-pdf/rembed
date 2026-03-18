@@ -115,8 +115,7 @@ struct Node {
 
 #[derive(Clone, Debug, Default)]
 struct Snn {
-    lut: Vec<usize>,
-    end_lut: Vec<usize>,
+    lut: Box<[usize]>,
     min: f32,
     resolution: f32,
 }
@@ -185,10 +184,11 @@ impl Layer {
                 let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
                 end_lut.push(end_idx + offset);
             }
+            lut.extend_from_slice(&end_lut);
 
             layers[layer_id] = Self::Leaf(Snn {
-                lut,
-                end_lut,
+                lut: lut.into(),
+                // end_lut: end_lut.into(),
                 min: d_pos[0].floor(),
                 resolution,
             });
@@ -357,11 +357,11 @@ impl<'a, const D: usize> ATree<'a, D> {
         if snn.lut.is_empty() {
             return;
         }
-        let max_idx = snn.lut.len() - 1;
+        let max_idx = snn.lut.len() / 2 - 1;
         let idx = ((min * snn.resolution) as usize).min(max_idx);
         let end_idx = ((max * snn.resolution) as usize).min(max_idx);
         let min_i = snn.lut[idx];
-        let max_i = snn.end_lut[end_idx];
+        let max_i = snn.lut[end_idx + snn.lut.len() / 2];
 
         // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
         results.reserve(max_i - min_i);
