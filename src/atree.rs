@@ -140,10 +140,11 @@ impl Layer {
         // if nodes.len()
         //     <= ((atree.positions.len() as f64).powf((D as f64).recip()) as usize).max(LEAFSIZE)
         // {
-        if nodes.len() <= (atree.positions.len().isqrt()).max(LEAFSIZE) {
+        // if nodes.len() <= (atree.positions.len().isqrt()).max(LEAFSIZE) {
+        if nodes.len() <= LEAFSIZE {
             // if nodes.len() <= { 900 } {
             // if nodes.len() <= { 156 } {
-            let depth = D - 1;
+            // let depth = D - 1;
             // let depth = 0;
             // For leaf nodes, we need full sorting for the lookup table
             nodes.sort_unstable_by_key(|i| {
@@ -223,8 +224,8 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        let depth = (depth + 1) % (D - 1);
-        // let depth = (depth + 1) % D;
+        // let depth = (depth + 1) % (D - 1);
+        let depth = (depth + 1) % D;
 
         Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
         Layer::init(
@@ -286,8 +287,8 @@ impl<'a, const D: usize> ATree<'a, D> {
     ) {
         let layer = &self.layers[layer_id];
         let own_pos = pos[depth];
-        let new_depth = (depth + 1) % (D - 1);
-        // let new_depth = (depth + 1) % D;
+        // let new_depth = (depth + 1) % (D - 1);
+        let new_depth = (depth + 1) % D;
         match layer {
             Layer::Node(node) => {
                 let (left, right) = children(layer_id);
@@ -324,9 +325,9 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(snn) => {
-                let depth = D - 1;
-                // let dim_diff_squared = distances[depth];
-                // let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
+                // let depth = D - 1;
+                let dim_diff_squared = distances[depth];
+                let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
                 let reduced_radius = (dim_radius_squared).sqrt();
                 self.snn(
                     pos,
@@ -396,7 +397,7 @@ impl<const D: usize> Query<D> for ATree<'_, D> {
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
     fn name(&self) -> String {
-        String::from("atree2")
+        String::from("atree")
     }
     fn implementation_string(&self) -> &'static str {
         include_str!("atree.rs")
