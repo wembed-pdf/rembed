@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
@@ -21,11 +19,34 @@ impl<const D: usize> Point<D> {
             node_id: id as u32,
         }
     }
-    #[inline(always)]
-    fn closer_than(&self, other: &Self, radius_squared: f64) -> bool {
-        (self.squared_half + other.squared_half)
-            - self.pos.mul(other.pos).components.iter().sum::<f32>()
-            <= radius_squared as f32 / 2. + 1e-4
+    // #[inline(never)]
+    fn closer_than(&self, other: &Self, half_radius_threshold: f32) -> bool {
+        let a = &self.pos.components;
+        let b = &other.pos.components;
+        let dot: f32 = if D % 4 == 0 {
+            let mut acc = [0.0f32; 4];
+            let chunks = D / 4;
+            for i in 0..chunks {
+                let base = i * 4;
+                acc[0] += a[base] * b[base];
+                acc[1] += a[base + 1] * b[base + 1];
+                acc[2] += a[base + 2] * b[base + 2];
+                acc[3] += a[base + 3] * b[base + 3];
+            }
+            (acc[0] + acc[1]) + (acc[2] + acc[3])
+        } else if D % 2 == 0 {
+            let mut acc = [0.0f32; 2];
+            let chunks = D / 2;
+            for i in 0..chunks {
+                let base = i * 2;
+                acc[0] += a[base] * b[base];
+                acc[1] += a[base + 1] * b[base + 1];
+            }
+            acc[0] + acc[1]
+        } else {
+            a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum()
+        };
+        (self.squared_half + other.squared_half) - dot <= half_radius_threshold
     }
 }
 impl<const D: usize> std::ops::Index<usize> for Point<D> {
@@ -297,6 +318,8 @@ impl<'a, const D: usize> ATree<'a, D> {
                 } else {
                     (right, left)
                 };
+                let current_delta = distances[depth];
+                let dist = (own_pos - node.split).powi(2);
                 self.query_recursive(
                     pos,
                     new_depth,
@@ -306,8 +329,6 @@ impl<'a, const D: usize> ATree<'a, D> {
                     distances,
                     results,
                 );
-                let current_delta = distances[depth];
-                let dist = (own_pos - node.split).powi(2);
                 let reduced_radius = dim_radius_squared + current_delta - dist;
                 distances[depth] = dist;
                 if reduced_radius <= 0. {
@@ -366,13 +387,15 @@ impl<'a, const D: usize> ATree<'a, D> {
         // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
         results.reserve(max_i - min_i);
         let mut len = results.len();
+        let half_radius_threshold = original_radius_squared as f32 / 2. + 1e-4;
+        let radius_sq_f32 = original_radius_squared as f32;
         // dbg!(max_i - min_i);
         for i in min_i..max_i {
             let other_pos = self.positions_sorted[i];
             let is_in_radius = if D < 8 {
-                pos.pos.distance_squared(&other_pos.pos) <= original_radius_squared as f32
+                pos.pos.distance_squared(&other_pos.pos) <= radius_sq_f32
             } else {
-                pos.closer_than(&other_pos, original_radius_squared)
+                pos.closer_than(&other_pos, half_radius_threshold)
             };
             unsafe { *results.get_unchecked_mut(len) = other_pos.node_id as usize };
             len += is_in_radius as usize;
