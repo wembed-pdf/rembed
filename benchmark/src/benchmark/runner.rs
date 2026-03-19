@@ -71,6 +71,7 @@ pub fn profile_datastructures<'a, const D: usize>(
     data_structures: &[Box<dyn IndexClone<D> + 'a>],
     query_list: &[NodeId],
     benchmark_type: BenchmarkType,
+    fast: bool,
 ) -> Vec<MeasurementResult> {
     let mut results = Vec::with_capacity(data_structures.len());
     for structure in data_structures {
@@ -80,6 +81,7 @@ pub fn profile_datastructures<'a, const D: usize>(
             query_list,
             benchmark_type,
             structure.as_ref(),
+            fast,
         ));
     }
     results
@@ -91,10 +93,15 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     query_list: &[usize],
     benchmark_type: BenchmarkType,
     structure: &(dyn IndexClone<D> + 'a),
+    fast: bool,
 ) -> MeasurementResult {
     let mut samples = PerfMeasurements::new(1000);
-    let warmup = Duration::from_secs(10);
-    let measure = Duration::from_secs(200);
+    let mut warmup = Duration::from_secs(3);
+    let mut measure = Duration::from_secs(20);
+    if fast {
+        warmup = Duration::from_secs(1);
+        measure = Duration::from_secs(5);
+    }
     let queries = query_list.len();
     let sample_count = 10;
     c.warm_up_time(warmup);

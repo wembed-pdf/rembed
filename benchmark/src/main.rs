@@ -84,6 +84,9 @@ enum Commands {
         /// Enable dynamic downloading of graphs and positions during benchmarking (instead of requiring a prior pull)
         #[arg(long, default_value_t = false)]
         dynamic_download: bool,
+        /// Set benchmark to fast mode with shorter warmup and measurement times (for quick local testing)
+        #[arg(long, default_value_t = false)]
+        fast: bool,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -173,6 +176,9 @@ enum Commands {
         /// Enable dynamic downloading of graphs and positions during benchmarking (instead of requiring a prior pull)
         #[arg(long, default_value_t = false)]
         dynamic_download: bool,
+        /// Also check for over-queried nodes (nodes returned by the structure but not in the ground truth)
+        #[arg(long, default_value_t = false)]
+        check_over_query: bool,
     },
 
     /// Benchmark data structures with synthetic distributions
@@ -254,6 +260,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             allow_dirty,
             skip_test,
             dynamic_download,
+            fast,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
@@ -271,6 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         true,
                         Vec::new(),
                         dynamic_download,
+                        false,
                     )
                     .await?;
             }
@@ -343,6 +351,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     benchmarks,
                     structures,
                     dynamic_download,
+                    fast,
                 )
                 .await?;
         }
@@ -500,6 +509,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             run_unit_tests,
             structures,
             dynamic_download,
+            check_over_query,
         } => {
             // pull_files().await?;
             let database_url = env::var("DATABASE_URL")
@@ -517,6 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     run_unit_tests,
                     structures.unwrap_or_default(),
                     dynamic_download,
+                    check_over_query,
                 )
                 .await?;
         }

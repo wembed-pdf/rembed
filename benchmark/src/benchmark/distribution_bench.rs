@@ -229,6 +229,7 @@ impl DistributionBenchRunner {
                 &query_indices,
                 runner::BenchmarkType::MixedNodes,
                 structure.as_ref(),
+                false, // fast mode off for distribution benchmarks
             );
 
             results.push(BenchmarkRecord {

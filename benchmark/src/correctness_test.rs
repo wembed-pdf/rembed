@@ -234,6 +234,7 @@ impl CorrectnessTestManager {
         run_unit_tests: bool,
         structures: Vec<String>,
         dynamic_download: bool,
+        check_over_query: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if run_unit_tests {
             println!("Running unit tests from main crate...");
@@ -251,7 +252,9 @@ impl CorrectnessTestManager {
         if all_graphs {
             println!("Running extensive correctness tests...");
         } else {
-            println!("Running quick correctness tests on graphs with n < 5000...");
+            println!(
+                "Running quick correctness tests on graphs with n < 5000 use --all-graphs to allow larger graphs..."
+            );
         }
 
         struct TestResult {
@@ -340,6 +343,7 @@ impl CorrectnessTestManager {
                         !all_iterations,
                         structures,
                         dynamic_download,
+                        check_over_query,
                     )
                     .await?
                 }
@@ -349,6 +353,7 @@ impl CorrectnessTestManager {
                         !all_iterations,
                         structures,
                         dynamic_download,
+                        check_over_query,
                     )
                     .await?
                 }
@@ -358,6 +363,7 @@ impl CorrectnessTestManager {
                         !all_iterations,
                         structures,
                         dynamic_download,
+                        check_over_query,
                     )
                     .await?
                 }
@@ -367,6 +373,7 @@ impl CorrectnessTestManager {
                         !all_iterations,
                         structures,
                         dynamic_download,
+                        check_over_query,
                     )
                     .await?
                 }
@@ -376,6 +383,7 @@ impl CorrectnessTestManager {
                         !all_iterations,
                         structures,
                         dynamic_download,
+                        check_over_query,
                     )
                     .await?
                 }
@@ -392,6 +400,7 @@ impl CorrectnessTestManager {
         last_iteration_only: bool,
         structure_selection: &[String],
         dynamic_download: bool,
+        check_over_query: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Get test file info
         let test_record = sqlx::query_as!(
@@ -453,6 +462,7 @@ impl CorrectnessTestManager {
         };
 
         let mut total_errors = 0;
+        let mut over_queried_nodes = 0;
 
         for (iter_idx, embedding) in iterations_to_test.iter().enumerate() {
             let iteration_idx = if last_iteration_only {
@@ -477,12 +487,14 @@ impl CorrectnessTestManager {
                 {
                     continue; // Skip structures not in selection
                 }
-                let errors = self.test_structure(
+                let (errors, over_queried) = self.test_structure(
                     structure.as_ref() as &dyn SpatialIndex<D>,
                     &ground_truth[iteration_idx],
                     iteration_idx,
+                    check_over_query,
                 );
                 total_errors += errors;
+                over_queried_nodes += over_queried;
             }
         }
 
@@ -503,8 +515,12 @@ impl CorrectnessTestManager {
         structure: &'a (dyn rembed::query::SpatialIndex<D> + 'a),
         ground_truth: &'a [Vec<NodeId>],
         iteration: usize,
-    ) -> usize {
+        check_over_query: bool,
+    ) -> (usize, usize) {
         let mut errors = 0;
+        let mut over_queried_nodes = 0;
+        let mut avg_distance_pruning_error = 0.0;
+        let mut distance_pruning_error_count = 0;
 
         let results =
             structure.nearest_neighbors_batched(&(0..ground_truth.len()).collect::<Vec<_>>());
@@ -539,15 +555,46 @@ impl CorrectnessTestManager {
                 }
                 errors += 1;
             }
+            // Check for over-querying (actual contains nodes not in expected)
+            if check_over_query {
+                over_queried_nodes += actual.iter().filter(|n| !expected.contains(n)).count();
+                // compute average distance of over-queried nodes that should have been pruned due to distance pruning
+                for &extra in actual
+                    .iter()
+                    .filter(|&n| node_weight > structure.weight(*n) && !expected.contains(n))
+                {
+                    let approx_dist = structure
+                        .position(extra)
+                        .distance_squared(structure.position(node_id))
+                        as f64
+                        / ((node_weight as f64) * (node_weight as f64)).powi(2);
+                    if approx_dist > 1.0 + 1e-6 {
+                        avg_distance_pruning_error += approx_dist - 1.0;
+                        distance_pruning_error_count += 1;
+                    }
+                }
+            }
         }
 
-        if errors == 0 {
+        if errors == 0 && over_queried_nodes == 0 {
             println!("  ✓ {} passed", structure.name());
+        } else if errors == 0 && check_over_query {
+            println!(
+                "  ✓ {} passed with {} over-queried nodes (average distance pruning error: {:.2}, over-queries with lower weight: {})",
+                structure.name(),
+                over_queried_nodes,
+                if distance_pruning_error_count > 0 {
+                    avg_distance_pruning_error / distance_pruning_error_count as f64
+                } else {
+                    0.0
+                },
+                distance_pruning_error_count
+            );
         } else {
             println!("  ✗ {} failed with {} errors", structure.name(), errors);
         }
 
-        errors
+        (errors, over_queried_nodes)
     }
 
     fn print_diff(

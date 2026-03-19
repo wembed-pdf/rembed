@@ -63,6 +63,7 @@ impl LoadData {
         benchmarks: Option<Vec<BenchmarkType>>,
         structures: Option<Vec<String>>,
         dynamic_download: bool,
+        fast: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
 
@@ -259,6 +260,7 @@ impl LoadData {
                                 &structures,
                                 &data_directory,
                                 result,
+                                fast,
                             )
                             .await
                         {
@@ -285,6 +287,7 @@ impl LoadData {
         structures: &Option<Vec<String>>,
         data_directory: &str,
         result: sqlx::postgres::PgRow,
+        fast: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut c = Criterion::default().with_output_color(true).without_plots();
         let pos_path: String = result.get::<String, _>("pos_path");
@@ -310,6 +313,7 @@ impl LoadData {
                 benchmarks,
                 structures,
                 load_data: self,
+                fast,
             },
             &mut c,
         )
@@ -408,6 +412,7 @@ struct BenchmarkArgs<'a> {
     benchmarks: &'a Option<Vec<BenchmarkType>>,
     structures: &'a Option<Vec<String>>,
     load_data: &'a LoadData,
+    fast: bool,
 }
 
 macro_rules! dispatch_dim {
@@ -434,6 +439,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         benchmarks,
         structures,
         load_data,
+        fast,
     } = args;
     let iterations: Iterations<D> = rembed::parsing::parse_positions_file(embedding_path).unwrap();
 
@@ -525,6 +531,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                             &query_list,
                             *benchmark_type,
                             structure.as_ref(),
+                            fast,
                         ),
                         benchmark_type,
                     );
