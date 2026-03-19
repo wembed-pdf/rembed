@@ -1,5 +1,6 @@
 use crate::{
     Embedding, NodeId, Query,
+    atree::simd::PDVec,
     dvec::DVec,
     query::{self, Position, SpatialIndex, Update},
 };
@@ -10,6 +11,8 @@ pub struct Point<const D: usize> {
     squared_half: f32,
     node_id: u32,
 }
+
+pub mod simd;
 
 impl<const D: usize> Point<D> {
     fn new(pos: DVec<D>, id: usize) -> Self {
@@ -23,46 +26,7 @@ impl<const D: usize> Point<D> {
     fn closer_than(&self, other: &Self) -> f32 {
         let a = &self.pos.components;
         let b = &other.pos.components;
-        let dot: f32 = if D >= 4 && D.is_multiple_of(4) {
-            let mut acc = [a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]];
-            let chunks = D / 4;
-            for i in 1..chunks {
-                let base = i * 4;
-                acc[0] += a[base] * b[base];
-                acc[1] += a[base + 1] * b[base + 1];
-                acc[2] += a[base + 2] * b[base + 2];
-                acc[3] += a[base + 3] * b[base + 3];
-            }
-            // Reduce: adjacent pairs first (matches vhaddps pattern)
-            let s01 = acc[0] + acc[1];
-            let s23 = acc[2] + acc[3];
-            s01 + s23
-        } else if D >= 6 && D % 4 == 2 {
-            let mut acc = [a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]];
-            let chunks = D / 4;
-            for i in 1..chunks {
-                let base = i * 4;
-                acc[0] += a[base] * b[base];
-                acc[1] += a[base + 1] * b[base + 1];
-                acc[2] += a[base + 2] * b[base + 2];
-                acc[3] += a[base + 3] * b[base + 3];
-            }
-            let tail = chunks * 4;
-            let s01 = acc[0] + acc[1];
-            let s23 = acc[2] + acc[3];
-            s01 + s23 + (a[tail] * b[tail] + a[tail + 1] * b[tail + 1])
-        } else if D >= 2 && D.is_multiple_of(2) {
-            let mut acc = [a[0] * b[0], a[1] * b[1]];
-            let chunks = D / 2;
-            for i in 1..chunks {
-                let base = i * 2;
-                acc[0] += a[base] * b[base];
-                acc[1] += a[base + 1] * b[base + 1];
-            }
-            acc[0] + acc[1]
-        } else {
-            a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum()
-        };
+        let dot: f32 = a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum();
         (self.squared_half + other.squared_half) - dot
     }
 }
@@ -75,11 +39,12 @@ impl<const D: usize> std::ops::Index<usize> for Point<D> {
 }
 
 const LEAFSIZE: usize = 150;
+const W: usize = 8;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
-    pub positions_sorted: Vec<Point<D>>,
+    pub positions_sorted: Vec<PDVec<D, W>>,
     pub node_ids: Vec<usize>,
     pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
@@ -137,11 +102,36 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         );
         self.layers = layers;
         self.node_ids = node_ids;
-        self.positions_sorted = self
-            .node_ids
-            .iter()
-            .map(|id| Point::new(*self.position(*id), *id))
-            .collect();
+        self.positions_sorted.clear();
+
+        for (layer_id, structure) in self.layers.iter_mut().enumerate() {
+            let Layer::Leaf(snn) = structure else {
+                continue;
+            };
+            let offset = snn.lut[0];
+            let last = snn.lut.last().expect("empty lut");
+            let node_ids = &self.node_ids[offset..*last];
+            let new_offset = self.positions_sorted.len();
+
+            for chunk in node_ids.chunks(W) {
+                let pdvec = PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
+                self.positions_sorted.push(pdvec)
+            }
+            let half_len = snn.lut.len() / 2;
+            for lut_entry in &mut snn.lut[0..half_len] {
+                *lut_entry = (*lut_entry - offset) / W + new_offset;
+            }
+            for lut_entry in &mut snn.lut[half_len..] {
+                *lut_entry = (*lut_entry - offset).div_ceil(W) + new_offset;
+            }
+
+            // let offset =
+        }
+        // self.positions_sorted = self
+        //     .node_ids
+        //     .chunks(W)
+        //     .map(|chunk| PDVec::new(chunk.iter().map(|id| (*self.position(*id), *id))))
+        //     .collect();
         self.d_pos = d_pos;
     }
 }
@@ -220,6 +210,7 @@ impl Layer {
                 // for any value that truncates to bucket i
                 let next_boundary = ((i + 1) as f32 / resolution) + min;
                 let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
+                // TODO: Guard against adding nodes multiple times
                 end_lut.push(end_idx + offset);
             }
             lut.extend_from_slice(&end_lut);
@@ -402,18 +393,44 @@ impl<'a, const D: usize> ATree<'a, D> {
         let max_i = snn.lut[end_idx + snn.lut.len() / 2];
 
         // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
-        results.reserve(max_i - min_i);
+        results.reserve((max_i - min_i) * W + W - 1);
         let mut len = results.len();
         let half_radius_threshold = original_radius_squared as f32 / 2. + 1e-4;
         let radius_sq_f32 = original_radius_squared as f32;
         for other_pos in &self.positions_sorted[min_i..max_i] {
-            let is_in_radius = if D < 8 {
-                pos.pos.distance_squared(&other_pos.pos) <= radius_sq_f32
-            } else {
-                pos.closer_than(other_pos) <= half_radius_threshold
+            let results_slice = unsafe {
+                std::slice::from_raw_parts_mut(
+                    results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<usize>,
+                    W,
+                )
             };
-            unsafe { *results.get_unchecked_mut(len) = other_pos.node_id as usize };
-            len += is_in_radius as usize;
+            let new_elements = if D < 6 {
+                let distances = other_pos.dist_squared(pos.pos);
+                other_pos.compare(distances, radius_sq_f32, results_slice.try_into().unwrap())
+            } else {
+                let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
+                other_pos.compare(
+                    distances,
+                    half_radius_threshold,
+                    results_slice.try_into().unwrap(),
+                )
+            };
+            // for id in &results_slice[0..new_elements] {
+            //     let value = unsafe { id.assume_init_read() };
+            //     if value > 1_000_000 {
+            //         let distances = other_pos.dist_squared(pos.pos);
+            //         let distances_2 = other_pos.dist_half_squared(pos.pos, pos.squared_half);
+            //         let new_pos = other_pos.compare(
+            //             distances,
+            //             radius_sq_f32,
+            //             results_slice.try_into().unwrap(),
+            //         );
+            //         dbg!(other_pos, pos);
+            //         dbg!(value, distances, distances_2, new_pos);
+            //         panic!();
+            //     }
+            // }
+            len += new_elements;
         }
         unsafe { results.set_len(len) };
     }
