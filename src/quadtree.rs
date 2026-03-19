@@ -1,8 +1,3 @@
-use core::panic;
-
-use rayon::result;
-use spatialtree::Tree;
-
 use crate::{
     Embedding, NodeId, Query,
     dvec::DVec,
@@ -122,16 +117,6 @@ impl TreeQuery {
             && self.contains_fast(DVec::<2>::new([rect.aa[0], rect.bb[1]]))
             && self.contains_fast(DVec::<2>::new([rect.bb[0], rect.aa[1]]))
     }
-}
-
-fn determine_overlap_quadrants(outer: &Rect, inner: &Rect) -> Vec<usize> {
-    let mut quadrants = Vec::with_capacity(4);
-    for (i, rect) in outer.quarter().iter().enumerate() {
-        if rect.intersects(inner) {
-            quadrants.push(i);
-        }
-    }
-    quadrants
 }
 
 /// A generic Quadtree implementation for spatial indexing of 2D points
