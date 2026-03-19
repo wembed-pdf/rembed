@@ -4,10 +4,30 @@ use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialOrd)]
 #[repr(transparent)]
 pub struct DVec<const D: usize> {
     pub components: [f32; D],
+}
+
+impl<const D: usize> std::hash::Hash for DVec<D> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for &component in &self.components {
+            // Hash the bit representation of f32
+            state.write_u32(component.to_bits());
+        }
+    }
+}
+
+impl<const D: usize> Eq for DVec<D> {}
+
+impl<const D: usize> PartialEq for DVec<D> {
+    fn eq(&self, other: &Self) -> bool {
+        self.components
+            .iter()
+            .zip(other.components.iter())
+            .all(|(&a, &b)| a.to_bits() == b.to_bits())
+    }
 }
 
 impl<const D: usize> Default for DVec<D> {

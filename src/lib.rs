@@ -22,6 +22,7 @@ pub mod nabo;
 pub mod nanoflann;
 pub mod neighbourhood;
 pub mod parsing;
+pub mod quadtree;
 pub mod query;
 pub mod random_projection_lsh;
 pub mod sif;
@@ -71,6 +72,7 @@ pub fn data_structures<'a, const D: usize>(
             as Box<dyn IndexClone<D> + 'a>,
         // Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(quadtree::Quadtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter();
 
