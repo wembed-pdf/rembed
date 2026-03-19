@@ -16,7 +16,6 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         for (i, (vec, id)) in vecs.enumerate().take(W) {
             inf.sqared_half[i] = vec.magnitude_squared() / 2.;
             inf.ids[i] = id as u32;
-            assert!((id as u32) < 4294967295);
             for j in 0..D {
                 inf.lanes[j][i] = vec.components[j];
             }
@@ -34,7 +33,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         }
     }
 
-    // #[inline(never)]
+    #[inline(always)]
     pub fn dist_squared(&self, pos: DVec<D>) -> [f32; W] {
         let diff = std::array::from_fn(|i| self.lanes[0][i] - pos[0]);
         let mut acc = diff.map(|x| x * x);
@@ -45,7 +44,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
 
         acc
     }
-    // #[inline(never)]
+    #[inline(always)]
     pub fn dist_half_squared(&self, pos: DVec<D>, squared_half: f32) -> [f32; W] {
         let mut acc1: [f32; W] = std::array::from_fn(|i| self.sqared_half[i]);
         let mut acc2: [f32; W] = std::array::from_fn(|_| squared_half);
@@ -60,7 +59,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         std::array::from_fn(|i| acc1[i] + acc2[i])
     }
 
-    // #[inline(never)]
+    #[inline(always)]
     pub fn compare(
         &self,
         distances: [f32; W],
