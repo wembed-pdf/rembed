@@ -52,7 +52,7 @@ impl<const D: usize> Query<D> for Embedding<'_, D> {
         {
             let weight = own_weight * node.weight;
             let distance = own_position.distance_squared(position);
-            if (distance as f64) < weight.powi(2) * radius {
+            if (distance as f64) <= (weight * radius).powi(2) {
                 results.push(i);
             }
         }
