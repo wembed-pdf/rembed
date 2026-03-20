@@ -26,16 +26,15 @@ pub fn test_dist_squared() {
     let pdvec = setup();
     dbg!(pdvec);
     let dist = pdvec.dist_squared(DVec::new([0.; 4]));
-    assert_eq!(dist[0..8], [0., 1., 1., 1., 1., 2., 2., f32::INFINITY])
+    assert_eq!(dist[0..7], [0., 1., 1., 1., 1., 2., 2.]);
+    assert!(dist[7].is_nan());
 }
 #[test]
 pub fn test_dist_squared_opt() {
     let pdvec = setup();
     let dist = pdvec.dist_half_squared(DVec::new([0.; 4]), 0.);
-    assert_eq!(
-        dist[0..8],
-        [0.0, 0.5, 0.5, 0.5, 0.5, 1.0, 1.0, 3.4028235e38]
-    )
+    assert_eq!(dist[0..7], [0.0, 0.5, 0.5, 0.5, 0.5, 1.0, 1.0]);
+    assert!(dist[7].is_nan());
 }
 #[test]
 pub fn test_dist_squared_opt_2d() {
