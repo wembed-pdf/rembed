@@ -2,7 +2,7 @@ use crate::{
     Embedding, NodeId, Query,
     atree::simd::PDVec,
     dvec::DVec,
-    query::{self, Position, SpatialIndex, Update},
+    query::{self, SpatialIndex, Update},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -31,6 +31,7 @@ impl<const D: usize> std::ops::Index<usize> for Point<D> {
 
 const LEAFSIZE: usize = 150;
 const W: usize = 8;
+const TOP_HEIGHT: usize = 7;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
@@ -39,7 +40,9 @@ pub struct ATree<'a, const D: usize> {
     pub node_ids: Vec<usize>,
     pub d_pos: Vec<f32>,
     pub graph: &'a crate::graph::Graph,
-    layers: Vec<Layer>,
+    nodes: Vec<f32>,
+    leaves: Vec<Snn>,
+    total_depth: usize,
 }
 
 impl<const D: usize> crate::query::Graph for ATree<'_, D> {
@@ -75,30 +78,43 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
             }
         }
 
-        let mut node_ids: Vec<_> = (0..postions.len()).collect();
+        let n = postions.len();
+        let td = compute_total_depth(n);
+        self.total_depth = td;
 
-        let mut d_pos = vec![0.; node_ids.len()];
-        let mut layers = std::mem::take(&mut self.layers);
-        if layers.len() < node_ids.len() {
-            layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
+        let num_internal = (1usize << td) - 1;
+        let num_leaves = 1usize << td;
+
+        let mut nodes = std::mem::take(&mut self.nodes);
+        let mut leaves = std::mem::take(&mut self.leaves);
+        if nodes.len() != num_internal {
+            nodes = vec![0.0; num_internal];
         }
-        Layer::init(
+        if leaves.len() != num_leaves {
+            leaves = vec![Snn::default(); num_leaves];
+        }
+
+        let mut node_ids: Vec<_> = (0..n).collect();
+        let mut d_pos = vec![0.; node_ids.len()];
+
+        build_tree(
+            &mut nodes,
+            &mut leaves,
             node_ids.as_mut_slice(),
             d_pos.as_mut_slice(),
-            &mut layers,
             0,
+            td,
             0,
-            self,
+            &self.positions,
             0,
         );
-        self.layers = layers;
+
+        self.nodes = nodes;
+        self.leaves = leaves;
         self.node_ids = node_ids;
         self.positions_sorted.clear();
 
-        for (layer_id, structure) in self.layers.iter_mut().enumerate() {
-            let Layer::Leaf(snn) = structure else {
-                continue;
-            };
+        for snn in self.leaves.iter_mut() {
             let offset = snn.lut[0];
             let last = snn.lut.last().expect("empty lut");
             let node_ids = &self.node_ids[offset..*last];
@@ -120,11 +136,6 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
     }
 }
 
-#[derive(Clone, Debug)]
-struct Node {
-    split: f32,
-}
-
 #[derive(Clone, Debug, Default)]
 struct Snn {
     lut: Box<[usize]>,
@@ -132,114 +143,109 @@ struct Snn {
     resolution: f32,
 }
 
-#[derive(Clone, Debug)]
-enum Layer {
-    Node(Node),
-    Leaf(Snn),
+fn build_tree<const D: usize>(
+    nodes: &mut [f32],
+    leaves: &mut [Snn],
+    node_ids: &mut [NodeId],
+    d_pos: &mut [f32],
+    depth: usize,
+    total_depth: usize,
+    heap_idx: usize,
+    positions: &[DVec<D>],
+    offset: usize,
+) {
+    if depth == total_depth {
+        node_ids
+            .sort_unstable_by_key(|i| i32::from_ne_bytes(positions[*i][depth % D].to_ne_bytes()));
+
+        for (d_pos, pos) in d_pos
+            .iter_mut()
+            .zip(node_ids.iter().map(|id| &positions[*id]))
+        {
+            *d_pos = pos[depth % D];
+        }
+        let mut lut = vec![];
+        let mut end_lut = vec![];
+        let min = d_pos[0].floor();
+        let slack = d_pos.len() - node_ids.len();
+        let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
+        let num_buckets = lut_size::<D>();
+        let resolution = num_buckets as f32 / (max - min);
+        for i in 0..num_buckets {
+            let boundary = (i as f32 / resolution) + min;
+            let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
+            lut.push(start_idx + offset);
+            let next_boundary = ((i + 1) as f32 / resolution) + min;
+            let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
+            end_lut.push(end_idx + offset);
+        }
+        lut.extend_from_slice(&end_lut);
+
+        let leaf_idx = heap_idx - ((1 << total_depth) - 1);
+        leaves[leaf_idx] = Snn {
+            lut: lut.into(),
+            min: d_pos[0].floor(),
+            resolution,
+        };
+        return;
+    }
+
+    let median_idx = node_ids.len() / 2;
+    node_ids.select_nth_unstable_by_key(median_idx, |i| {
+        i32::from_ne_bytes(positions[*i][depth % D].to_ne_bytes())
+    });
+
+    let split = positions[node_ids[median_idx]][depth % D];
+    let mut split_pos = median_idx;
+
+    let mut i = 0;
+    while i < split_pos {
+        if positions[node_ids[i]][depth % D] == split {
+            split_pos -= 1;
+            node_ids.swap(i, split_pos);
+        } else {
+            i += 1;
+        }
+    }
+
+    let slack = d_pos.len() - node_ids.len();
+    let (a_ids, b_ids) = node_ids.split_at_mut(split_pos);
+    let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos + slack / 2);
+
+    let (a_id, b_id) = children(heap_idx);
+    let depth = depth + 1;
+
+    build_tree(
+        nodes,
+        leaves,
+        a_ids,
+        a_dpos,
+        depth,
+        total_depth,
+        a_id,
+        positions,
+        offset,
+    );
+    build_tree(
+        nodes,
+        leaves,
+        b_ids,
+        b_dpos,
+        depth,
+        total_depth,
+        b_id,
+        positions,
+        offset + split_pos,
+    );
+
+    nodes[heap_idx] = split;
 }
 
-impl Layer {
-    fn init<const D: usize>(
-        nodes: &mut [NodeId],
-        d_pos: &mut [f32],
-        layers: &mut [Layer],
-        depth: usize,
-        layer_id: usize,
-        atree: &ATree<D>,
-        offset: usize,
-    ) {
-        let total_depth = (atree.positions.len() / LEAFSIZE).ilog2() + 1;
-        if depth == total_depth as usize {
-            // if nodes.len() <= LEAFSIZE {
-            // For leaf nodes, we need full sorting for the lookup table
-            nodes.sort_unstable_by_key(|i| {
-                i32::from_ne_bytes(atree.position(*i)[depth % D].to_ne_bytes())
-            });
-
-            for (d_pos, pos) in d_pos
-                .iter_mut()
-                .zip(nodes.iter().map(|id| atree.position(*id)))
-            {
-                *d_pos = pos[depth % D];
-            }
-            let mut lut = vec![];
-            let mut end_lut = vec![];
-            let min = d_pos[0].floor();
-            let slack = d_pos.len() - nodes.len();
-            let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
-            // let multiplier = dim_lut_multiplier::<D>();
-            // let resolution = (nodes.len().max(10) as f32 * multiplier) / (max - min);
-            // let num_buckets = ((max - min) * resolution).ceil() as i32;
-            let num_buckets = lut_size::<D>();
-            let resolution = num_buckets as f32 / (max - min);
-            // dbg!(num_buckets, max - min, resolution, nodes.len(), multiplier);
-            for i in 0..num_buckets {
-                let boundary = (i as f32 / resolution) + min;
-                let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
-                lut.push(start_idx + offset);
-                // Use the next bucket's boundary so end_lut[i] is an upper bound
-                // for any value that truncates to bucket i
-                let next_boundary = ((i + 1) as f32 / resolution) + min;
-                let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
-                // TODO: Guard against adding nodes multiple times
-                end_lut.push(end_idx + offset);
-            }
-            lut.extend_from_slice(&end_lut);
-
-            layers[layer_id] = Self::Leaf(Snn {
-                lut: lut.into(),
-                // end_lut: end_lut.into(),
-                min: d_pos[0].floor(),
-                resolution,
-            });
-            return;
-        }
-
-        // For internal nodes, use select_nth_unstable to partition around median
-        let median_idx = nodes.len() / 2;
-        nodes.select_nth_unstable_by_key(median_idx, |i| {
-            i32::from_ne_bytes(atree.position(*i)[depth % D].to_ne_bytes())
-        });
-
-        // After select_nth_unstable, all elements left of median_idx have values <= pivot
-        // We need to move elements equal to pivot to the right side for strict partitioning
-        let split = atree.position(nodes[median_idx])[depth % D];
-        let mut split_pos = median_idx;
-
-        let mut i = 0;
-        while i < split_pos {
-            if atree.position(nodes[i])[depth % D] == split {
-                // Move equal value to the end of left half and shrink left half
-                split_pos -= 1;
-                nodes.swap(i, split_pos);
-                // Don't increment i, check the swapped element
-            } else {
-                i += 1;
-            }
-        }
-
-        let slack = d_pos.len() - nodes.len();
-        let (a_ids, b_ids) = nodes.split_at_mut(split_pos);
-        let (a_dpos, b_dpos) = d_pos.split_at_mut(split_pos + slack / 2);
-
-        let (a_id, b_id) = children(layer_id);
-
-        // let depth = (depth + 1) % D;
-        let depth = depth + 1;
-
-        Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
-        Layer::init(
-            b_ids,
-            b_dpos,
-            layers,
-            depth,
-            b_id,
-            atree,
-            offset + split_pos,
-        );
-
-        let node = Node { split };
-        layers[layer_id] = Self::Node(node);
+fn compute_total_depth(n: usize) -> usize {
+    if n <= LEAFSIZE {
+        0
+    } else {
+        (n / LEAFSIZE).ilog2() as usize + 1
     }
 }
 
@@ -265,22 +271,30 @@ fn children(index: usize) -> (usize, usize) {
 
 impl<'a, const D: usize> ATree<'a, D> {
     pub fn new(embedding: &Embedding<'a, D>) -> Self {
-        let mut line_lsh = ATree {
+        let n = embedding.positions.len();
+        let td = compute_total_depth(n);
+        let num_internal = (1usize << td) - 1;
+        let num_leaves = 1usize << td;
+
+        let mut tree = ATree {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
-            layers: vec![Layer::Node(Node { split: 0. }); embedding.positions.len()],
+            nodes: vec![0.0; num_internal],
+            leaves: vec![Snn::default(); num_leaves],
+            total_depth: td,
         };
-        if !line_lsh.positions.is_empty() {
-            line_lsh.update_positions(&embedding.positions, None);
+        if !tree.positions.is_empty() {
+            tree.update_positions(&embedding.positions, None);
         }
-        line_lsh
+        tree
     }
     pub fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         self.query_recursive(
             Point::new(pos, 0),
+            0,
             0,
             0,
             radius.powi(2) as f32,
@@ -294,64 +308,68 @@ impl<'a, const D: usize> ATree<'a, D> {
         &self,
         pos: Point<D>,
         depth: usize,
-        layer_id: usize,
+        dim: usize,
+        heap_idx: usize,
         dim_radius_squared: f32,
         original_radius_squared: f64,
         mut distances: DVec<D>,
         results: &mut Vec<NodeId>,
     ) {
-        let layer = &self.layers[layer_id];
         let new_depth = depth + 1;
-        let depth = depth % D;
-        let own_pos = pos[depth];
-        match layer {
-            Layer::Node(node) => {
-                let (left, right) = children(layer_id);
-                let (own, other) = if own_pos < node.split {
-                    (left, right)
-                } else {
-                    (right, left)
-                };
-                let current_delta = distances[depth];
-                let dist = (own_pos - node.split).powi(2);
-                self.query_recursive(
-                    pos,
-                    new_depth,
-                    own,
-                    dim_radius_squared,
-                    original_radius_squared,
-                    distances,
-                    results,
-                );
-                let reduced_radius = dim_radius_squared + current_delta - dist;
-                distances[depth] = dist;
-                if reduced_radius <= 0. {
-                    return;
-                }
+        let new_dim = if dim + 1 == D { 0 } else { dim + 1 };
+        let own_pos = pos[dim];
 
-                self.query_recursive(
-                    pos,
-                    new_depth,
-                    other,
-                    reduced_radius,
-                    original_radius_squared,
-                    distances,
-                    results,
-                );
-            }
-            Layer::Leaf(snn) => {
-                let dim_diff_squared = distances[depth];
-                let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
-                self.snn(
-                    pos,
-                    depth,
-                    reduced_radius,
-                    original_radius_squared,
-                    results,
-                    snn,
-                );
-            }
+        if depth == self.total_depth {
+            let leaf_idx = heap_idx - ((1 << self.total_depth) - 1);
+            let snn = &self.leaves[leaf_idx];
+            let dim_diff_squared = distances[dim];
+            let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
+            self.snn(
+                pos,
+                dim,
+                reduced_radius,
+                original_radius_squared,
+                results,
+                snn,
+            );
+            return;
         }
+
+        let split = self.nodes[heap_idx];
+        let (left, right) = children(heap_idx);
+        let (own, other) = if own_pos < split {
+            (left, right)
+        } else {
+            (right, left)
+        };
+        let current_delta = distances[dim];
+        let dist = (own_pos - split).powi(2);
+        self.query_recursive(
+            pos,
+            new_depth,
+            new_dim,
+            own,
+            dim_radius_squared,
+            original_radius_squared,
+            distances,
+            results,
+        );
+        let reduced_radius = dim_radius_squared + current_delta - dist;
+        distances[dim] = dist;
+        if reduced_radius <= 0. {
+            return;
+        }
+
+        self.query_recursive(
+            pos,
+            new_depth,
+            new_dim,
+            other,
+            reduced_radius,
+            original_radius_squared,
+            distances,
+            results,
+        );
     }
 
     // #[inline(never)]
@@ -370,7 +388,7 @@ impl<'a, const D: usize> ATree<'a, D> {
         if snn.lut.is_empty() {
             return;
         }
-        let max_idx = snn.lut.len() / 2 - 1;
+        let max_idx = lut_size::<D>() - 1;
         let idx = ((min * snn.resolution) as usize).min(max_idx);
         let end_idx = ((max * snn.resolution) as usize).min(max_idx);
         let min_i = snn.lut[idx];
@@ -426,6 +444,7 @@ impl<const D: usize> Query<D> for ATree<'_, D> {
         assert_eq!(self.positions.len(), self.node_ids.len());
         self.query_recursive(
             Point::new(pos, 0),
+            0,
             0,
             0,
             radius as f32,
