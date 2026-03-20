@@ -84,7 +84,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         self.compare_scalar(distances, squared_radius_half, results)
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn compare_scalar(
         &self,
         distances: [f32; W],
