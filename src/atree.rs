@@ -31,7 +31,6 @@ impl<const D: usize> std::ops::Index<usize> for Point<D> {
 
 const LEAFSIZE: usize = 150;
 const W: usize = 8;
-const TOP_HEIGHT: usize = 7;
 
 #[derive(Clone)]
 pub struct ATree<'a, const D: usize> {
@@ -296,80 +295,91 @@ impl<'a, const D: usize> ATree<'a, D> {
             Point::new(pos, 0),
             0,
             0,
-            0,
             radius.powi(2) as f32,
             radius,
-            DVec::zero(),
+            &mut DVec::zero(),
             results,
         );
     }
+
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn query_recursive(
+    fn query_recursive(
         &self,
         pos: Point<D>,
         depth: usize,
-        dim: usize,
         heap_idx: usize,
         dim_radius_squared: f32,
         original_radius_squared: f64,
-        mut distances: DVec<D>,
+        distances: &mut DVec<D>,
         results: &mut Vec<NodeId>,
     ) {
-        let new_depth = depth + 1;
-        let new_dim = if dim + 1 == D { 0 } else { dim + 1 };
-        let own_pos = pos[dim];
-
+        let dim = depth % D;
         if depth == self.total_depth {
             let leaf_idx = heap_idx - ((1 << self.total_depth) - 1);
             let snn = &self.leaves[leaf_idx];
-            let dim_diff_squared = distances[dim];
-            let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
-            self.snn(
-                pos,
-                dim,
-                reduced_radius,
-                original_radius_squared,
-                results,
-                snn,
-            );
+            let reduced = (dim_radius_squared + distances[dim]).sqrt();
+            self.snn(pos, dim, reduced, original_radius_squared, results, snn);
             return;
         }
 
         let split = self.nodes[heap_idx];
         let (left, right) = children(heap_idx);
-        let (own, other) = if own_pos < split {
-            (left, right)
-        } else {
-            (right, left)
-        };
+        let own_pos = pos[dim];
+        // let new_dim = if dim + 1 == D { 0 } else { dim + 1 };
+        // let new_dim = (depth + 1) % D;
         let current_delta = distances[dim];
         let dist = (own_pos - split).powi(2);
-        self.query_recursive(
-            pos,
-            new_depth,
-            new_dim,
-            own,
-            dim_radius_squared,
-            original_radius_squared,
-            distances,
-            results,
-        );
-        let reduced_radius = dim_radius_squared + current_delta - dist;
-        distances[dim] = dist;
-        if reduced_radius <= 0. {
-            return;
-        }
+        let other_radius = dim_radius_squared + current_delta - dist;
 
-        self.query_recursive(
-            pos,
-            new_depth,
-            new_dim,
-            other,
-            reduced_radius,
-            original_radius_squared,
-            distances,
-            results,
-        );
+        if own_pos < split {
+            // own=left, other=right — natural order
+            self.query_recursive(
+                pos,
+                depth + 1,
+                left,
+                dim_radius_squared,
+                original_radius_squared,
+                distances,
+                results,
+            );
+            distances[dim] = dist;
+            if other_radius > 0.0 {
+                self.query_recursive(
+                    pos,
+                    depth + 1,
+                    right,
+                    other_radius,
+                    original_radius_squared,
+                    distances,
+                    results,
+                );
+            }
+            distances[dim] = current_delta; // restore
+        } else {
+            // own=right, other=left — swap order, scan left first
+            distances[dim] = dist;
+            if other_radius > 0.0 {
+                self.query_recursive(
+                    pos,
+                    depth + 1,
+                    left,
+                    other_radius,
+                    original_radius_squared,
+                    distances,
+                    results,
+                );
+            }
+            distances[dim] = current_delta; // restore for own side
+            self.query_recursive(
+                pos,
+                depth + 1,
+                right,
+                dim_radius_squared,
+                original_radius_squared,
+                distances,
+                results,
+            );
+        }
     }
 
     // #[inline(never)]
@@ -446,10 +456,9 @@ impl<const D: usize> Query<D> for ATree<'_, D> {
             Point::new(pos, 0),
             0,
             0,
-            0,
             radius as f32,
             radius,
-            DVec::zero(),
+            &mut DVec::zero(),
             results,
         );
     }
