@@ -79,8 +79,11 @@ enum Commands {
         #[arg(long)]
         structures: Option<Vec<String>>,
         /// Skip running of unit tests
-        #[arg(long)]
+        #[arg(long, default_value_t = false)]
         skip_test: bool,
+        /// Alias for skipping tests (for convenience)
+        #[arg(long, default_value_t = false)]
+        skip_tests: bool,
         /// Enable dynamic downloading of graphs and positions during benchmarking (instead of requiring a prior pull)
         #[arg(long, default_value_t = false)]
         dynamic_download: bool,
@@ -222,6 +225,10 @@ enum Commands {
         /// Output file path (optional, defaults to stdout with pretty print)
         #[arg(long, short)]
         output: Option<String>,
+
+        /// Set benchmark to fast mode with shorter warmup and measurement times (for quick local testing)
+        #[arg(long, default_value_t = false)]
+        fast: bool,
     },
 }
 
@@ -259,6 +266,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             structures,
             allow_dirty,
             skip_test,
+            skip_tests,
             dynamic_download,
             fast,
         } => {
@@ -266,7 +274,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
             let pool = PgPool::connect(&database_url).await?;
 
-            if !skip_test {
+            if !(skip_test || skip_tests) {
                 let test_manager = CorrectnessTestManager::new(pool.clone());
                 test_manager
                     .run_tests(
@@ -543,6 +551,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             num_queries,
             seed,
             output,
+            fast,
         } => {
             use benchmark::benchmark::distribution_bench::{
                 DistributionBenchConfig, DistributionBenchRunner,
@@ -558,6 +567,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 seed,
                 benchmarksets: None,
                 path_to_benchmarksets: benchmarksets_path.clone(),
+                fast,
             };
 
             // Parse distributions

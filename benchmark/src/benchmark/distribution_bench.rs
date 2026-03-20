@@ -16,6 +16,7 @@ pub struct DistributionBenchConfig {
     pub structures: Vec<String>,
     pub num_queries: usize,
     pub seed: u64,
+    pub fast: bool,
 }
 
 impl DistributionBenchConfig {
@@ -81,6 +82,7 @@ impl DistributionBenchRunner {
             );
             let dimensions = self.config.expand_dimensions();
             let node_counts = self.config.expand_node_counts();
+            let fast = self.config.fast; // fast mode off for distribution benchmarks
 
             eprintln!("Running distribution benchmarks:");
             eprintln!("  Dimensions: {:?}", dimensions);
@@ -123,6 +125,7 @@ impl DistributionBenchRunner {
                                 node_count,
                                 radius,
                                 distribution,
+                                fast,
                             )?;
 
                             all_results.extend(results);
@@ -166,6 +169,7 @@ impl DistributionBenchRunner {
                         node_count,
                         radius,
                         &distribution,
+                        false,
                     )?;
                     all_results.extend(results);
                 }
@@ -180,6 +184,7 @@ impl DistributionBenchRunner {
         node_count: usize,
         radius: f64,
         distribution: &PointDistribution,
+        fast: bool,
     ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         // Generate synthetic points
         let points =
@@ -227,9 +232,9 @@ impl DistributionBenchRunner {
                 &embedding,
                 &mut group,
                 &query_indices,
-                runner::BenchmarkType::MixedNodes,
+                runner::BenchmarkType::Radius(radius as f32, format!("radius_{}", radius)),
                 structure.as_ref(),
-                false, // fast mode off for distribution benchmarks
+                fast, // fast mode off for distribution benchmarks
             );
 
             results.push(BenchmarkRecord {
@@ -373,14 +378,19 @@ impl DistributionBenchRunner {
         node_count: usize,
         radius: f64,
         distribution: &PointDistribution,
+        fast: bool,
     ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         match dim {
-            2 => Ok(self.run_benchmark_for_config::<2>(node_count, radius, distribution)?),
-            3 => Ok(self.run_benchmark_for_config::<3>(node_count, radius, distribution)?),
-            4 => Ok(self.run_benchmark_for_config::<4>(node_count, radius, distribution)?),
-            8 => Ok(self.run_benchmark_for_config::<8>(node_count, radius, distribution)?),
-            16 => Ok(self.run_benchmark_for_config::<16>(node_count, radius, distribution)?),
-            32 => Ok(self.run_benchmark_for_config::<32>(node_count, radius, distribution)?),
+            2 => Ok(self.run_benchmark_for_config::<2>(node_count, radius, distribution, fast)?),
+            3 => Ok(self.run_benchmark_for_config::<3>(node_count, radius, distribution, fast)?),
+            4 => Ok(self.run_benchmark_for_config::<4>(node_count, radius, distribution, fast)?),
+            8 => Ok(self.run_benchmark_for_config::<8>(node_count, radius, distribution, fast)?),
+            16 => {
+                Ok(self.run_benchmark_for_config::<16>(node_count, radius, distribution, fast)?)
+            }
+            32 => {
+                Ok(self.run_benchmark_for_config::<32>(node_count, radius, distribution, fast)?)
+            }
             _ => {
                 eprintln!("Unsupported dimension: {}", dim);
                 panic!("Unsupported dimension");

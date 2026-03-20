@@ -504,7 +504,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         let mut group = c.benchmark_group(format!("result_{result_id}@{iteration}_dim-{D}"));
 
         let process_results = |m: MeasurementResult, ty: &BenchmarkType| BenchmarkResult {
-            benchmark_type: *ty,
+            benchmark_type: ty.clone(),
             data_structure_name: m.data_structure_name,
             result_id,
             iteration_number: iteration,
@@ -529,7 +529,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                             embedding,
                             &mut group,
                             &query_list,
-                            *benchmark_type,
+                            benchmark_type.clone(),
                             structure.as_ref(),
                             fast,
                         ),
@@ -551,7 +551,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
             .map(|x| x.as_slice())
             .unwrap_or(BenchmarkType::all());
         for benchmark in benchmarks {
-            let query_list = query_list_for_type(*benchmark, embedding);
+            let query_list = query_list_for_type(benchmark.clone(), embedding);
             run_benchmark_with_query_list(query_list, benchmark).await;
         }
     }
@@ -567,6 +567,9 @@ fn query_list_for_type<'a, const D: usize>(
         BenchmarkType::AllNodes => query_sparse(embedding, embedding.positions.len()),
         BenchmarkType::HeavyNodes => query_heavy(embedding, 10000),
         BenchmarkType::PositionUpdate => (0..embedding.positions.len()).collect(),
+        BenchmarkType::Radius(radius, _) => unimplemented!(
+            "Radius-based query list generation not implemented yet, radius: {radius}"
+        ),
     }
 }
 

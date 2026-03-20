@@ -5,23 +5,25 @@ use super::perf_measurement::{PerfMeasurements, PerfStatistics};
 use criterion::{BenchmarkGroup, measurement::WallTime};
 use rembed::{Embedding, NodeId, query::IndexClone};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum BenchmarkType {
     PositionUpdate,
     MixedNodes,
     LightNodes,
     HeavyNodes,
     AllNodes,
+    Radius(f32, String),
 }
 
 impl BenchmarkType {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             BenchmarkType::PositionUpdate => "position_update",
             BenchmarkType::MixedNodes => "mixed_nodes",
             BenchmarkType::LightNodes => "light_nodes",
             BenchmarkType::HeavyNodes => "heavy_nodes",
             BenchmarkType::AllNodes => "all_nodes",
+            BenchmarkType::Radius(_, reference) => reference.as_str(),
         }
     }
 
@@ -46,6 +48,16 @@ impl FromStr for BenchmarkType {
             "light_nodes" => BenchmarkType::LightNodes,
             "heavy_nodes" => BenchmarkType::HeavyNodes,
             "all_nodes" => BenchmarkType::AllNodes,
+            s if s.starts_with("radius_") => {
+                let parts: Vec<&str> = s.splitn(2, '_').collect();
+                if parts.len() != 2 {
+                    return Err("Invalid radius benchmark format".to_string());
+                }
+                let radius = parts[1]
+                    .parse::<f32>()
+                    .map_err(|_| "Invalid radius value".to_string())?;
+                BenchmarkType::Radius(radius, s.to_string())
+            }
             _ => return Err("Invalid benchmark type".to_string()),
         })
     }
@@ -79,7 +91,7 @@ pub fn profile_datastructures<'a, const D: usize>(
             embedding,
             c,
             query_list,
-            benchmark_type,
+            benchmark_type.clone(),
             structure.as_ref(),
             fast,
         ));

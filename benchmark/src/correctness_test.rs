@@ -462,7 +462,6 @@ impl CorrectnessTestManager {
         };
 
         let mut total_errors = 0;
-        let mut over_queried_nodes = 0;
 
         for (iter_idx, embedding) in iterations_to_test.iter().enumerate() {
             let iteration_idx = if last_iteration_only {
@@ -487,14 +486,13 @@ impl CorrectnessTestManager {
                 {
                     continue; // Skip structures not in selection
                 }
-                let (errors, over_queried) = self.test_structure(
+                let errors = self.test_structure(
                     structure.as_ref() as &dyn SpatialIndex<D>,
                     &ground_truth[iteration_idx],
                     iteration_idx,
                     check_over_query,
                 );
                 total_errors += errors;
-                over_queried_nodes += over_queried;
             }
         }
 
@@ -516,7 +514,7 @@ impl CorrectnessTestManager {
         ground_truth: &'a [Vec<NodeId>],
         iteration: usize,
         check_over_query: bool,
-    ) -> (usize, usize) {
+    ) -> usize {
         let mut errors = 0;
         let mut over_queried_nodes = 0;
         let mut avg_distance_pruning_error = 0.0;
@@ -594,7 +592,7 @@ impl CorrectnessTestManager {
             println!("  ✗ {} failed with {} errors", structure.name(), errors);
         }
 
-        (errors, over_queried_nodes)
+        errors
     }
 
     fn print_diff(
