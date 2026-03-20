@@ -9,7 +9,6 @@ use crate::{
 pub struct Point<const D: usize> {
     pos: DVec<D>,
     squared_half: f32,
-    node_id: u32,
 }
 
 pub mod simd;
@@ -19,15 +18,7 @@ impl<const D: usize> Point<D> {
         Self {
             pos,
             squared_half: pos.magnitude_squared() / 2.,
-            node_id: id as u32,
         }
-    }
-    // #[inline(never)]
-    fn closer_than(&self, other: &Self) -> f32 {
-        let a = &self.pos.components;
-        let b = &other.pos.components;
-        let dot: f32 = a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum();
-        (self.squared_half + other.squared_half) - dot
     }
 }
 impl<const D: usize> std::ops::Index<usize> for Point<D> {
@@ -124,14 +115,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
             for lut_entry in &mut snn.lut[half_len..] {
                 *lut_entry = (*lut_entry - offset).div_ceil(W) + new_offset;
             }
-
-            // let offset =
         }
-        // self.positions_sorted = self
-        //     .node_ids
-        //     .chunks(W)
-        //     .map(|chunk| PDVec::new(chunk.iter().map(|id| (*self.position(*id), *id))))
-        //     .collect();
         self.d_pos = d_pos;
     }
 }
@@ -164,43 +148,30 @@ impl Layer {
         atree: &ATree<D>,
         offset: usize,
     ) {
-        // if nodes.len()
-        //     <= ((atree.positions.len() as f64).powf((D as f64).recip()) as usize).max(LEAFSIZE)
-        // {
-        // if nodes.len() <= (atree.positions.len().isqrt()).max(LEAFSIZE) {
-        if nodes.len() <= LEAFSIZE {
-            // if nodes.len() <= { 900 } {
-            // if nodes.len() <= { 156 } {
-            // let depth = D - 1;
-            // let depth = 0;
+        let total_depth = (atree.positions.len() / LEAFSIZE).ilog2() + 1;
+        if depth == total_depth as usize {
+            // if nodes.len() <= LEAFSIZE {
             // For leaf nodes, we need full sorting for the lookup table
             nodes.sort_unstable_by_key(|i| {
-                i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
+                i32::from_ne_bytes(atree.position(*i)[depth % D].to_ne_bytes())
             });
 
             for (d_pos, pos) in d_pos
                 .iter_mut()
                 .zip(nodes.iter().map(|id| atree.position(*id)))
             {
-                *d_pos = pos[depth];
+                *d_pos = pos[depth % D];
             }
             let mut lut = vec![];
             let mut end_lut = vec![];
             let min = d_pos[0].floor();
             let slack = d_pos.len() - nodes.len();
             let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
-            let multiplier = match D {
-                x if x <= 2 => 0.125,
-                x if x <= 8 => 0.5,
-                x if x <= 12 => 0.8,
-                // x if x <= 12 => 1.5,
-                x if x > 12 => 2.,
-                _ => unreachable!(),
-            };
-            // let multiplier = 2.;
-            let resolution = (nodes.len().max(10) as f32 * multiplier) / (max - min);
-            // let resolution = 1.;
-            let num_buckets = ((max - min) * resolution).ceil() as i32;
+            // let multiplier = dim_lut_multiplier::<D>();
+            // let resolution = (nodes.len().max(10) as f32 * multiplier) / (max - min);
+            // let num_buckets = ((max - min) * resolution).ceil() as i32;
+            let num_buckets = lut_size::<D>();
+            let resolution = num_buckets as f32 / (max - min);
             // dbg!(num_buckets, max - min, resolution, nodes.len(), multiplier);
             for i in 0..num_buckets {
                 let boundary = (i as f32 / resolution) + min;
@@ -227,17 +198,17 @@ impl Layer {
         // For internal nodes, use select_nth_unstable to partition around median
         let median_idx = nodes.len() / 2;
         nodes.select_nth_unstable_by_key(median_idx, |i| {
-            i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
+            i32::from_ne_bytes(atree.position(*i)[depth % D].to_ne_bytes())
         });
 
         // After select_nth_unstable, all elements left of median_idx have values <= pivot
         // We need to move elements equal to pivot to the right side for strict partitioning
-        let split = atree.position(nodes[median_idx])[depth];
+        let split = atree.position(nodes[median_idx])[depth % D];
         let mut split_pos = median_idx;
 
         let mut i = 0;
         while i < split_pos {
-            if atree.position(nodes[i])[depth] == split {
+            if atree.position(nodes[i])[depth % D] == split {
                 // Move equal value to the end of left half and shrink left half
                 split_pos -= 1;
                 nodes.swap(i, split_pos);
@@ -253,8 +224,8 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        // let depth = (depth + 1) % (D - 1);
-        let depth = (depth + 1) % D;
+        // let depth = (depth + 1) % D;
+        let depth = depth + 1;
 
         Layer::init(a_ids, a_dpos, layers, depth, a_id, atree, offset);
         Layer::init(
@@ -270,6 +241,21 @@ impl Layer {
         let node = Node { split };
         layers[layer_id] = Self::Node(node);
     }
+}
+
+const fn dim_lut_multiplier<const D: usize>() -> f32 {
+    match D {
+        x if x <= 2 => 0.125,
+        x if x <= 8 => 0.5,
+        x if x <= 12 => 0.8,
+        // x if x <= 12 => 1.5,
+        x if x > 12 => 2.,
+        _ => unreachable!(),
+    }
+}
+const fn lut_size<const D: usize>() -> usize {
+    let multiplier = dim_lut_multiplier::<D>();
+    (multiplier * (LEAFSIZE as f32)) as usize
 }
 
 #[inline(always)]
@@ -315,9 +301,9 @@ impl<'a, const D: usize> ATree<'a, D> {
         results: &mut Vec<NodeId>,
     ) {
         let layer = &self.layers[layer_id];
+        let new_depth = depth + 1;
+        let depth = depth % D;
         let own_pos = pos[depth];
-        // let new_depth = (depth + 1) % (D - 1);
-        let new_depth = (depth + 1) % D;
         match layer {
             Layer::Node(node) => {
                 let (left, right) = children(layer_id);
@@ -354,10 +340,8 @@ impl<'a, const D: usize> ATree<'a, D> {
                 );
             }
             Layer::Leaf(snn) => {
-                // let depth = D - 1;
                 let dim_diff_squared = distances[depth];
                 let reduced_radius = (dim_radius_squared + dim_diff_squared).sqrt();
-                // let reduced_radius = (dim_radius_squared).sqrt();
                 self.snn(
                     pos,
                     depth,
@@ -426,7 +410,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             //             results_slice.try_into().unwrap(),
             //         );
             //         dbg!(other_pos, pos);
-            //         dbg!(value, distances, distances_2, new_pos);
+            //         dbg!(value, distances, distances_2, new_pos, new_elements);
             //         panic!();
             //     }
             // }
