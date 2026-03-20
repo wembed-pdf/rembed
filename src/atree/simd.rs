@@ -27,9 +27,9 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
     }
     pub fn inf() -> Self {
         Self {
-            lanes: [[f32::MIN; W]; D],
-            sqared_half: [f32::MAX; W],
-            ids: [u32::MAX; W],
+            lanes: [[f32::NAN; W]; D],
+            sqared_half: [f32::INFINITY; W],
+            ids: [4242424242; W],
         }
     }
 
@@ -93,8 +93,8 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
     ) -> usize {
         let mut sum = 0;
         for i in 0..W {
-            let cond = distances[i] <= squared_radius_half;
             unsafe { results[sum].as_mut_ptr().write(self.ids[i] as usize) };
+            let cond = distances[i] <= squared_radius_half;
             sum += cond as usize;
         }
         sum
