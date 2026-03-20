@@ -3,7 +3,6 @@ use crate::{
     dvec::DVec,
     query::{self, Graph, Position, SpatialIndex, Update},
 };
-// use quadtree::{self, Quadtree, DVec<2>, shapes::Rect, DVec<2>};
 
 const DEPTH: usize = 10;
 const NODE_CAPACITY: usize = 50;
@@ -17,7 +16,6 @@ pub struct Rect {
 }
 
 impl Rect {
-    /// Create a new rect with a start and end point
     pub const fn new(a: DVec<2>, b: DVec<2>) -> Self {
         Self { aa: a, bb: b }
     }
@@ -161,16 +159,6 @@ impl QuadtreeTree {
         let items = items.to_vec();
         let num_items = items.len();
         let mut failed = Vec::with_capacity(items.len());
-        // println!(
-        //     "Inserting {} items into quadtree with count {} and capacity {}",
-        //     items.len(),
-        //     self.count,
-        //     self.node_capacity
-        // );
-        // println!(
-        //     "Root node has no children: {}",
-        //     self.root.children.is_none()
-        // );
         self.root
             .insert_many(items, self.node_capacity, 0, self.max_depth, &mut failed);
         self.count += num_items - failed.len();
@@ -195,12 +183,6 @@ impl QuadtreeTree {
     }
 }
 
-/// Quadtree node enum
-///
-/// ## Variants
-/// - `Internal`: Contains children nodes and represents a subdivided area
-/// - `External`: Contains data and represents a leaf node
-/// - `Empty`: Represents an empty area without any data
 #[derive(Debug)]
 pub struct Node {
     bound: Rect,
@@ -252,11 +234,10 @@ impl Node {
         all_items.extend(items);
         let children = self.subdivide();
         self.children = Some(children);
-        // self.only_ids.clear();
+        self.only_ids.clear();
         self.insert_many(all_items, capacity, depth, max_depth, failed);
     }
 
-    #[inline(never)]
     fn query_ref(&self, shape: &TreeQuery, results: &mut Vec<NodeId>) {
         if self.children.is_none() {
             if shape.contains_rect(&self.bound) {
