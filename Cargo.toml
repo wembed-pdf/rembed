@@ -17,7 +17,8 @@ default-run = "rembed"
 [dependencies]
 acap = "0.4.0"
 crossbeam = "0.8.4"
-kiddo = { version = "5.0.3", features = ["simd"] }
+# kiddo = { version = "5.0.3", features = ["simd"] }
+kiddo = { version = "5.0.3" }
 memmap = "0.7.0"
 nabo = "0.5.0"
 nanoflann = { version = "0.1.0", path = "nanoflann", optional = true }
