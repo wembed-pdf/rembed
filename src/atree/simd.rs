@@ -1,5 +1,8 @@
 use std::mem::MaybeUninit;
 
+#[cfg(feature = "simd-compress")]
+use wide::CmpLe;
+
 use crate::dvec::DVec;
 
 #[derive(Debug, Clone, Copy)]
@@ -69,16 +72,25 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         #[cfg(target_arch = "x86_64")]
         {
             if is_x86_feature_detected!("avx512f") {
-                if W == 16 {
-                    return unsafe {
-                        self.compare_avx512_16(distances, squared_radius_half, results)
-                    };
-                }
                 if W == 8 {
                     return unsafe {
                         self.compare_avx512_8(distances, squared_radius_half, results)
                     };
                 }
+                if W == 16 {
+                    return unsafe {
+                        self.compare_avx512_16(distances, squared_radius_half, results)
+                    };
+                }
+            }
+        }
+        #[cfg(feature = "simd-compress")]
+        {
+            if W == 8 {
+                return self.compare_simd_8(distances, squared_radius_half, results);
+            }
+            if W == 16 {
+                return self.compare_simd_16(distances, squared_radius_half, results);
             }
         }
         self.compare_scalar(distances, squared_radius_half, results)
@@ -100,8 +112,11 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         sum
     }
 
+    // --- AVX-512 intrinsics (fastest path) ---
+
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx512f")]
+    #[inline(never)]
     unsafe fn compare_avx512_8(
         &self,
         distances: [f32; W],
@@ -117,7 +132,6 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
             let ids = _mm256_loadu_epi32(self.ids.as_ptr() as *const i32);
             let compressed = _mm256_maskz_compress_epi32(mask, ids);
 
-            // Widen 8 u32s → u64s and store (two groups of 4)
             let lo128 = _mm256_castsi256_si128(compressed);
             let hi128 = _mm256_extracti128_si256::<1>(compressed);
             let widened_lo = _mm256_cvtepu32_epi64(lo128);
@@ -131,6 +145,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
 
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx512f")]
+    #[inline(never)]
     unsafe fn compare_avx512_16(
         &self,
         distances: [f32; W],
@@ -168,5 +183,84 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
 
             mask.count_ones() as usize
         }
+    }
+
+    // --- simd-lookup fallback (cross-platform, no AVX-512 required) ---
+
+    #[cfg(feature = "simd-compress")]
+    #[inline(never)]
+    fn compare_simd_8(
+        &self,
+        distances: [f32; W],
+        squared_radius_half: f32,
+        results: &mut [MaybeUninit<usize>; W],
+    ) -> usize {
+        use simd_lookup::simd_compress::compress_u32x8;
+        use simd_lookup::wide_utils::WideUtilsExt;
+        use wide::{f32x8, u32x4, u32x8};
+
+        let dist = f32x8::new(unsafe { *(distances.as_ptr() as *const [f32; 8]) });
+        let threshold = f32x8::splat(squared_radius_half);
+        let mask = dist.simd_le(threshold).to_bitmask() as u8;
+
+        let ids = u32x8::from(unsafe { *(self.ids.as_ptr() as *const [u32; 8]) });
+        let (compressed, count) = compress_u32x8(ids, mask);
+
+        let arr = compressed.to_array();
+        let lo = u32x4::from([arr[0], arr[1], arr[2], arr[3]]);
+        let hi = u32x4::from([arr[4], arr[5], arr[6], arr[7]]);
+        let widened_lo = lo.widen_to_u64x8();
+        let widened_hi = hi.widen_to_u64x8();
+
+        unsafe {
+            let ptr = results.as_mut_ptr() as *mut wide::u64x4;
+            ptr.write_unaligned(widened_lo);
+            ptr.add(1).write_unaligned(widened_hi);
+        }
+        count
+    }
+
+    #[cfg(feature = "simd-compress")]
+    #[inline(never)]
+    fn compare_simd_16(
+        &self,
+        distances: [f32; W],
+        squared_radius_half: f32,
+        results: &mut [MaybeUninit<usize>; W],
+    ) -> usize {
+        use simd_lookup::simd_compress::compress_u32x8;
+        use simd_lookup::wide_utils::{SimdSplit, WideUtilsExt};
+        use wide::{f32x8, u32x4, u32x16};
+
+        let dist_lo = f32x8::new(unsafe { *(distances.as_ptr() as *const [f32; 8]) });
+        let dist_hi = f32x8::new(unsafe { *(distances.as_ptr().add(8) as *const [f32; 8]) });
+        let threshold = f32x8::splat(squared_radius_half);
+        let mask_lo = dist_lo.simd_le(threshold).to_bitmask() as u8;
+        let mask_hi = dist_hi.simd_le(threshold).to_bitmask() as u8;
+
+        let ids = u32x16::from(unsafe { *(self.ids.as_ptr() as *const [u32; 16]) });
+        let (ids_lo, ids_hi) = ids.split_low_high();
+
+        let (comp_lo, count_lo) = compress_u32x8(ids_lo, mask_lo);
+        let arr_lo = comp_lo.to_array();
+        let lo_lo = u32x4::from([arr_lo[0], arr_lo[1], arr_lo[2], arr_lo[3]]);
+        let lo_hi = u32x4::from([arr_lo[4], arr_lo[5], arr_lo[6], arr_lo[7]]);
+        unsafe {
+            let ptr = results.as_mut_ptr() as *mut wide::u64x4;
+            ptr.write_unaligned(lo_lo.widen_to_u64x8());
+            ptr.add(1).write_unaligned(lo_hi.widen_to_u64x8());
+        }
+
+        let (comp_hi, count_hi) = compress_u32x8(ids_hi, mask_hi);
+        let arr_hi = comp_hi.to_array();
+        let hi_lo = u32x4::from([arr_hi[0], arr_hi[1], arr_hi[2], arr_hi[3]]);
+        let hi_hi = u32x4::from([arr_hi[4], arr_hi[5], arr_hi[6], arr_hi[7]]);
+        unsafe {
+            let ptr = results.as_mut_ptr().add(count_lo) as *mut wide::u64x4;
+            ptr.write_unaligned(hi_lo.widen_to_u64x8());
+            ptr.add(1).write_unaligned(hi_hi.widen_to_u64x8());
+        }
+
+        count_lo + count_hi
     }
 }
