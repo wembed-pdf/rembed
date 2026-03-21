@@ -188,11 +188,11 @@ enum Commands {
     BenchDistributions {
         /// Dimensions to test (range format: "2-16" or single value "8")
         #[arg(long, default_value = "2-16")]
-        dimensions: Option<String>,
+        dimensions: String,
 
         /// Node counts to test (range format: "1000-10000" or single value)
         #[arg(long, default_value = "1000-10000")]
-        node_counts: Option<String>,
+        node_counts: String,
 
         /// Radiuses to test (range format: "0.5-2.0" or single value)
         #[arg(long, default_value = "1.0")]
@@ -558,11 +558,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let mut config = DistributionBenchConfig {
-                dim_range: None,
-                count_range: None,
-                radius_range: parse_f64_range(&radiuses)?,
+                dims: Vec::new(),
+                counts: Vec::new(),
+                radii: Vec::new(),
                 distributions: None,
-                structures,
+                structures: structures
+                    .into_iter()
+                    .flat_map(|s| {
+                        s.split(',')
+                            .map(|s| s.trim().to_string())
+                            .collect::<Vec<String>>()
+                    })
+                    .collect(),
                 num_queries,
                 seed,
                 benchmarksets: None,
@@ -570,17 +577,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fast,
             };
 
+            config.dims = dimensions
+                .split(',')
+                .map(|s| s.trim().parse::<usize>())
+                .collect::<Result<Vec<usize>, _>>()?;
+            config.counts = node_counts
+                .split(',')
+                .map(|s| s.trim().parse::<usize>())
+                .collect::<Result<Vec<usize>, _>>()?;
+            config.radii = radiuses
+                .split(',')
+                .map(|s| s.trim().parse::<f64>())
+                .collect::<Result<Vec<f64>, _>>()?;
             // Parse distributions
-            if distributions.is_some() {
-                assert!(
-                    dimensions.is_some() && node_counts.is_some(),
-                    "Dimensions and node_counts must be specified when distributions are provided"
-                );
-                config.dim_range = Some(parse_usize_range(&dimensions.unwrap())?);
-                config.count_range = Some(parse_usize_range(&node_counts.unwrap())?);
-
-                config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
-            }
+            config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
 
             // Parse benchmarksets
             if benchmarksets.is_some() {

@@ -7,9 +7,9 @@ use std::io::Write;
 
 #[derive(Debug, Clone)]
 pub struct DistributionBenchConfig {
-    pub dim_range: Option<(usize, usize)>,
-    pub count_range: Option<(usize, usize)>,
-    pub radius_range: (f64, f64),
+    pub dims: Vec<usize>,
+    pub counts: Vec<usize>,
+    pub radii: Vec<f64>,
     pub distributions: Option<Vec<PointDistribution>>,
     pub benchmarksets: Option<Vec<String>>,
     pub path_to_benchmarksets: Option<String>,
@@ -17,34 +17,6 @@ pub struct DistributionBenchConfig {
     pub num_queries: usize,
     pub seed: u64,
     pub fast: bool,
-}
-
-impl DistributionBenchConfig {
-    pub fn expand_dimensions(&self) -> Vec<usize> {
-        vec![2, 3, 4, 8, 16, 32]
-            .into_iter()
-            .filter(|&d| d >= self.dim_range.unwrap().0 && d <= self.dim_range.unwrap().1)
-            .collect()
-    }
-
-    pub fn expand_node_counts(&self) -> Vec<usize> {
-        // Generate powers of 10 within range
-        vec![100, 1000, 10000, 100000, 1000000]
-            .into_iter()
-            .filter(|&n| n >= self.count_range.unwrap().0 && n <= self.count_range.unwrap().1)
-            .collect()
-    }
-
-    pub fn expand_radiuses(&self) -> Vec<f64> {
-        if self.radius_range.0 == self.radius_range.1 {
-            return vec![self.radius_range.0];
-        }
-        // Generate log-spaced radiuses
-        vec![0.1, 0.25, 0.5, 1.0]
-            .into_iter()
-            .filter(|&r| r >= self.radius_range.0 && r <= self.radius_range.1)
-            .collect()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -74,20 +46,13 @@ impl DistributionBenchRunner {
 
     pub fn run(&self) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         let mut all_results = Vec::new();
-        let radiuses = self.config.expand_radiuses();
         if self.config.distributions.is_some() {
-            assert!(
-                self.config.dim_range.is_some() && self.config.count_range.is_some(),
-                "When specifying distributions, dim_range and count_range must also be specified"
-            );
-            let dimensions = self.config.expand_dimensions();
-            let node_counts = self.config.expand_node_counts();
             let fast = self.config.fast; // fast mode off for distribution benchmarks
 
             eprintln!("Running distribution benchmarks:");
-            eprintln!("  Dimensions: {:?}", dimensions);
-            eprintln!("  Node counts: {:?}", node_counts);
-            eprintln!("  Radiuses: {:?}", radiuses);
+            eprintln!("  Dimensions: {:?}", self.config.dims);
+            eprintln!("  Node counts: {:?}", self.config.counts);
+            eprintln!("  Radiuses: {:?}", self.config.radii);
             eprintln!(
                 "  Distributions: {:?}",
                 self.config
@@ -99,15 +64,15 @@ impl DistributionBenchRunner {
                     .collect::<Vec<_>>()
             );
             eprintln!();
-            let total = dimensions.len()
-                * node_counts.len()
-                * radiuses.len()
+            let total = self.config.dims.len()
+                * self.config.counts.len()
+                * self.config.radii.len()
                 * self.config.distributions.as_ref().unwrap().len();
             let mut current = 0;
 
-            for &dim in &dimensions {
-                for &node_count in &node_counts {
-                    for &radius in &radiuses {
+            for &dim in &self.config.dims {
+                for &node_count in &self.config.counts {
+                    for &radius in &self.config.radii {
                         for distribution in self.config.distributions.as_ref().unwrap() {
                             current += 1;
                             eprintln!(
@@ -137,7 +102,7 @@ impl DistributionBenchRunner {
 
         if let Some(benchmarksets) = &self.config.benchmarksets {
             for benchmarkset in benchmarksets {
-                for &radius in &radiuses {
+                for &radius in &self.config.radii {
                     assert!(
                         self.config.path_to_benchmarksets.is_some(),
                         "path_to_benchmarksets must be specified when using benchmarksets"
