@@ -11,10 +11,22 @@ pub struct Point<const D: usize> {
     squared_half: f32,
 }
 
+use std::cell::RefCell;
+
+#[derive(Clone, Copy)]
+struct LeafRange {
+    min_i: usize,
+    max_i: usize,
+}
+
+thread_local! {
+    static SCRATCH: RefCell<Vec<LeafRange>> = RefCell::new(Vec::with_capacity(128));
+}
+
 pub mod simd;
 
 impl<const D: usize> Point<D> {
-    fn new(pos: DVec<D>, id: usize) -> Self {
+    fn new(pos: DVec<D>) -> Self {
         Self {
             pos,
             squared_half: pos.magnitude_squared() / 2.,
@@ -250,11 +262,10 @@ fn compute_total_depth(n: usize) -> usize {
 
 const fn dim_lut_multiplier<const D: usize>() -> f32 {
     match D {
-        x if x <= 2 => 0.125,
+        x if x <= 2 => 0.1,
         x if x <= 8 => 0.5,
         x if x <= 12 => 0.8,
-        // x if x <= 12 => 1.5,
-        x if x > 12 => 2.,
+        x if x > 12 => 1.5,
         _ => unreachable!(),
     }
 }
@@ -291,158 +302,132 @@ impl<'a, const D: usize> ATree<'a, D> {
         tree
     }
     pub fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
-        self.query_recursive(
-            Point::new(pos, 0),
-            0,
-            0,
-            radius.powi(2) as f32,
-            radius,
-            &mut DVec::zero(),
-            results,
-        );
+        let pos = Point::new(pos);
+        let radius_sq = radius.powi(2);
+
+        SCRATCH.with(|scratch| {
+            let mut ranges = scratch.borrow_mut();
+            ranges.clear();
+
+            // Phase 1: collect leaf ranges — only touches nodes[] + snn
+            self.collect_ranges(&pos, 0, 0, radius_sq as f32, &mut DVec::zero(), &mut ranges);
+
+            self.snn(results, pos, radius_sq, ranges);
+        });
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn query_recursive(
+    fn collect_ranges(
         &self,
-        pos: Point<D>,
+        pos: &Point<D>,
         depth: usize,
         heap_idx: usize,
         dim_radius_squared: f32,
-        original_radius_squared: f64,
         distances: &mut DVec<D>,
-        results: &mut Vec<NodeId>,
+        out: &mut Vec<LeafRange>,
     ) {
         let dim = depth % D;
+
         if depth == self.total_depth {
             let leaf_idx = heap_idx - ((1 << self.total_depth) - 1);
             let snn = &self.leaves[leaf_idx];
-            let reduced = (dim_radius_squared + distances[dim]).sqrt();
-            self.snn(pos, dim, reduced, original_radius_squared, results, snn);
+            if snn.lut.is_empty() {
+                return;
+            }
+
+            let own_pos = pos[dim] - snn.min;
+            let reduced_radius = (dim_radius_squared + distances[dim]).sqrt();
+            let min = own_pos - reduced_radius;
+            let max = own_pos + reduced_radius;
+            let max_lut = lut_size::<D>() - 1;
+
+            let idx = if min * snn.resolution >= 0.0 {
+                (min * snn.resolution) as usize
+            } else {
+                0
+            }
+            .min(max_lut);
+            let end_idx = if max * snn.resolution >= 0.0 {
+                (max * snn.resolution) as usize
+            } else {
+                0
+            }
+            .min(max_lut);
+
+            let min_i = snn.lut[idx];
+            let max_i = snn.lut[end_idx + snn.lut.len() / 2];
+
+            out.push(LeafRange { min_i, max_i });
             return;
         }
 
         let split = self.nodes[heap_idx];
         let (left, right) = children(heap_idx);
         let own_pos = pos[dim];
-        // let new_dim = if dim + 1 == D { 0 } else { dim + 1 };
-        // let new_dim = (depth + 1) % D;
         let current_delta = distances[dim];
         let dist = (own_pos - split).powi(2);
         let other_radius = dim_radius_squared + current_delta - dist;
 
+        // Always left-first for forward-sequential positions_sorted access
         if own_pos < split {
-            // own=left, other=right — natural order
-            self.query_recursive(
-                pos,
-                depth + 1,
-                left,
-                dim_radius_squared,
-                original_radius_squared,
-                distances,
-                results,
-            );
+            self.collect_ranges(pos, depth + 1, left, dim_radius_squared, distances, out);
             distances[dim] = dist;
             if other_radius > 0.0 {
-                self.query_recursive(
-                    pos,
-                    depth + 1,
-                    right,
-                    other_radius,
-                    original_radius_squared,
-                    distances,
-                    results,
-                );
+                self.collect_ranges(pos, depth + 1, right, other_radius, distances, out);
             }
-            distances[dim] = current_delta; // restore
+            distances[dim] = current_delta;
         } else {
-            // own=right, other=left — swap order, scan left first
             distances[dim] = dist;
             if other_radius > 0.0 {
-                self.query_recursive(
-                    pos,
-                    depth + 1,
-                    left,
-                    other_radius,
-                    original_radius_squared,
-                    distances,
-                    results,
-                );
+                self.collect_ranges(pos, depth + 1, left, other_radius, distances, out);
             }
-            distances[dim] = current_delta; // restore for own side
-            self.query_recursive(
-                pos,
-                depth + 1,
-                right,
-                dim_radius_squared,
-                original_radius_squared,
-                distances,
-                results,
-            );
+            distances[dim] = current_delta;
+            self.collect_ranges(pos, depth + 1, right, dim_radius_squared, distances, out);
         }
     }
 
-    // #[inline(never)]
     fn snn(
         &self,
-        pos: Point<D>,
-        depth: usize,
-        reduced_radius: f32,
-        original_radius_squared: f64,
         results: &mut Vec<usize>,
-        snn: &Snn,
+        pos: Point<D>,
+        radius_sq: f64,
+        ranges: std::cell::RefMut<'_, Vec<LeafRange>>,
     ) {
-        let own_pos = pos[depth] - snn.min;
-        let min = own_pos - reduced_radius;
-        let max = own_pos + reduced_radius;
-        if snn.lut.is_empty() {
-            return;
-        }
-        let max_idx = lut_size::<D>() - 1;
-        let idx = ((min * snn.resolution) as usize).min(max_idx);
-        let end_idx = ((max * snn.resolution) as usize).min(max_idx);
-        let min_i = snn.lut[idx];
-        let max_i = snn.lut[end_idx + snn.lut.len() / 2];
+        // Single reserve for everything
+        let mut capacity = results.capacity();
 
-        // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
-        results.reserve((max_i - min_i) * W + W - 1);
+        // Phase 2: forward sweep through positions_sorted
+        let initial_len = results.len();
         let mut len = results.len();
-        let half_radius_threshold = original_radius_squared as f32 / 2. + 1e-4;
-        let radius_sq_f32 = original_radius_squared as f32;
-        for other_pos in &self.positions_sorted[min_i..max_i] {
-            let results_slice = unsafe {
-                std::slice::from_raw_parts_mut(
-                    results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<usize>,
-                    W,
-                )
-            };
-            let new_elements = if D < 6 {
-                let distances = other_pos.dist_squared(pos.pos);
-                other_pos.compare(distances, radius_sq_f32, results_slice.try_into().unwrap())
-            } else {
-                let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
-                other_pos.compare(
-                    distances,
-                    half_radius_threshold,
-                    results_slice.try_into().unwrap(),
-                )
-            };
-            // for id in &results_slice[0..new_elements] {
-            //     let value = unsafe { id.assume_init_read() };
-            //     if value > 1_000_000 {
-            //         let distances = other_pos.dist_squared(pos.pos);
-            //         let distances_2 = other_pos.dist_half_squared(pos.pos, pos.squared_half);
-            //         let new_pos = other_pos.compare(
-            //             distances,
-            //             radius_sq_f32,
-            //             results_slice.try_into().unwrap(),
-            //         );
-            //         dbg!(other_pos, pos);
-            //         dbg!(value, distances, distances_2, new_pos, new_elements);
-            //         panic!();
-            //     }
-            // }
-            len += new_elements;
+        let half_radius_threshold = radius_sq as f32 / 2. + 1e-4;
+        let radius_sq_f32 = radius_sq as f32;
+
+        for range in ranges.iter() {
+            // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
+            if len + (range.max_i - range.min_i) * W + W - 1 > capacity {
+                results.reserve((len - initial_len) + (range.max_i - range.min_i) * W + W - 1);
+                capacity = results.capacity();
+            }
+
+            for other_pos in &self.positions_sorted[range.min_i..range.max_i] {
+                let results_slice = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<usize>,
+                        W,
+                    )
+                };
+                let new_elements = if D < 6 {
+                    let distances = other_pos.dist_squared(pos.pos);
+                    other_pos.compare(distances, radius_sq_f32, results_slice.try_into().unwrap())
+                } else {
+                    let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
+                    other_pos.compare(
+                        distances,
+                        half_radius_threshold,
+                        results_slice.try_into().unwrap(),
+                    )
+                };
+                len += new_elements;
+            }
         }
         unsafe { results.set_len(len) };
     }
@@ -450,17 +435,9 @@ impl<'a, const D: usize> ATree<'a, D> {
 
 impl<const D: usize> Query<D> for ATree<'_, D> {
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
-        let radius = radius.powi(2);
+        // let radius = radius.powi(2);
         assert_eq!(self.positions.len(), self.node_ids.len());
-        self.query_recursive(
-            Point::new(pos, 0),
-            0,
-            0,
-            radius as f32,
-            radius,
-            &mut DVec::zero(),
-            results,
-        );
+        self.query_radius(pos, radius, results);
     }
 }
 impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
