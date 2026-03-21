@@ -53,6 +53,7 @@ pub struct ATree<'a, const D: usize> {
     pub graph: &'a crate::graph::Graph,
     nodes: Vec<f32>,
     leaves: Vec<Snn>,
+    luts: Vec<usize>,
     total_depth: usize,
 }
 
@@ -98,6 +99,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
 
         let mut nodes = std::mem::take(&mut self.nodes);
         let mut leaves = std::mem::take(&mut self.leaves);
+        let mut luts = std::mem::take(&mut self.luts);
         if nodes.len() != num_internal {
             nodes = vec![0.0; num_internal];
         }
@@ -111,6 +113,7 @@ impl<const D: usize> query::Update<D> for ATree<'_, D> {
         build_tree(
             &mut nodes,
             &mut leaves,
+            &mut luts,
             node_ids.as_mut_slice(),
             d_pos.as_mut_slice(),
             0,
@@ -157,6 +160,7 @@ struct Snn {
 fn build_tree<const D: usize>(
     nodes: &mut [f32],
     leaves: &mut [Snn],
+    luts: &mut [usize],
     node_ids: &mut [NodeId],
     d_pos: &mut [f32],
     depth: usize,
@@ -229,6 +233,7 @@ fn build_tree<const D: usize>(
     build_tree(
         nodes,
         leaves,
+        luts,
         a_ids,
         a_dpos,
         depth,
@@ -240,6 +245,7 @@ fn build_tree<const D: usize>(
     build_tree(
         nodes,
         leaves,
+        luts,
         b_ids,
         b_dpos,
         depth,
@@ -294,6 +300,7 @@ impl<'a, const D: usize> ATree<'a, D> {
             d_pos: Vec::new(),
             nodes: vec![0.0; num_internal],
             leaves: vec![Snn::default(); num_leaves],
+            luts: vec![0; num_leaves * lut_size::<D>() * 2],
             total_depth: td,
         };
         if !tree.positions.is_empty() {
@@ -445,7 +452,7 @@ impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
         String::from("atree")
     }
     fn implementation_string(&self) -> &'static str {
-        include_str!("atree.rs")
+        concat!(include_str!("atree.rs"), include_str!("atree/simd.rs"))
     }
 }
 
