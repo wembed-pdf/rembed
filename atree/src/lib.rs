@@ -1,6 +1,7 @@
 use crate::simd::PDVec;
 use std::cell::RefCell;
 
+pub mod output;
 pub mod simd;
 
 const LEAFSIZE: usize = 150;

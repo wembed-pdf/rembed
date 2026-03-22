@@ -1,4 +1,74 @@
 use atree::simd::PDVec;
+use atree::output::QueryOutput;
+use std::mem::MaybeUninit;
+
+// ── ASM inspection wrappers ──────────────────────────────────────────
+
+/// Old path: compare (backward-compat wrapper → compare_into::<usize>)
+#[inline(never)]
+pub fn asm_compare_usize_w8(
+    pdvec: &PDVec<4, 8>,
+    distances: [f32; 8],
+    threshold: f32,
+    results: &mut [MaybeUninit<usize>; 8],
+) -> usize {
+    pdvec.compare(distances, threshold, results)
+}
+
+/// New path: compare_into::<u32>
+#[inline(never)]
+pub fn asm_compare_u32_w8(
+    pdvec: &PDVec<4, 8>,
+    distances: [f32; 8],
+    threshold: f32,
+    results: &mut [MaybeUninit<u32>; 8],
+) -> usize {
+    pdvec.compare_into(distances, threshold, results)
+}
+
+/// New path: compare_into::<(u32, f32)>
+#[inline(never)]
+pub fn asm_compare_u32_f32_w8(
+    pdvec: &PDVec<4, 8>,
+    distances: [f32; 8],
+    threshold: f32,
+    results: &mut [MaybeUninit<(u32, f32)>; 8],
+) -> usize {
+    pdvec.compare_into(distances, threshold, results)
+}
+
+/// New path: compare_into::<(usize, f32)>
+#[inline(never)]
+pub fn asm_compare_usize_f32_w8(
+    pdvec: &PDVec<4, 8>,
+    distances: [f32; 8],
+    threshold: f32,
+    results: &mut [MaybeUninit<(usize, f32)>; 8],
+) -> usize {
+    pdvec.compare_into(distances, threshold, results)
+}
+
+#[test]
+pub fn test_asm_compare_variants() {
+    let pdvec = setup_w8();
+    let dist = pdvec.dist_half_squared([0.; 4], 0.);
+
+    let mut r_usize = [MaybeUninit::zeroed(); 8];
+    let len = asm_compare_usize_w8(&pdvec, dist, 0.5, &mut r_usize);
+    assert_eq!(len, 5);
+
+    let mut r_u32 = [MaybeUninit::zeroed(); 8];
+    let len = asm_compare_u32_w8(&pdvec, dist, 0.5, &mut r_u32);
+    assert_eq!(len, 5);
+
+    let mut r_u32_f32 = [MaybeUninit::zeroed(); 8];
+    let len = asm_compare_u32_f32_w8(&pdvec, dist, 0.5, &mut r_u32_f32);
+    assert_eq!(len, 5);
+
+    let mut r_pair = [MaybeUninit::zeroed(); 8];
+    let len = asm_compare_usize_f32_w8(&pdvec, dist, 0.5, &mut r_pair);
+    assert_eq!(len, 5);
+}
 
 pub fn setup() -> PDVec<4, 16> {
     let vecs = [
