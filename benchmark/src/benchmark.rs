@@ -362,8 +362,8 @@ impl LoadData {
             result.measurement.instructions_stddev,
             result.measurement.cycles_mean,
             result.measurement.cycles_stddev,
-            result.measurement.ref_cycles_mean,
-            result.measurement.ref_cycles_stddev,
+            result.measurement.ref_cycles_mean as Option<f64>,
+            result.measurement.ref_cycles_stddev as Option<f64>,
         )
         .execute(&self.pool)
         .await?;
