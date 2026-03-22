@@ -116,6 +116,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "atree"
+version = "0.1.0"
+dependencies = [
+ "simd-lookup",
+ "wide",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2114,6 +2122,7 @@ name = "rembed"
 version = "0.1.0"
 dependencies = [
  "acap",
+ "atree",
  "boost-rtree",
  "cgal",
  "criterion 0.5.1",
@@ -2129,11 +2138,9 @@ dependencies = [
  "rustc-hash",
  "sha2",
  "sif-kdtree",
- "simd-lookup",
  "sklearn",
  "vec-vp-tree",
  "wembed-snn",
- "wide",
 ]
 
 [[package]]

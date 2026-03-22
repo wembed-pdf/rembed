@@ -1,6 +1,7 @@
 [workspace]
 members = [
     ".",
+    "atree",
     "benchmark",
     "simulation",
     # "nanoflann"
@@ -16,6 +17,7 @@ default-run = "rembed"
 
 [dependencies]
 acap = "0.4.0"
+atree = { path = "atree" }
 crossbeam = "0.8.4"
 # kiddo = { version = "5.0.3", features = ["simd"] }
 kiddo = { version = "5.0.3" }
@@ -30,8 +32,6 @@ neighbourhood = "0.0.1"
 rand = "0.9.1"
 rayon = "1.10.0"
 rustc-hash = "2.1.0"
-simd-lookup = { version = "0.1.0", optional = true }
-wide = { version = "0.8", optional = true }
 sha2 = "0.10.9"
 sif-kdtree = "0.7.0"
 vec-vp-tree = "0.1.1"
@@ -41,8 +41,6 @@ linreg = "0.2.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
-default = ["simd-compress"]
-simd-compress = ["dep:simd-lookup", "dep:wide"]
 nanoflann = ["dep:nanoflann"]
 boost-rtree = ["dep:boost-rtree"]
 cgal = ["dep:cgal"]

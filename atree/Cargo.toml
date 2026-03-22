@@ -1,0 +1,12 @@
+[package]
+name = "atree"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+simd-lookup = { version = "0.1.0", optional = true }
+wide = { version = "0.8", optional = true }
+
+[features]
+default = ["simd-compress"]
+simd-compress = ["dep:simd-lookup", "dep:wide"]

@@ -3,8 +3,6 @@ use std::mem::MaybeUninit;
 #[cfg(feature = "simd-compress")]
 use wide::CmpLe;
 
-use crate::dvec::DVec;
-
 #[derive(Debug, Clone, Copy)]
 #[repr(Rust, align(32))]
 pub struct PDVec<const D: usize, const W: usize> {
@@ -14,18 +12,18 @@ pub struct PDVec<const D: usize, const W: usize> {
 }
 
 impl<const D: usize, const W: usize> PDVec<D, W> {
-    pub fn new(vecs: impl Iterator<Item = (DVec<D>, usize)>) -> Self {
+    pub fn new(vecs: impl Iterator<Item = ([f32; D], usize)>) -> Self {
         let mut inf = Self::inf();
         for (i, (vec, id)) in vecs.enumerate().take(W) {
-            inf.sqared_half[i] = vec.magnitude_squared() / 2.;
+            inf.sqared_half[i] = vec.iter().map(|x| x * x).sum::<f32>() / 2.;
             inf.ids[i] = id as u32;
             for j in 0..D {
-                inf.lanes[j][i] = vec.components[j];
+                inf.lanes[j][i] = vec[j];
             }
         }
         inf
     }
-    pub fn from_slices(vecs: &[DVec<D>], ids: &[usize]) -> Self {
+    pub fn from_slices(vecs: &[[f32; D]], ids: &[usize]) -> Self {
         Self::new(vecs.iter().copied().zip(ids.iter().copied()))
     }
     pub fn inf() -> Self {
@@ -37,7 +35,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
     }
 
     #[inline(always)]
-    pub fn dist_squared(&self, pos: DVec<D>) -> [f32; W] {
+    pub fn dist_squared(&self, pos: [f32; D]) -> [f32; W] {
         let diff = std::array::from_fn(|i| self.lanes[0][i] - pos[0]);
         let mut acc = diff.map(|x| x * x);
         for j in 1..D {
@@ -48,7 +46,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         acc
     }
     #[inline(always)]
-    pub fn dist_half_squared(&self, pos: DVec<D>, squared_half: f32) -> [f32; W] {
+    pub fn dist_half_squared(&self, pos: [f32; D], squared_half: f32) -> [f32; W] {
         let mut acc1: [f32; W] = std::array::from_fn(|i| self.sqared_half[i]);
         let mut acc2: [f32; W] = std::array::from_fn(|_| squared_half);
 
@@ -116,7 +114,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
 
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx512f")]
-    #[inline(never)]
+    // #[inline(never)]
     unsafe fn compare_avx512_8(
         &self,
         distances: [f32; W],
@@ -145,7 +143,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
 
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx512f")]
-    #[inline(never)]
+    // #[inline(never)]
     unsafe fn compare_avx512_16(
         &self,
         distances: [f32; W],
@@ -188,7 +186,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
     // --- simd-lookup fallback (cross-platform, no AVX-512 required) ---
 
     #[cfg(feature = "simd-compress")]
-    #[inline(never)]
+    // #[inline(never)]
     fn compare_simd_8(
         &self,
         distances: [f32; W],
@@ -221,7 +219,7 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
     }
 
     #[cfg(feature = "simd-compress")]
-    #[inline(never)]
+    // #[inline(never)]
     fn compare_simd_16(
         &self,
         distances: [f32; W],
