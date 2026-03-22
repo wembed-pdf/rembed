@@ -183,16 +183,18 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         use simd_lookup::simd_compress::compress_u32x8;
         use wide::{f32x8, u32x8};
 
-        let dist = f32x8::new(unsafe { *(distances.as_ptr() as *const [f32; 8]) });
+        let dist = f32x8::new(std::array::from_fn(|i| distances[i]));
         let threshold_v = f32x8::splat(threshold);
         let mask = dist.simd_le(threshold_v).to_bitmask() as u8;
 
-        let ids_v = u32x8::from(unsafe { *(self.ids.as_ptr() as *const [u32; 8]) });
+        let ids_v = u32x8::from(std::array::from_fn::<u32, 8, _>(|i| self.ids[i]));
         let (compressed, count) = compress_u32x8(ids_v, mask);
 
         let mut id_arr = [0u32; W];
         let comp = compressed.to_array();
-        unsafe { std::ptr::copy_nonoverlapping(comp.as_ptr(), id_arr.as_mut_ptr(), 8) };
+        for i in 0..8 {
+            id_arr[i] = comp[i];
+        }
 
         // Branchless scalar distance compression (no compress_f32x8 available)
         let mut dist_arr = [0f32; W];
@@ -215,13 +217,13 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         use simd_lookup::wide_utils::SimdSplit;
         use wide::{f32x8, u32x16};
 
-        let dist_lo = f32x8::new(unsafe { *(distances.as_ptr() as *const [f32; 8]) });
-        let dist_hi = f32x8::new(unsafe { *(distances.as_ptr().add(8) as *const [f32; 8]) });
+        let dist_lo = f32x8::new(std::array::from_fn(|i| distances[i]));
+        let dist_hi = f32x8::new(std::array::from_fn(|i| distances[8 + i]));
         let threshold_v = f32x8::splat(threshold);
         let mask_lo = dist_lo.simd_le(threshold_v).to_bitmask() as u8;
         let mask_hi = dist_hi.simd_le(threshold_v).to_bitmask() as u8;
 
-        let ids_v = u32x16::from(unsafe { *(self.ids.as_ptr() as *const [u32; 16]) });
+        let ids_v = u32x16::from(std::array::from_fn::<u32, 16, _>(|i| self.ids[i]));
         let (ids_lo, ids_hi) = ids_v.split_low_high();
 
         let (comp_lo, count_lo) = compress_u32x8(ids_lo, mask_lo);
@@ -230,9 +232,11 @@ impl<const D: usize, const W: usize> PDVec<D, W> {
         let mut id_arr = [0u32; W];
         let arr_lo = comp_lo.to_array();
         let arr_hi = comp_hi.to_array();
-        unsafe {
-            std::ptr::copy_nonoverlapping(arr_lo.as_ptr(), id_arr.as_mut_ptr(), 8);
-            std::ptr::copy_nonoverlapping(arr_hi.as_ptr(), id_arr.as_mut_ptr().add(count_lo), 8);
+        for i in 0..8 {
+            id_arr[i] = arr_lo[i];
+        }
+        for i in 0..8 {
+            id_arr[count_lo + i] = arr_hi[i];
         }
 
         // Branchless scalar distance compression
