@@ -1,23 +1,25 @@
+use crate::scalar::{IdStorage, Scalar};
 use crate::simd::PDVec;
 use std::cell::RefCell;
 
 pub mod output;
+pub mod scalar;
 pub mod simd;
 
 const LEAFSIZE: usize = 150;
 const W: usize = 8;
 
 #[derive(Clone, Copy, Debug)]
-struct Point<const D: usize> {
-    pos: [f32; D],
-    squared_half: f32,
+struct Point<const D: usize, F: Scalar> {
+    pos: [F; D],
+    squared_half: F,
 }
 
-impl<const D: usize> Point<D> {
-    fn new(pos: [f32; D]) -> Self {
+impl<const D: usize, F: Scalar> Point<D, F> {
+    fn new(pos: [F; D]) -> Self {
         Self {
             pos,
-            squared_half: pos.iter().map(|x| x * x).sum::<f32>() / 2.,
+            squared_half: pos.iter().copied().map(|x| x * x).sum::<F>() * F::HALF,
         }
     }
 }
@@ -33,27 +35,30 @@ thread_local! {
 }
 
 #[derive(Clone, Debug, Default)]
-struct Snn {
+struct Snn<F: Scalar> {
     lut: Box<[usize]>,
-    min: f32,
-    resolution: f32,
+    min: F,
+    resolution: F,
 }
 
 #[derive(Clone)]
-pub struct ATree<const D: usize> {
-    positions: Vec<[f32; D]>,
-    positions_sorted: Vec<PDVec<D, W>>,
+pub struct ATree<const D: usize, F: Scalar = f32, I: IdStorage = u32> {
+    positions: Vec<[F; D]>,
+    positions_sorted: Vec<PDVec<D, W, F, I>>,
     node_ids: Vec<usize>,
-    d_pos: Vec<f32>,
-    nodes: Vec<f32>,
-    leaves: Vec<Snn>,
+    d_pos: Vec<F>,
+    nodes: Vec<F>,
+    leaves: Vec<Snn<F>>,
     total_depth: usize,
 }
 
-impl<const D: usize> ATree<D> {
+impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I>
+where
+    usize: crate::output::QueryOutput<I, F>,
+{
     /// Build a new ATree from a slice of positions.
     /// Each position is identified by its index in the slice.
-    pub fn new(positions: &[[f32; D]]) -> Self {
+    pub fn new(positions: &[[F; D]]) -> Self {
         let n = positions.len();
         let td = compute_total_depth(n);
         let num_internal = (1usize << td) - 1;
@@ -64,7 +69,7 @@ impl<const D: usize> ATree<D> {
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
-            nodes: vec![0.0; num_internal],
+            nodes: vec![F::ZERO; num_internal],
             leaves: vec![Snn::default(); num_leaves],
             total_depth: td,
         };
@@ -75,7 +80,7 @@ impl<const D: usize> ATree<D> {
     }
 
     /// Rebuild the tree with new positions. Reuses allocations where possible.
-    pub fn update(&mut self, positions: &[[f32; D]]) {
+    pub fn update(&mut self, positions: &[[F; D]]) {
         if self.positions.len() != positions.len() {
             self.positions = positions.to_vec();
         } else {
@@ -92,14 +97,14 @@ impl<const D: usize> ATree<D> {
         let mut nodes = std::mem::take(&mut self.nodes);
         let mut leaves = std::mem::take(&mut self.leaves);
         if nodes.len() != num_internal {
-            nodes = vec![0.0; num_internal];
+            nodes = vec![F::ZERO; num_internal];
         }
         if leaves.len() != num_leaves {
             leaves = vec![Snn::default(); num_leaves];
         }
 
         let mut node_ids: Vec<_> = (0..n).collect();
-        let mut d_pos = vec![0.; node_ids.len()];
+        let mut d_pos = vec![F::ZERO; node_ids.len()];
 
         build_tree(
             &mut nodes,
@@ -125,7 +130,8 @@ impl<const D: usize> ATree<D> {
             let new_offset = self.positions_sorted.len();
 
             for chunk in node_ids.chunks(W) {
-                let pdvec = PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
+                let pdvec =
+                    PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
                 self.positions_sorted.push(pdvec)
             }
             let half_len = snn.lut.len() / 2;
@@ -150,28 +156,28 @@ impl<const D: usize> ATree<D> {
     }
 
     /// Returns the stored position for a given index.
-    pub fn position(&self, index: usize) -> &[f32; D] {
+    pub fn position(&self, index: usize) -> &[F; D] {
         &self.positions[index]
     }
 
     /// Query all points within `radius` of `pos`.
     /// Appends matching node IDs to `results`.
-    pub fn query_radius(&self, pos: &[f32; D], radius: f32, results: &mut Vec<usize>) {
+    pub fn query_radius(&self, pos: &[F; D], radius: F, results: &mut Vec<usize>) {
         let pos = Point::new(*pos);
-        let radius_sq = (radius * radius) as f32;
+        let radius_sq = radius * radius;
 
         SCRATCH.with(|scratch| {
             let mut ranges = scratch.borrow_mut();
             ranges.clear();
 
-            self.collect_ranges(&pos, 0, 0, radius_sq, &mut [0.0; D], &mut ranges);
+            self.collect_ranges(&pos, 0, 0, radius_sq, &mut [F::ZERO; D], &mut ranges);
 
             self.snn(results, pos, radius_sq, ranges);
         });
     }
 
     /// Query all points within `radius` of `pos`, returning IDs.
-    pub fn query_radius_iter(&self, pos: &[f32; D], radius: f32) -> Vec<usize> {
+    pub fn query_radius_iter(&self, pos: &[F; D], radius: F) -> Vec<usize> {
         let mut results = Vec::new();
         self.query_radius(pos, radius, &mut results);
         results
@@ -180,18 +186,20 @@ impl<const D: usize> ATree<D> {
     /// Query all points within `radius` of `pos`, returning (ID, squared_distance) pairs.
     pub fn query_radius_with_distances(
         &self,
-        pos: &[f32; D],
-        radius: f32,
-    ) -> Vec<(usize, f32)> {
+        pos: &[F; D],
+        radius: F,
+    ) -> Vec<(usize, F)> {
         let mut ids = Vec::new();
         self.query_radius(pos, radius, &mut ids);
         ids.iter()
             .map(|&id| {
                 let other = &self.positions[id];
-                let dist_sq: f32 = (0..D).map(|j| {
-                    let d = pos[j] - other[j];
-                    d * d
-                }).sum();
+                let dist_sq: F = (0..D)
+                    .map(|j| {
+                        let d = pos[j] - other[j];
+                        d * d
+                    })
+                    .sum();
                 (id, dist_sq)
             })
             .collect()
@@ -199,11 +207,11 @@ impl<const D: usize> ATree<D> {
 
     fn collect_ranges(
         &self,
-        pos: &Point<D>,
+        pos: &Point<D, F>,
         depth: usize,
         heap_idx: usize,
-        dim_radius_squared: f32,
-        distances: &mut [f32; D],
+        dim_radius_squared: F,
+        distances: &mut [F; D],
         out: &mut Vec<LeafRange>,
     ) {
         let dim = depth % D;
@@ -221,14 +229,16 @@ impl<const D: usize> ATree<D> {
             let max = own_pos + reduced_radius;
             let max_lut = lut_size::<D>() - 1;
 
-            let idx = if min * snn.resolution >= 0.0 {
-                (min * snn.resolution) as usize
+            let min_scaled = min * snn.resolution;
+            let idx = if min_scaled >= F::ZERO {
+                F::to_f32(min_scaled) as usize
             } else {
                 0
             }
             .min(max_lut);
-            let end_idx = if max * snn.resolution >= 0.0 {
-                (max * snn.resolution) as usize
+            let max_scaled = max * snn.resolution;
+            let end_idx = if max_scaled >= F::ZERO {
+                F::to_f32(max_scaled) as usize
             } else {
                 0
             }
@@ -252,13 +262,13 @@ impl<const D: usize> ATree<D> {
         if own_pos < split {
             self.collect_ranges(pos, depth + 1, left, dim_radius_squared, distances, out);
             distances[dim] = dist;
-            if other_radius > 0.0 {
+            if other_radius > F::ZERO {
                 self.collect_ranges(pos, depth + 1, right, other_radius, distances, out);
             }
             distances[dim] = current_delta;
         } else {
             distances[dim] = dist;
-            if other_radius > 0.0 {
+            if other_radius > F::ZERO {
                 self.collect_ranges(pos, depth + 1, left, other_radius, distances, out);
             }
             distances[dim] = current_delta;
@@ -269,8 +279,8 @@ impl<const D: usize> ATree<D> {
     fn snn(
         &self,
         results: &mut Vec<usize>,
-        pos: Point<D>,
-        radius_sq: f32,
+        pos: Point<D, F>,
+        radius_sq: F,
         ranges: std::cell::RefMut<'_, Vec<LeafRange>>,
     ) {
         // Single reserve for everything
@@ -279,8 +289,7 @@ impl<const D: usize> ATree<D> {
         // Phase 2: forward sweep through positions_sorted
         let initial_len = results.len();
         let mut len = results.len();
-        let half_radius_threshold = radius_sq / 2. + 1e-4;
-        let radius_sq_f32 = radius_sq;
+        let half_radius_threshold = radius_sq * F::HALF + F::from_f32(1e-4);
 
         for range in ranges.iter() {
             // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
@@ -292,13 +301,20 @@ impl<const D: usize> ATree<D> {
             for other_pos in &self.positions_sorted[range.min_i..range.max_i] {
                 let results_slice = unsafe {
                     std::slice::from_raw_parts_mut(
-                        results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<usize>,
+                        results
+                            .as_mut_ptr()
+                            .wrapping_add(len)
+                            as *mut std::mem::MaybeUninit<usize>,
                         W,
                     )
                 };
                 let new_elements = if D < 6 {
                     let distances = other_pos.dist_squared(pos.pos);
-                    other_pos.compare(distances, radius_sq_f32, results_slice.try_into().unwrap())
+                    other_pos.compare(
+                        distances,
+                        radius_sq,
+                        results_slice.try_into().unwrap(),
+                    )
                 } else {
                     let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
                     other_pos.compare(
@@ -314,20 +330,21 @@ impl<const D: usize> ATree<D> {
     }
 }
 
-fn build_tree<const D: usize>(
-    nodes: &mut [f32],
-    leaves: &mut [Snn],
+fn build_tree<const D: usize, F: Scalar>(
+    nodes: &mut [F],
+    leaves: &mut [Snn<F>],
     node_ids: &mut [usize],
-    d_pos: &mut [f32],
+    d_pos: &mut [F],
     depth: usize,
     total_depth: usize,
     heap_idx: usize,
-    positions: &[[f32; D]],
+    positions: &[[F; D]],
     offset: usize,
 ) {
     if depth == total_depth {
-        node_ids
-            .sort_unstable_by_key(|i| i32::from_ne_bytes(positions[*i][depth % D].to_ne_bytes()));
+        node_ids.sort_unstable_by(|a, b| {
+            F::total_cmp(&positions[*a][depth % D], &positions[*b][depth % D])
+        });
 
         for (d_pos, pos) in d_pos
             .iter_mut()
@@ -341,12 +358,12 @@ fn build_tree<const D: usize>(
         let slack = d_pos.len() - node_ids.len();
         let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
         let num_buckets = lut_size::<D>();
-        let resolution = num_buckets as f32 / (max - min);
+        let resolution = F::from_usize(num_buckets) / (max - min);
         for i in 0..num_buckets {
-            let boundary = (i as f32 / resolution) + min;
+            let boundary = F::from_usize(i) / resolution + min;
             let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
             lut.push(start_idx + offset);
-            let next_boundary = ((i + 1) as f32 / resolution) + min;
+            let next_boundary = F::from_usize(i + 1) / resolution + min;
             let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
             end_lut.push(end_idx + offset);
         }
@@ -362,8 +379,8 @@ fn build_tree<const D: usize>(
     }
 
     let median_idx = node_ids.len() / 2;
-    node_ids.select_nth_unstable_by_key(median_idx, |i| {
-        i32::from_ne_bytes(positions[*i][depth % D].to_ne_bytes())
+    node_ids.select_nth_unstable_by(median_idx, |a, b| {
+        F::total_cmp(&positions[*a][depth % D], &positions[*b][depth % D])
     });
 
     let split = positions[node_ids[median_idx]][depth % D];

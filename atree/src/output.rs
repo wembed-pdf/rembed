@@ -1,18 +1,20 @@
 use std::mem::{MaybeUninit, offset_of, size_of};
 
+use crate::scalar::{IdStorage, Scalar};
+
 /// Controls what each SIMD compare call produces.
 ///
 /// `from_match` converts a single `(id, distance)` pair. `store_compressed`
 /// batch-stores compressed results, defaulting to a `from_match` loop but
 /// overridable for SIMD-optimized widening and interleaving.
-pub trait QueryOutput: Copy + Sized {
-    fn from_match(id: u32, distance: f32) -> Self;
+pub trait QueryOutput<I: IdStorage, F: Scalar>: Copy + Sized {
+    fn from_match(id: I, distance: F) -> Self;
 
     #[inline(always)]
     fn store_compressed<const W: usize>(
         count: usize,
-        ids: &[u32; W],
-        dists: &[f32; W],
+        ids: &[I; W],
+        dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
         for i in 0..count {
@@ -22,11 +24,11 @@ pub trait QueryOutput: Copy + Sized {
     }
 }
 
-// ── u32: direct copy ─────────────────────────────────────────────────
+// ── u32 output from u32 storage: direct copy ────────────────────────
 
-impl QueryOutput for u32 {
+impl<F: Scalar> QueryOutput<u32, F> for u32 {
     #[inline(always)]
-    fn from_match(id: u32, _distance: f32) -> Self {
+    fn from_match(id: u32, _distance: F) -> Self {
         id
     }
 
@@ -34,7 +36,7 @@ impl QueryOutput for u32 {
     fn store_compressed<const W: usize>(
         count: usize,
         ids: &[u32; W],
-        _dists: &[f32; W],
+        _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
         for i in 0..W {
@@ -44,11 +46,11 @@ impl QueryOutput for u32 {
     }
 }
 
-// ── u64: widening via simd-lookup ────────────────────────────────────
+// ── u64 output ──────────────────────────────────────────────────────
 
-impl QueryOutput for u64 {
+impl<F: Scalar> QueryOutput<u32, F> for u64 {
     #[inline(always)]
-    fn from_match(id: u32, _distance: f32) -> Self {
+    fn from_match(id: u32, _distance: F) -> Self {
         id as u64
     }
 
@@ -56,12 +58,12 @@ impl QueryOutput for u64 {
     fn store_compressed<const W: usize>(
         count: usize,
         ids: &[u32; W],
-        _dists: &[f32; W],
+        _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
         #[cfg(feature = "simd-compress")]
         if W >= 8 {
-            widen_store_wide(ids, dst);
+            widen_store_wide_u32(ids, dst);
             return count;
         }
         for i in 0..W {
@@ -71,12 +73,32 @@ impl QueryOutput for u64 {
     }
 }
 
-// ── usize: delegates to u64 widening on 64-bit ──────────────────────
+impl<F: Scalar> QueryOutput<u64, F> for u64 {
+    #[inline(always)]
+    fn from_match(id: u64, _distance: F) -> Self {
+        id
+    }
+
+    #[inline(always)]
+    fn store_compressed<const W: usize>(
+        count: usize,
+        ids: &[u64; W],
+        _dists: &[F; W],
+        dst: &mut [MaybeUninit<Self>; W],
+    ) -> usize {
+        for i in 0..W {
+            dst[i].write(ids[i]);
+        }
+        count
+    }
+}
+
+// ── usize output ────────────────────────────────────────────────────
 
 #[cfg(target_pointer_width = "64")]
-impl QueryOutput for usize {
+impl<F: Scalar> QueryOutput<u32, F> for usize {
     #[inline(always)]
-    fn from_match(id: u32, _distance: f32) -> Self {
+    fn from_match(id: u32, _distance: F) -> Self {
         id as usize
     }
 
@@ -84,13 +106,13 @@ impl QueryOutput for usize {
     fn store_compressed<const W: usize>(
         count: usize,
         ids: &[u32; W],
-        _dists: &[f32; W],
+        _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
         #[cfg(feature = "simd-compress")]
         if W >= 8 {
             // SAFETY: MaybeUninit<usize> == MaybeUninit<u64> on 64-bit
-            widen_store_wide(ids, unsafe {
+            widen_store_wide_u32(ids, unsafe {
                 &mut *(dst as *mut _ as *mut [MaybeUninit<u64>; W])
             });
             return count;
@@ -102,18 +124,18 @@ impl QueryOutput for usize {
     }
 }
 
-#[cfg(target_pointer_width = "32")]
-impl QueryOutput for usize {
+#[cfg(target_pointer_width = "64")]
+impl<F: Scalar> QueryOutput<u64, F> for usize {
     #[inline(always)]
-    fn from_match(id: u32, _distance: f32) -> Self {
+    fn from_match(id: u64, _distance: F) -> Self {
         id as usize
     }
 
     #[inline(always)]
     fn store_compressed<const W: usize>(
         count: usize,
-        ids: &[u32; W],
-        _dists: &[f32; W],
+        ids: &[u64; W],
+        _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
         for i in 0..W {
@@ -123,13 +145,34 @@ impl QueryOutput for usize {
     }
 }
 
-// ── (u32, f32): SIMD interleaved store ───────────────────────────────
+#[cfg(target_pointer_width = "32")]
+impl<F: Scalar> QueryOutput<u32, F> for usize {
+    #[inline(always)]
+    fn from_match(id: u32, _distance: F) -> Self {
+        id as usize
+    }
+
+    #[inline(always)]
+    fn store_compressed<const W: usize>(
+        count: usize,
+        ids: &[u32; W],
+        _dists: &[F; W],
+        dst: &mut [MaybeUninit<Self>; W],
+    ) -> usize {
+        for i in 0..W {
+            dst[i].write(ids[i] as usize);
+        }
+        count
+    }
+}
+
+// ── (u32, F) pair output ────────────────────────────────────────────
 
 const _: () = assert!(size_of::<(u32, f32)>() == 8);
 const _: () = assert!(offset_of!((u32, f32), 0) == 0);
 const _: () = assert!(offset_of!((u32, f32), 1) == 4);
 
-impl QueryOutput for (u32, f32) {
+impl QueryOutput<u32, f32> for (u32, f32) {
     #[inline(always)]
     fn from_match(id: u32, distance: f32) -> Self {
         (id, distance)
@@ -154,13 +197,20 @@ impl QueryOutput for (u32, f32) {
     }
 }
 
-// ── (u64, f32): SIMD widen + interleave ──────────────────────────────
+impl QueryOutput<u32, f64> for (u32, f64) {
+    #[inline(always)]
+    fn from_match(id: u32, distance: f64) -> Self {
+        (id, distance)
+    }
+}
+
+// ── (u64, F) pair output ────────────────────────────────────────────
 
 const _: () = assert!(size_of::<(u64, f32)>() == 16);
 const _: () = assert!(offset_of!((u64, f32), 0) == 0);
 const _: () = assert!(offset_of!((u64, f32), 1) == 8);
 
-impl QueryOutput for (u64, f32) {
+impl QueryOutput<u32, f32> for (u64, f32) {
     #[inline(always)]
     fn from_match(id: u32, distance: f32) -> Self {
         (id as u64, distance)
@@ -185,7 +235,28 @@ impl QueryOutput for (u64, f32) {
     }
 }
 
-// ── (usize, f32) ────────────────────────────────────────────────────
+impl QueryOutput<u64, f32> for (u64, f32) {
+    #[inline(always)]
+    fn from_match(id: u64, distance: f32) -> Self {
+        (id, distance)
+    }
+}
+
+impl QueryOutput<u32, f64> for (u64, f64) {
+    #[inline(always)]
+    fn from_match(id: u32, distance: f64) -> Self {
+        (id as u64, distance)
+    }
+}
+
+impl QueryOutput<u64, f64> for (u64, f64) {
+    #[inline(always)]
+    fn from_match(id: u64, distance: f64) -> Self {
+        (id, distance)
+    }
+}
+
+// ── (usize, f32) pair output ────────────────────────────────────────
 
 #[cfg(target_pointer_width = "64")]
 const _: () = {
@@ -194,7 +265,7 @@ const _: () = {
     assert!(offset_of!((usize, f32), 1) == 8);
 };
 
-impl QueryOutput for (usize, f32) {
+impl QueryOutput<u32, f32> for (usize, f32) {
     #[inline(always)]
     fn from_match(id: u32, distance: f32) -> Self {
         (id as usize, distance)
@@ -226,13 +297,33 @@ impl QueryOutput for (usize, f32) {
     }
 }
 
+impl QueryOutput<u64, f32> for (usize, f32) {
+    #[inline(always)]
+    fn from_match(id: u64, distance: f32) -> Self {
+        (id as usize, distance)
+    }
+}
+
+impl QueryOutput<u32, f64> for (usize, f64) {
+    #[inline(always)]
+    fn from_match(id: u32, distance: f64) -> Self {
+        (id as usize, distance)
+    }
+}
+
+impl QueryOutput<u64, f64> for (usize, f64) {
+    #[inline(always)]
+    fn from_match(id: u64, distance: f64) -> Self {
+        (id as usize, distance)
+    }
+}
+
 // ── SIMD helpers ─────────────────────────────────────────────────────
 
 /// Widen u32 IDs → u64 using simd-lookup's cross-platform widening.
-/// On AVX-512: single `vpmovzxdq zmm`. On AVX2: two `vpmovzxdq ymm`.
 #[cfg(feature = "simd-compress")]
 #[inline(always)]
-fn widen_store_wide<const W: usize>(ids: &[u32; W], dst: &mut [MaybeUninit<u64>; W]) {
+fn widen_store_wide_u32<const W: usize>(ids: &[u32; W], dst: &mut [MaybeUninit<u64>; W]) {
     use simd_lookup::wide_utils::WideUtilsExt;
     use wide::u32x8;
     let v = u32x8::from(std::array::from_fn::<u32, 8, _>(|i| ids[i]));
@@ -295,7 +386,8 @@ unsafe fn interleave_store_u64_f32_avx512<const W: usize>(
     dst: &mut [MaybeUninit<(u64, f32)>; W],
 ) {
     use std::arch::x86_64::*;
-    let ids_wide = _mm512_cvtepu32_epi64(unsafe { _mm256_loadu_epi32(ids.as_ptr() as *const i32) });
+    let ids_wide =
+        _mm512_cvtepu32_epi64(unsafe { _mm256_loadu_epi32(ids.as_ptr() as *const i32) });
     let dists_wide = _mm512_cvtepu32_epi64(_mm256_castps_si256(unsafe {
         _mm256_loadu_ps(dists.as_ptr())
     }));
