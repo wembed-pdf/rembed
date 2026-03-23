@@ -362,7 +362,8 @@ fn test_streaming_matches_vec() {
 
     for radius in [0.5, 1.0, 2.0, 5.0, 10.0] {
         let query = [1.0f32, 0.5];
-        let vec_results = tree.query_radius_iter(&query, radius);
+        let mut vec_results = Vec::new();
+        tree.query_radius(&query, radius, &mut vec_results);
         let streaming_results: Vec<usize> = tree.query_radius_streaming(&query, radius).collect();
 
         // Both should contain the same elements (order is identical since both traverse ranges in order)
@@ -382,7 +383,8 @@ fn test_streaming_f64_u64() {
         .collect();
 
     let tree: ATree<2, f64, u64> = ATree::new(&positions);
-    let vec_results = tree.query_radius_iter(&[0.0, 0.0], 1.0);
+    let mut vec_results = Vec::new();
+    tree.query_radius(&[0.0, 0.0], 1.0, &mut vec_results);
     let streaming_results: Vec<usize> = tree.query_radius_streaming(&[0.0, 0.0], 1.0).collect();
     assert_eq!(vec_results, streaming_results);
 }
@@ -411,7 +413,11 @@ fn test_streaming_high_dim() {
         .collect();
     let tree: ATree<8> = ATree::new(&positions);
     let query = [0.0f32; 8];
-    let vec_results = tree.query_radius_iter(&query, 2.0);
+    let vec_results = {
+        let mut r = Vec::new();
+        tree.query_radius(&query, 2.0, &mut r);
+        r
+    };
     let streaming_results: Vec<usize> = tree.query_radius_streaming(&query, 2.0).collect();
     assert_eq!(vec_results, streaming_results);
 }
@@ -536,7 +542,11 @@ fn test_asm_streaming_codegen() {
     let tree: ATree<2> = ATree::new(&positions);
     let query = [1.0f32, 0.5];
 
-    let expected = tree.query_radius_iter(&query, 2.0);
+    let expected = {
+        let mut r = Vec::new();
+        tree.query_radius(&query, 2.0, &mut r);
+        r
+    };
 
     let mut slice = vec![0usize; 1000];
     let n = asm_streaming_collect_to_slice(&tree, &query, 2.0, &mut slice);
@@ -566,7 +576,8 @@ fn test_atree_f64_u64() {
     let tree: ATree<2, f64, u64> = ATree::new(&positions);
     assert_eq!(tree.len(), 500);
 
-    let results = tree.query_radius_iter(&[0.0, 0.0], 1.0);
+    let mut results = Vec::new();
+    tree.query_radius(&[0.0, 0.0], 1.0, &mut results);
     assert!(!results.is_empty());
 
     // Verify all returned points are within radius
