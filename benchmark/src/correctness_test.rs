@@ -429,15 +429,15 @@ impl CorrectnessTestManager {
         if dynamic_download {
             if !Path::new(&graph_path).exists() {
                 println!("Graph file not found locally. Downloading...");
-                pull_files(false, Some(result.graph_path.as_str())).await?;
+                pull_files(false, Some(result.graph_path.as_str()), None, None).await?;
             }
             if !Path::new(&pos_path).exists() {
                 println!("Positions file not found locally. Downloading...");
-                pull_files(false, Some(result.file_path.as_str())).await?;
+                pull_files(false, Some(result.file_path.as_str()), None, None).await?;
             }
             if !Path::new(&test_file_path).exists() {
                 println!("Test file not found locally. Downloading...");
-                pull_files(false, Some(test_record.file_path.as_str())).await?;
+                pull_files(false, Some(test_record.file_path.as_str()), None, None).await?;
             }
         }
 

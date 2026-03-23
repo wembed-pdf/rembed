@@ -180,6 +180,8 @@ impl LoadData {
                             "/generated/positions/{}",
                             path.file_name().unwrap().to_string_lossy()
                         )),
+                        None,
+                        None,
                     )
                     .await?;
                 }
@@ -205,6 +207,8 @@ impl LoadData {
                             "/generated/graphs/{}",
                             graph_path.file_name().unwrap().to_string_lossy()
                         )),
+                        None,
+                        None,
                     )
                     .await?;
                 }

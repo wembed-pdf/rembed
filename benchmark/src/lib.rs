@@ -50,6 +50,8 @@ pub async fn push_files() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn pull_files(
     only_graphs: bool,
     path: Option<&str>,
+    graph_id: Option<i64>,
+    result_id: Option<i64>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut sync_destination =
         std::env::var("RSYNC_DESTINATION").expect("Please set the RSYNC_DESTINATION env var");
@@ -66,13 +68,43 @@ pub async fn pull_files(
 
     println!("Syncing files from: {}", sync_destination);
 
-    let status = tokio::process::Command::new("rsync")
-        .arg("-rlvt")
-        .arg("--progress")
-        .arg(&sync_destination)
-        .arg(&sync_source)
-        .status()
-        .await?;
+    let status = if let Some(graph_id) = graph_id {
+        tokio::process::Command::new("rsync")
+            .arg("-rlvt")
+            .arg("--progress")
+            .arg("--include")
+            .arg("*/") // allow recursion into directories
+            .arg("--include")
+            .arg(format!("*{}*", graph_id))
+            .arg("--exclude")
+            .arg("*")
+            .arg(&sync_destination)
+            .arg(&sync_source)
+            .status()
+            .await?
+    } else if let Some(result_id) = result_id {
+        tokio::process::Command::new("rsync")
+            .arg("-rlvt")
+            .arg("--progress")
+            .arg("--include")
+            .arg("*/") // allow recursion into directories
+            .arg("--include")
+            .arg(format!("*{}*", result_id))
+            .arg("--exclude")
+            .arg("*")
+            .arg(&sync_destination)
+            .arg(&sync_source)
+            .status()
+            .await?
+    } else {
+        tokio::process::Command::new("rsync")
+            .arg("-rlvt")
+            .arg("--progress")
+            .arg(&sync_destination)
+            .arg(&sync_source)
+            .status()
+            .await?
+    };
 
     if !status.success() {
         return Err("Rsync failed".into());

@@ -144,6 +144,7 @@ pub struct QueryParams {
     use_snn: bool,
     best_snn_dim: bool,
     approx_snn_dim: bool,
+    use_snn_with_radius_reduction: bool,
 }
 
 impl QueryParams {
@@ -152,12 +153,14 @@ impl QueryParams {
         use_snn: bool,
         best_snn_dim: bool,
         approx_snn_dim: bool,
+        use_snn_with_radius_reduction: bool,
     ) -> Self {
         Self {
             use_radius_reduction,
             use_snn,
             best_snn_dim,
             approx_snn_dim,
+            use_snn_with_radius_reduction,
         }
     }
 }
@@ -223,9 +226,13 @@ impl<const D: usize> DimReduction<D> {
                     let mut num_comparisons = 0;
                     //project onto next dimension and check if in radius there
                     for p in positions.iter() {
-                        let projected_distance =
-                            (pos[dim] - p[dim]).abs() - spatial_offset.magnitude();
-                        if projected_distance <= radius {
+                        let projected_distance = (pos[dim] - p[dim]).abs();
+                        let snn_radius = if params.use_snn_with_radius_reduction {
+                            (radius.powi(2) - new_spatial_offset.magnitude_squared()).sqrt()
+                        } else {
+                            radius
+                        };
+                        if projected_distance <= snn_radius {
                             num_comparisons += 1;
                             // if dim == parameter_dim
                             //     && (pos - *p).magnitude_squared() < radius.powi(2)

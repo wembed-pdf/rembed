@@ -22,7 +22,14 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     /// Pull files from remote directory
-    Pull,
+    Pull {
+        /// Just pull this graph_id
+        #[arg(long)]
+        graph_id: Option<i64>,
+        /// Just pull this result_id
+        #[arg(long)]
+        result_id: Option<i64>,
+    },
     /// Push files to remote directory
     Push,
     /// Run Benchmarks matching the specified parameters
@@ -195,8 +202,8 @@ enum Commands {
         node_counts: String,
 
         /// Radiuses to test (range format: "0.5-2.0" or single value)
-        #[arg(long, default_value = "1.0")]
-        radiuses: String,
+        #[arg(long)]
+        radiuses: Option<String>,
 
         /// Point distributions: "normal", "uniform", or both (comma-separated)
         #[arg(long)]
@@ -229,6 +236,14 @@ enum Commands {
         /// Set benchmark to fast mode with shorter warmup and measurement times (for quick local testing)
         #[arg(long, default_value_t = false)]
         fast: bool,
+
+        /// Expected number of queried nodes. This is mutually exclusive with radius and is used to set the radius such that on average this many nodes are within the radius.
+        #[arg(long)]
+        expected_queries: Option<usize>,
+
+        /// Choose only nodes that are not closer than the radius to the boundary as query points to avoid edge effects
+        #[arg(long, default_value_t = false)]
+        only_center_nodes: bool,
     },
 }
 
@@ -239,8 +254,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     match args.command {
-        Commands::Pull => {
-            benchmark::pull_files(false, None).await?;
+        Commands::Pull {
+            graph_id,
+            result_id,
+        } => {
+            benchmark::pull_files(false, None, graph_id, result_id).await?;
         }
 
         Commands::Push => {
@@ -552,6 +570,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             seed,
             output,
             fast,
+            expected_queries,
+            only_center_nodes,
         } => {
             use benchmark::benchmark::distribution_bench::{
                 DistributionBenchConfig, DistributionBenchRunner,
@@ -575,6 +595,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 benchmarksets: None,
                 path_to_benchmarksets: benchmarksets_path.clone(),
                 fast,
+                expected_queries,
+                only_center_nodes,
             };
 
             config.dims = dimensions
@@ -585,10 +607,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .split(',')
                 .map(|s| s.trim().parse::<usize>())
                 .collect::<Result<Vec<usize>, _>>()?;
-            config.radii = radiuses
-                .split(',')
-                .map(|s| s.trim().parse::<f64>())
-                .collect::<Result<Vec<f64>, _>>()?;
+            if let Some(expected) = expected_queries {
+                assert!(
+                    radiuses.is_none(),
+                    "expected_queries is mutually exclusive with radiuses"
+                );
+                // If expected_queries is provided, calculate the radius for each node count to achieve that many expected queries
+                config.expected_queries = Some(expected);
+            } else {
+                config.radii = radiuses
+                    .unwrap()
+                    .split(',')
+                    .map(|s| s.trim().parse::<f64>())
+                    .collect::<Result<Vec<f64>, _>>()?;
+            }
+
             // Parse distributions
             config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
 

@@ -17,6 +17,8 @@ pub struct DistributionBenchConfig {
     pub num_queries: usize,
     pub seed: u64,
     pub fast: bool,
+    pub expected_queries: Option<usize>,
+    pub only_center_nodes: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -72,11 +74,16 @@ impl DistributionBenchRunner {
 
             for &dim in &self.config.dims {
                 for &node_count in &self.config.counts {
-                    for &radius in &self.config.radii {
+                    if let Some(expected) = self.config.expected_queries {
+                        // Adjust radius to achieve expected number of queries
+                        let radius = (expected as f64
+                            / node_count as f64
+                            / hypersphere_volume_factor_recursive(dim))
+                        .powf(1.0 / dim as f64);
                         for distribution in self.config.distributions.as_ref().unwrap() {
                             current += 1;
                             eprintln!(
-                                "[{}/{}] Running dim={}, n={}, r={}, dist={}",
+                                "[{}/{}] Running dim={}, n={}, r~{:.3}, dist={}",
                                 current,
                                 total,
                                 dim,
@@ -95,6 +102,31 @@ impl DistributionBenchRunner {
 
                             all_results.extend(results);
                         }
+                    } else {
+                        for &radius in &self.config.radii {
+                            for distribution in self.config.distributions.as_ref().unwrap() {
+                                current += 1;
+                                eprintln!(
+                                    "[{}/{}] Running dim={}, n={}, r={}, dist={}",
+                                    current,
+                                    total,
+                                    dim,
+                                    node_count,
+                                    radius,
+                                    distribution.name()
+                                );
+
+                                let results = self.run_benchmarks_for_dimension(
+                                    dim,
+                                    node_count,
+                                    radius,
+                                    distribution,
+                                    fast,
+                                )?;
+
+                                all_results.extend(results);
+                            }
+                        }
                     }
                 }
             }
@@ -102,6 +134,9 @@ impl DistributionBenchRunner {
 
         if let Some(benchmarksets) = &self.config.benchmarksets {
             for benchmarkset in benchmarksets {
+                if self.config.expected_queries.is_some() {
+                    todo!("Implement expected_queries for benchmarksets");
+                }
                 for &radius in &self.config.radii {
                     assert!(
                         self.config.path_to_benchmarksets.is_some(),
@@ -178,12 +213,51 @@ impl DistributionBenchRunner {
             structure.update_positions(&embedding.positions, None);
         }
 
-        // Generate query indices
-        let query_indices: Vec<NodeId> = if node_count <= self.config.num_queries {
-            (0..node_count).collect()
+        let eligible_nodes: Vec<NodeId> = if self.config.only_center_nodes {
+            // Generate query indices, only use nodes that are not closer than radius to the boundary to avoid edge effects skewing results
+            let mut reduced_elegible_nodes: Vec<NodeId> = (0..node_count)
+                .filter(|&i| {
+                    let pos = &embedding.positions[i];
+                    pos.components
+                        .iter()
+                        .all(|&coord| coord >= radius as f32 && coord <= 1.0 - radius as f32)
+                })
+                .collect();
+            eprintln!(
+                "Generated {} eligible query nodes out of {} total nodes for radius {}",
+                reduced_elegible_nodes.len(),
+                node_count,
+                radius
+            );
+            if reduced_elegible_nodes.is_empty() {
+                // order the nodes by distance to the boundary
+                let mut nodes_with_dist: Vec<(NodeId, f32)> = (0..node_count)
+                    .map(|i| {
+                        let pos = &embedding.positions[i];
+                        let dist_to_boundary = pos
+                            .components
+                            .iter()
+                            .map(|&coord| coord.min(1.0 - coord))
+                            .fold(f32::INFINITY, |a, b| a.min(b));
+                        (i, dist_to_boundary)
+                    })
+                    .collect();
+                nodes_with_dist.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+                reduced_elegible_nodes = nodes_with_dist.into_iter().map(|(i, _)| i).collect();
+            }
+            reduced_elegible_nodes
         } else {
-            let step = node_count / self.config.num_queries;
-            (0..node_count).step_by(step).collect()
+            (0..node_count).collect()
+        };
+        assert!(
+            !eligible_nodes.is_empty(),
+            "No eligible query nodes found. Are there any nodes? only_center_nodes should not be able to cause this.",
+        );
+        let query_indices: Vec<NodeId> = if eligible_nodes.len() <= self.config.num_queries {
+            eligible_nodes
+        } else {
+            let step = eligible_nodes.len() / self.config.num_queries;
+            eligible_nodes.iter().step_by(step).copied().collect()
         };
 
         // Benchmark each structure
@@ -349,7 +423,29 @@ impl DistributionBenchRunner {
             2 => Ok(self.run_benchmark_for_config::<2>(node_count, radius, distribution, fast)?),
             3 => Ok(self.run_benchmark_for_config::<3>(node_count, radius, distribution, fast)?),
             4 => Ok(self.run_benchmark_for_config::<4>(node_count, radius, distribution, fast)?),
+            5 => Ok(self.run_benchmark_for_config::<5>(node_count, radius, distribution, fast)?),
+            6 => Ok(self.run_benchmark_for_config::<6>(node_count, radius, distribution, fast)?),
+            7 => Ok(self.run_benchmark_for_config::<7>(node_count, radius, distribution, fast)?),
             8 => Ok(self.run_benchmark_for_config::<8>(node_count, radius, distribution, fast)?),
+            9 => Ok(self.run_benchmark_for_config::<9>(node_count, radius, distribution, fast)?),
+            10 => {
+                Ok(self.run_benchmark_for_config::<10>(node_count, radius, distribution, fast)?)
+            }
+            11 => {
+                Ok(self.run_benchmark_for_config::<11>(node_count, radius, distribution, fast)?)
+            }
+            12 => {
+                Ok(self.run_benchmark_for_config::<12>(node_count, radius, distribution, fast)?)
+            }
+            13 => {
+                Ok(self.run_benchmark_for_config::<13>(node_count, radius, distribution, fast)?)
+            }
+            14 => {
+                Ok(self.run_benchmark_for_config::<14>(node_count, radius, distribution, fast)?)
+            }
+            15 => {
+                Ok(self.run_benchmark_for_config::<15>(node_count, radius, distribution, fast)?)
+            }
             16 => {
                 Ok(self.run_benchmark_for_config::<16>(node_count, radius, distribution, fast)?)
             }
@@ -361,5 +457,13 @@ impl DistributionBenchRunner {
                 panic!("Unsupported dimension");
             }
         }
+    }
+}
+
+pub fn hypersphere_volume_factor_recursive(d: usize) -> f64 {
+    match d {
+        0 => 1.0,
+        1 => 2.0,
+        _ => (2.0 * std::f64::consts::PI / d as f64) * hypersphere_volume_factor_recursive(d - 2),
     }
 }
