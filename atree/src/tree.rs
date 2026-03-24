@@ -33,6 +33,26 @@ pub(crate) struct Snn<F: Scalar> {
     pub resolution: F,
 }
 
+// ── Position access trait ────────────────────────────────────────────
+
+pub(crate) trait Positions<F: Scalar> {
+    fn dim(&self) -> usize;
+    fn coord(&self, id: usize, dim: usize) -> F;
+}
+
+impl<const D: usize, F: Scalar> Positions<F> for [[F; D]] {
+    #[inline(always)]
+    fn dim(&self) -> usize {
+        D
+    }
+    #[inline(always)]
+    fn coord(&self, id: usize, dim: usize) -> F {
+        self[id][dim]
+    }
+}
+
+// ── ATree ────────────────────────────────────────────────────────────
+
 #[derive(Clone)]
 pub struct ATree<const D: usize, F: Scalar = f32, I: IdStorage = u32> {
     pub(crate) positions: Vec<[F; D]>,
@@ -106,7 +126,7 @@ where
             0,
             td,
             0,
-            &self.positions,
+            self.positions.as_slice(),
             0,
         );
 
@@ -153,7 +173,9 @@ where
     }
 }
 
-pub(crate) fn build_tree<const D: usize, F: Scalar>(
+// ── Tree building (generic over position storage) ────────────────────
+
+pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
     nodes: &mut [F],
     leaves: &mut [Snn<F>],
     node_ids: &mut [usize],
@@ -161,26 +183,26 @@ pub(crate) fn build_tree<const D: usize, F: Scalar>(
     depth: usize,
     total_depth: usize,
     heap_idx: usize,
-    positions: &[[F; D]],
+    positions: &P,
     offset: usize,
 ) {
+    let dim = positions.dim();
+
     if depth == total_depth {
+        let sort_dim = depth % dim;
         node_ids.sort_unstable_by(|a, b| {
-            F::total_cmp(&positions[*a][depth % D], &positions[*b][depth % D])
+            F::total_cmp(&positions.coord(*a, sort_dim), &positions.coord(*b, sort_dim))
         });
 
-        for (d_pos, pos) in d_pos
-            .iter_mut()
-            .zip(node_ids.iter().map(|id| &positions[*id]))
-        {
-            *d_pos = pos[depth % D];
+        for (d_pos, id) in d_pos.iter_mut().zip(node_ids.iter()) {
+            *d_pos = positions.coord(*id, sort_dim);
         }
         let mut lut = vec![];
         let mut end_lut = vec![];
         let min = d_pos[0].floor();
         let slack = d_pos.len() - node_ids.len();
         let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
-        let num_buckets = lut_size::<D>();
+        let num_buckets = lut_size_for_dim(dim);
         let resolution = F::from_usize(num_buckets) / (max - min);
         for i in 0..num_buckets {
             let boundary = F::from_usize(i) / resolution + min;
@@ -201,17 +223,21 @@ pub(crate) fn build_tree<const D: usize, F: Scalar>(
         return;
     }
 
+    let sort_dim = depth % dim;
     let median_idx = node_ids.len() / 2;
     node_ids.select_nth_unstable_by(median_idx, |a, b| {
-        F::total_cmp(&positions[*a][depth % D], &positions[*b][depth % D])
+        F::total_cmp(
+            &positions.coord(*a, sort_dim),
+            &positions.coord(*b, sort_dim),
+        )
     });
 
-    let split = positions[node_ids[median_idx]][depth % D];
+    let split = positions.coord(node_ids[median_idx], sort_dim);
     let mut split_pos = median_idx;
 
     let mut i = 0;
     while i < split_pos {
-        if positions[node_ids[i]][depth % D] == split {
+        if positions.coord(node_ids[i], sort_dim) == split {
             split_pos -= 1;
             node_ids.swap(i, split_pos);
         } else {
@@ -252,6 +278,8 @@ pub(crate) fn build_tree<const D: usize, F: Scalar>(
     nodes[heap_idx] = split;
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────
+
 pub(crate) fn compute_total_depth(n: usize) -> usize {
     if n <= LEAFSIZE {
         0
@@ -260,18 +288,24 @@ pub(crate) fn compute_total_depth(n: usize) -> usize {
     }
 }
 
-pub(crate) const fn dim_lut_multiplier<const D: usize>() -> f32 {
-    match D {
+pub(crate) fn lut_size_for_dim(d: usize) -> usize {
+    let multiplier = match d {
+        0..=2 => 0.1,
+        3..=8 => 0.5,
+        9..=12 => 0.8,
+        _ => 1.5,
+    };
+    (multiplier * (LEAFSIZE as f32)) as usize
+}
+
+pub(crate) const fn lut_size<const D: usize>() -> usize {
+    let multiplier = match D {
         x if x <= 2 => 0.1,
         x if x <= 8 => 0.5,
         x if x <= 12 => 0.8,
         x if x > 12 => 1.5,
         _ => unreachable!(),
-    }
-}
-
-pub(crate) const fn lut_size<const D: usize>() -> usize {
-    let multiplier = dim_lut_multiplier::<D>();
+    };
     (multiplier * (LEAFSIZE as f32)) as usize
 }
 

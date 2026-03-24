@@ -540,3 +540,20 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
         (j, id_arr, dist_arr)
     }
 }
+
+/// Shared compress dispatch for use by DynPDVec.
+///
+/// Constructs a temporary `PDVec<1, W>` proxy (compress only accesses `ids`,
+/// not `lanes`) and delegates to its SIMD-optimized compress.
+pub(crate) fn compress_with_ids<const W: usize, F: Scalar, I: IdStorage>(
+    ids: [I; W],
+    distances: [F; W],
+    threshold: F,
+) -> (usize, [I; W], [F; W]) {
+    let proxy = PDVec::<1, W, F, I> {
+        lanes: [[F::NAN; W]],
+        sqared_half: [F::INFINITY; W],
+        ids,
+    };
+    proxy.compress(distances, threshold)
+}

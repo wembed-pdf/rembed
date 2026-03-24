@@ -88,9 +88,11 @@ where
             .min(max_lut);
 
             let min_i = snn.lut[idx];
+            // todo cache miss
             let max_i = snn.lut[end_idx + snn.lut.len() / 2];
 
             let pdvec_count = max_i - min_i;
+            // todo cache miss
             out.push(LeafRange { min_i, max_i });
             return pdvec_count;
         }
