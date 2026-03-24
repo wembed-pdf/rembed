@@ -128,7 +128,6 @@ pub fn profile_datastructure_query<'a, const D: usize>(
             let mut structure = structure.clone_box();
             let mut results = Vec::with_capacity(structure.num_nodes());
             samples.start();
-            let mut returned_count = 0;
             for _ in 0..iters {
                 // for mut structure in data_structures {
                 match benchmark_type {
@@ -140,16 +139,11 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                             results.clear();
                             structure.nearest_neighbors(i, 1., &mut results);
                             std::hint::black_box(&results);
-                            returned_count += results.len();
                         }
                     }
                 }
             }
             let sample_bench = samples.stop(iters) / queries as u32;
-            eprintln!(
-                "Returned count avg: {}",
-                returned_count as f64 / queries as f64 / iters as f64
-            );
             sample_bench
         });
     });
