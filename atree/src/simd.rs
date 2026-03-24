@@ -1,4 +1,4 @@
-use std::mem::{size_of, MaybeUninit};
+use std::mem::{MaybeUninit, size_of};
 
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
@@ -66,8 +66,7 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
         for j in (0..D).step_by(2) {
             acc1 = std::array::from_fn(|i| self.lanes[j][i].mul_add(-pos[j], acc1[i]));
             if j + 1 < D {
-                acc2 =
-                    std::array::from_fn(|i| self.lanes[j + 1][i].mul_add(-pos[j + 1], acc2[i]));
+                acc2 = std::array::from_fn(|i| self.lanes[j + 1][i].mul_add(-pos[j + 1], acc2[i]));
             }
         }
 
@@ -380,22 +379,20 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
     // ── wide crate f32+u32 compress ─────────────────────────────────
 
     #[cfg(feature = "simd-compress")]
-    fn compress_wide_f32_u32_8(
-        &self,
-        distances: [F; W],
-        threshold: F,
-    ) -> (usize, [I; W], [F; W]) {
+    fn compress_wide_f32_u32_8(&self, distances: [F; W], threshold: F) -> (usize, [I; W], [F; W]) {
+        use std::array::from_fn;
+
         use simd_lookup::simd_compress::compress_u32x8;
         use wide::{f32x8, u32x8};
 
-        let dist = f32x8::new(std::array::from_fn(|i| unsafe {
+        let dist = f32x8::new(from_fn(|i| unsafe {
             *(&distances[i] as *const F as *const f32)
         }));
         let threshold_f32 = unsafe { *(&threshold as *const F as *const f32) };
         let threshold_v = f32x8::splat(threshold_f32);
         let mask = dist.simd_le(threshold_v).to_bitmask() as u8;
 
-        let ids_v = u32x8::from(std::array::from_fn::<u32, 8, _>(|i| unsafe {
+        let ids_v = u32x8::from(from_fn::<u32, 8, _>(|i| unsafe {
             *(&self.ids[i] as *const I as *const u32)
         }));
         let (compressed, count) = compress_u32x8(ids_v, mask);
@@ -410,8 +407,8 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
 
         let mut dist_arr = [F::default(); W];
         let mut j = 0;
-        for i in 0..8 {
-            dist_arr[j] = distances[i];
+        for (i, &dist) in distances.iter().enumerate() {
+            dist_arr[j] = dist;
             j += ((mask >> i) & 1) as usize;
         }
 
@@ -419,11 +416,7 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
     }
 
     #[cfg(feature = "simd-compress")]
-    fn compress_wide_f32_u32_16(
-        &self,
-        distances: [F; W],
-        threshold: F,
-    ) -> (usize, [I; W], [F; W]) {
+    fn compress_wide_f32_u32_16(&self, distances: [F; W], threshold: F) -> (usize, [I; W], [F; W]) {
         use simd_lookup::simd_compress::compress_u32x8;
         use simd_lookup::wide_utils::SimdSplit;
         use wide::{f32x8, u32x16};
@@ -463,8 +456,8 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
 
         let mut dist_arr = [F::default(); W];
         let mut j = 0;
-        for i in 0..8 {
-            dist_arr[j] = distances[i];
+        for (i, &dist) in distances.iter().enumerate() {
+            dist_arr[j] = dist;
             j += ((mask_lo >> i) & 1) as usize;
         }
         for i in 0..8 {
@@ -478,11 +471,7 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
     // ── wide crate f64 compress ─────────────────────────────────────
 
     #[cfg(feature = "simd-compress")]
-    fn compress_wide_f64_4(
-        &self,
-        distances: [F; W],
-        threshold: F,
-    ) -> (usize, [I; W], [F; W]) {
+    fn compress_wide_f64_4(&self, distances: [F; W], threshold: F) -> (usize, [I; W], [F; W]) {
         use wide::f64x4;
 
         let dist = f64x4::new(std::array::from_fn(|i| unsafe {
@@ -505,11 +494,7 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
     }
 
     #[cfg(feature = "simd-compress")]
-    fn compress_wide_f64_8(
-        &self,
-        distances: [F; W],
-        threshold: F,
-    ) -> (usize, [I; W], [F; W]) {
+    fn compress_wide_f64_8(&self, distances: [F; W], threshold: F) -> (usize, [I; W], [F; W]) {
         use wide::f64x4;
 
         let dist_lo = f64x4::new(std::array::from_fn(|i| unsafe {

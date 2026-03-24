@@ -4,6 +4,7 @@ use crate::simd::compress_with_ids;
 use crate::tree::{
     LeafRange, Positions, Snn, W, build_tree, children, compute_total_depth, lut_size_for_dim,
 };
+use std::array::from_fn;
 use std::cell::Cell;
 use std::mem::MaybeUninit;
 
@@ -58,11 +59,11 @@ impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I> {
     #[inline(always)]
     fn dist_squared(&self, pos: &[F]) -> [F; W] {
         let dim = self.lanes.len();
-        let diff: [F; W] = std::array::from_fn(|i| self.lanes[0][i] - pos[0]);
+        let diff: [F; W] = from_fn(|i| self.lanes[0][i] - pos[0]);
         let mut acc = diff.map(|x| x * x);
         for j in 1..dim {
-            let diff: [F; W] = std::array::from_fn(|i| self.lanes[j][i] - pos[j]);
-            acc = std::array::from_fn(|i| diff[i].mul_add(diff[i], acc[i]));
+            let diff: [F; W] = from_fn(|i| self.lanes[j][i] - pos[j]);
+            acc = from_fn(|i| diff[i].mul_add(diff[i], acc[i]));
         }
         acc
     }
@@ -75,14 +76,14 @@ impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I> {
 
         for j in 0..dim / 2 {
             let j = j * 2;
-            acc1 = std::array::from_fn(|i| self.lanes[j][i].mul_add(-pos[j], acc1[i]));
-            acc2 = std::array::from_fn(|i| self.lanes[j + 1][i].mul_add(-pos[j + 1], acc2[i]));
+            acc1 = from_fn(|i| self.lanes[j][i].mul_add(-pos[j], acc1[i]));
+            acc2 = from_fn(|i| self.lanes[j + 1][i].mul_add(-pos[j + 1], acc2[i]));
         }
         if dim & 1 > 0 {
-            acc2 = std::array::from_fn(|i| self.lanes[dim - 1][i].mul_add(-pos[dim - 1], acc2[i]));
+            acc1 = from_fn(|i| self.lanes[dim - 1][i].mul_add(-pos[dim - 1], acc1[i]));
         }
 
-        std::array::from_fn(|i| acc1[i] + acc2[i])
+        from_fn(|i| acc1[i] + acc2[i])
     }
 
     #[inline(always)]
