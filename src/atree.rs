@@ -1,7 +1,7 @@
 use crate::{
     Embedding, NodeId,
     dvec::DVec,
-    query::{self, SpatialIndex},
+    query::{self, Graph as _, SpatialIndex},
 };
 
 pub use atree::simd;
@@ -57,6 +57,20 @@ impl<const D: usize> crate::Query<D> for ATree<'_, D> {
         assert_eq!(self.positions.len(), self.tree.len());
         self.tree
             .query_radius(&pos.components, radius as f32, results);
+    }
+    fn nearest_neighbors_with_distances(
+        &self,
+        index: usize,
+        radius: f64,
+        _results: &mut Vec<NodeId>,
+    ) -> impl Iterator<Item = (usize, f32)>
+    where
+        Self: Sized,
+    {
+        let pos = *self.tree.position(index);
+        let weight = self.graph.weight(index);
+        self.tree
+            .query_radius_streaming_with_distances(&pos, (radius * weight.powi(2)) as f32)
     }
 }
 

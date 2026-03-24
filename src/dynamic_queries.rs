@@ -7,7 +7,7 @@ use crate::{
 };
 
 pub struct DynamicQuery<'a, const D: usize, ID: Embedder<'a, D>> {
-    query_cache: Vec<Mutex<Vec<usize>>>,
+    query_cache: Vec<Mutex<Vec<(usize, f32)>>>,
     structure: ID,
     positions: Vec<DVec<D>>,
     query_buffer: f64,
@@ -32,7 +32,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D> + Clone> Clone for DynamicQuery<'a,
     }
 }
 
-fn empty_cache(len: usize) -> Vec<Mutex<Vec<usize>>> {
+fn empty_cache(len: usize) -> Vec<Mutex<Vec<(usize, f32)>>> {
     (0..len).map(|_| Mutex::new(Vec::new())).collect()
 }
 
@@ -104,11 +104,26 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Update<D> for DynamicQuery<
 }
 
 impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for DynamicQuery<'a, D, ID> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        self.structure.query_radius(pos, radius, results);
+    }
+    fn nearest_neighbors_with_distances(
+        &self,
+        index: usize,
+        radius: f64,
+        results: &mut Vec<NodeId>,
+    ) -> impl Iterator<Item = (usize, f32)>
+    where
+        Self: Sized,
+    {
         if !self.overquery {
             // TODO find out why this assert fails
             // assert!(self.query_cache[index].lock().unwrap().is_empty());
-            return self.structure.nearest_neighbors(index, radius, results);
+            let collected: Vec<_> = self
+                .structure
+                .nearest_neighbors_with_distances(index, radius, results)
+                .collect();
+            return collected.into_iter();
         }
         assert!(
             radius <= self.query_buffer,
@@ -120,29 +135,36 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for DynamicQuery<'a, D, I
         let pos = self.position(index);
         let weight = self.weight(index);
         let remaining_radius = self.query_buffer;
-        let filter = |&id: &usize| {
+        let filter = |&(id, dist): &(usize, f32)| {
             !self.structure.is_connected(index, id)
                 && (weight > self.weight(id) || (weight == self.weight(id) && index > id))
-                && (self.position(id).distance_squared(pos) as f64)
-                    < (weight * self.weight(id)).powi(2) * remaining_radius
+                && (dist as f64) < (weight * self.weight(id)).powi(2) * remaining_radius
         };
-        let radius_one = |&id: &usize| {
-            (self.position(id).distance_squared(pos) as f64) < (weight * self.weight(id)).powi(2)
+        let radius_one = |&(id, _): &(usize, f32)| {
+            let dist = self.position(id).distance_squared(pos);
+            ((dist as f64) < (weight * self.weight(id)).powi(2)).then(|| (id, dist))
         };
-        let pos = |&id: &usize| {
+        let radius_one_precomp = |&(id, dist): &(usize, f32)| {
+            (dist < (weight * self.weight(id)).powi(2) as f32).then(|| (id, dist))
+        };
+        let pos = |&(id, _): &(usize, f32)| {
             (self.position(id).distance_squared(pos) as f64)
                 < (weight * self.weight(id)).powi(2) * remaining_radius
         };
 
         if !self.cache_empty {
             guard.retain(pos);
-            results.extend(guard.iter().filter(|x| radius_one(x)).cloned());
+            let collected: Vec<_> = guard.iter().filter_map(|x| radius_one(x)).collect();
+            return collected.into_iter();
         } else {
             assert!(guard.is_empty());
-            self.structure
-                .nearest_neighbors(index, self.over_query_radius, &mut guard);
-            guard.retain(filter);
-            results.extend(guard.iter().filter(|x| radius_one(x)).cloned());
+            guard.extend(
+                self.structure
+                    .nearest_neighbors_with_distances(index, self.over_query_radius, results)
+                    .filter(filter),
+            );
+            let collected: Vec<_> = guard.iter().filter_map(|x| radius_one_precomp(x)).collect();
+            collected.into_iter()
         }
     }
 }

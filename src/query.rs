@@ -62,6 +62,21 @@ pub trait Query<const D: usize>: Position<D> + Graph {
         let scaled_radius = radius * self.weight(index).powi(2);
         self.query_radius(pos, scaled_radius, results);
     }
+    fn nearest_neighbors_with_distances(
+        &self,
+        index: usize,
+        radius: f64,
+        results: &mut Vec<NodeId>,
+    ) -> impl Iterator<Item = (usize, f32)>
+    where
+        Self: Sized,
+    {
+        self.nearest_neighbors(index, radius, results);
+        let pos = *self.position(index);
+        results
+            .drain(..)
+            .map(move |id| (id, pos.distance_squared(self.position(id))))
+    }
     fn nearest_neighbors_owned(&self, index: usize, radius: f64) -> Vec<NodeId> {
         let mut results = Vec::new();
         self.nearest_neighbors(index, radius, &mut results);
