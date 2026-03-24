@@ -11,6 +11,7 @@ pub mod boost_rtree;
 #[cfg(feature = "cgal")]
 pub mod cgal_kdtree;
 pub mod dvec;
+pub mod dyn_atree;
 pub mod dynamic_queries;
 pub mod embedding;
 pub mod graph;
@@ -65,6 +66,7 @@ pub fn data_structures<'a, const D: usize>(
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(dyn_atree::DynATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
