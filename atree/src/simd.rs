@@ -154,6 +154,19 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> PDVec<D, W, F, I> 
         let (count, ids, dists) = self.compress(distances, threshold);
         O::store_compressed(count, &ids, &dists, results)
     }
+    /// Generic compare: compress + type-specific store via QueryOutput.
+    #[inline(always)]
+    pub fn compare_into_initialized<O: QueryOutput<I, F> + Copy>(
+        &self,
+        distances: [F; W],
+        threshold: F,
+        results: &mut [O; W],
+    ) -> usize {
+        let (count, ids, dists) = self.compress(distances, threshold);
+        O::store_compressed(count, &ids, &dists, unsafe {
+            std::mem::transmute::<&mut [O; W], &mut [MaybeUninit<O>; W]>(results)
+        })
+    }
 
     /// Backward-compatible compare producing `usize` IDs.
     #[inline(always)]

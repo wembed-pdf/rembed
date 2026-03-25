@@ -2,36 +2,32 @@ use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::tree::{ATree, LeafRange, Point, W};
 
-impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I>
-where
-    usize: QueryOutput<I, F>,
-{
+impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
     /// Returns a streaming iterator over all point indices within `radius` of `pos`.
     ///
     /// Unlike `query_radius`, this avoids allocating a results Vec. Internally it
     /// processes one SIMD batch (W elements) at a time and yields IDs one by one.
     ///
     /// Call `.with_distances()` on the result to get `(index, squared_distance)` pairs instead.
-    pub fn query_radius_streaming(&self, pos: &[F; D], radius: F) -> RadiusIter<'_, D, F, I> {
-        RadiusIter(self.make_iter_core(pos, radius))
-    }
-
-    /// Returns a streaming iterator yielding `(index, squared_distance)` pairs.
-    pub fn query_radius_streaming_with_distances(
-        &self,
-        pos: &[F; D],
-        radius: F,
-    ) -> RadiusDistIter<'_, D, F, I> {
-        RadiusDistIter(self.make_iter_core(pos, radius))
-    }
-
-    fn make_iter_core(&self, pos: &[F; D], radius: F) -> RadiusIterCore<'_, D, F, I> {
+    ///
+    /// # Performance
+    ///
+    /// The iterator-based API may produce worse codegen than [`query_radius`](Self::query_radius)
+    /// for high dimensions. `query_radius` uses pre-reserved unsafe writes which allow LLVM
+    /// to keep position components in SIMD registers across the hot loop, while the iterator's
+    /// per-element `next()` path and closure-based `fold()` can cause register spills depending
+    /// on the calling context. Benchmark both approaches for your use case.
+    pub fn query_radius_streaming<O>(&self, pos: &[F; D], radius: F) -> RadiusIter<'_, D, F, I, O>
+    where
+        O: QueryOutput<I, F> + Copy + Default,
+    {
         let pos = Point::new(*pos);
         let radius_sq = radius * radius;
-        let mut ranges = Vec::new();
+        let mut ranges = crate::query::SCRATCH.take();
+        ranges.clear();
         let total_pdvecs =
             self.collect_ranges(&pos, 0, 0, radius_sq, &mut [F::ZERO; D], &mut ranges);
-        RadiusIterCore::new(self, pos, radius_sq, ranges, total_pdvecs)
+        RadiusIter::new(self, pos, radius_sq, ranges, total_pdvecs)
     }
 }
 
@@ -39,25 +35,29 @@ where
 ///
 /// Processes one SIMD batch (W elements) at a time and buffers the
 /// compressed IDs and distances for element-by-element consumption.
-pub struct RadiusIterCore<'a, const D: usize, F: Scalar, I: IdStorage> {
+pub struct RadiusIter<'a, const D: usize, F: Scalar, I: IdStorage, O>
+where
+    O: QueryOutput<I, F> + Default + Copy,
+{
     tree: &'a ATree<D, F, I>,
     pos: Point<D, F>,
     radius_sq: F,
-    half_radius_threshold: F,
     ranges: Vec<LeafRange>,
     range_idx: usize,
     pdvec_idx: usize,
     range_end: usize,
     // Buffers from last compress
-    buf_ids: [I; W],
-    buf_dists: [F; W],
-    buf_count: usize,
-    buf_pos: usize,
+    buf: [O; W],
+    buf_count: u8,
+    buf_pos: u8,
     // Upper-bound tracking for size_hint
     remaining_pdvecs: usize,
 }
 
-impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
+impl<'a, const D: usize, F: Scalar, I: IdStorage, O: Default> RadiusIter<'a, D, F, I, O>
+where
+    O: QueryOutput<I, F> + Default + Copy,
+{
     fn new(
         tree: &'a ATree<D, F, I>,
         pos: Point<D, F>,
@@ -66,6 +66,11 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
         total_pdvecs: usize,
     ) -> Self {
         let half_radius_threshold = radius_sq * F::HALF + F::from_f32(1e-4);
+        let radius_sq = if D < 6 {
+            radius_sq
+        } else {
+            half_radius_threshold
+        };
         let (pdvec_idx, range_end) = if let Some(r) = ranges.first() {
             (r.min_i, r.max_i)
         } else {
@@ -73,17 +78,15 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
         };
         let remaining_pdvecs = total_pdvecs;
 
-        RadiusIterCore {
+        RadiusIter {
             tree,
             pos,
             radius_sq,
-            half_radius_threshold,
             ranges,
             range_idx: 0,
             pdvec_idx,
             range_end,
-            buf_ids: [I::SENTINEL; W],
-            buf_dists: [F::ZERO; W],
+            buf: [O::default(); W],
             buf_count: 0,
             buf_pos: 0,
             remaining_pdvecs,
@@ -91,7 +94,7 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
     }
 
     /// Fill buffer from the next PDVec. Returns false if exhausted.
-    #[inline(always)]
+    #[inline(never)]
     fn fill_buf(&mut self) -> bool {
         loop {
             if self.pdvec_idx < self.range_end {
@@ -99,19 +102,16 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
                 self.pdvec_idx += 1;
                 self.remaining_pdvecs -= 1;
 
-                let (count, ids, dists) = if D < 6 {
-                    let distances = pdvec.dist_squared(self.pos.pos);
-                    pdvec.compress(distances, self.radius_sq)
+                let distances = if D < 6 {
+                    pdvec.dist_squared(self.pos.pos)
                 } else {
-                    let distances =
-                        pdvec.dist_half_squared(self.pos.pos, self.pos.squared_half);
-                    pdvec.compress(distances, self.half_radius_threshold)
+                    pdvec.dist_half_squared(self.pos.pos, self.pos.squared_half)
                 };
+                let count =
+                    pdvec.compare_into_initialized(distances, self.radius_sq, &mut self.buf);
 
                 if count > 0 {
-                    self.buf_ids = ids;
-                    self.buf_dists = dists;
-                    self.buf_count = count;
+                    self.buf_count = count as u8;
                     self.buf_pos = 0;
                     return true;
                 }
@@ -132,7 +132,7 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
     /// Number of buffered items remaining.
     #[inline(always)]
     fn buffered(&self) -> usize {
-        self.buf_count - self.buf_pos
+        (self.buf_count - self.buf_pos) as usize
     }
 
     /// Upper bound: buffered + remaining PDVecs × W.
@@ -142,37 +142,33 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIterCore<'a, D, F, I> {
     }
 }
 
-/// Streaming iterator yielding position indices.
-pub struct RadiusIter<'a, const D: usize, F: Scalar, I: IdStorage>(
-    RadiusIterCore<'a, D, F, I>,
-);
-
-impl<'a, const D: usize, F: Scalar, I: IdStorage> RadiusIter<'a, D, F, I> {
-    /// Convert into a distance-yielding iterator.
-    ///
-    /// Each element becomes `(index, squared_distance)`.
-    /// For D < 6, distances come directly from the SIMD path.
-    /// For D >= 6, distances are recomputed from positions.
-    pub fn with_distances(self) -> RadiusDistIter<'a, D, F, I> {
-        RadiusDistIter(self.0)
+impl<'a, const D: usize, F: Scalar, I: IdStorage, O> Drop for RadiusIter<'a, D, F, I, O>
+where
+    O: QueryOutput<I, F> + Default + Copy,
+{
+    fn drop(&mut self) {
+        self.ranges.clear();
+        crate::query::SCRATCH.set(std::mem::take(&mut self.ranges));
     }
 }
 
-impl<'a, const D: usize, F: Scalar, I: IdStorage> Iterator for RadiusIter<'a, D, F, I> {
-    type Item = usize;
+impl<'a, const D: usize, F: Scalar, I: IdStorage, O> Iterator for RadiusIter<'a, D, F, I, O>
+where
+    O: QueryOutput<I, F> + Default + Copy,
+{
+    type Item = O;
 
     #[inline(always)]
-    fn next(&mut self) -> Option<usize> {
-        let core = &mut self.0;
-        if core.buf_pos < core.buf_count {
-            let id = core.buf_ids[core.buf_pos];
-            core.buf_pos += 1;
-            return Some(id.to_usize());
+    fn next(&mut self) -> Option<O> {
+        if self.buf_pos < self.buf_count {
+            let id = self.buf[self.buf_pos as usize];
+            self.buf_pos += 1;
+            return Some(id);
         }
-        if core.fill_buf() {
-            let id = core.buf_ids[core.buf_pos];
-            core.buf_pos += 1;
-            Some(id.to_usize())
+        if self.fill_buf() {
+            let id = self.buf[self.buf_pos as usize];
+            self.buf_pos += 1;
+            Some(id)
         } else {
             None
         }
@@ -180,7 +176,7 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> Iterator for RadiusIter<'a, D,
 
     #[inline(always)]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.0.upper_bound()))
+        (0, Some(self.upper_bound()))
     }
 
     fn fold<B, G>(mut self, init: B, mut f: G) -> B
@@ -188,88 +184,12 @@ impl<'a, const D: usize, F: Scalar, I: IdStorage> Iterator for RadiusIter<'a, D,
         G: FnMut(B, Self::Item) -> B,
     {
         let mut acc = init;
-        let core = &mut self.0;
         loop {
             // Drain current buffer
-            while core.buf_pos < core.buf_count {
-                let id = core.buf_ids[core.buf_pos].to_usize();
-                core.buf_pos += 1;
-                acc = f(acc, id);
+            for element in &self.buf[0..self.buf_count as usize] {
+                acc = f(acc, *element);
             }
-            if !core.fill_buf() {
-                return acc;
-            }
-        }
-    }
-}
-
-/// Streaming iterator yielding `(index, squared_distance)` pairs.
-///
-/// For low dimensions (D < 6), squared distances come directly from the
-/// SIMD distance computation. For higher dimensions, actual squared
-/// distances are recomputed from stored positions.
-pub struct RadiusDistIter<'a, const D: usize, F: Scalar, I: IdStorage>(
-    RadiusIterCore<'a, D, F, I>,
-);
-
-impl<'a, const D: usize, F: Scalar, I: IdStorage> Iterator for RadiusDistIter<'a, D, F, I> {
-    type Item = (usize, F);
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<(usize, F)> {
-        let core = &mut self.0;
-        if core.buf_pos >= core.buf_count && !core.fill_buf() {
-            return None;
-        }
-        let idx = core.buf_pos;
-        core.buf_pos += 1;
-        let id = core.buf_ids[idx].to_usize();
-        let dist_sq = if D < 6 {
-            // dist_squared gives actual squared distances
-            core.buf_dists[idx]
-        } else {
-            // dist_half_squared is approximate; recompute
-            let other = &core.tree.positions[id];
-            (0..D)
-                .map(|j| {
-                    let d = core.pos.pos[j] - other[j];
-                    d * d
-                })
-                .sum()
-        };
-        Some((id, dist_sq))
-    }
-
-    #[inline(always)]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.0.upper_bound()))
-    }
-
-    fn fold<B, G>(mut self, init: B, mut f: G) -> B
-    where
-        G: FnMut(B, Self::Item) -> B,
-    {
-        let mut acc = init;
-        let core = &mut self.0;
-        loop {
-            while core.buf_pos < core.buf_count {
-                let idx = core.buf_pos;
-                core.buf_pos += 1;
-                let id = core.buf_ids[idx].to_usize();
-                let dist_sq = if D < 6 {
-                    core.buf_dists[idx]
-                } else {
-                    let other = &core.tree.positions[id];
-                    (0..D)
-                        .map(|j| {
-                            let d = core.pos.pos[j] - other[j];
-                            d * d
-                        })
-                        .sum()
-                };
-                acc = f(acc, (id, dist_sq));
-            }
-            if !core.fill_buf() {
+            if !self.fill_buf() {
                 return acc;
             }
         }

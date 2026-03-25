@@ -1,4 +1,3 @@
-use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::PDVec;
 
@@ -64,10 +63,7 @@ pub struct ATree<const D: usize, F: Scalar = f32, I: IdStorage = u32> {
     pub(crate) total_depth: usize,
 }
 
-impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I>
-where
-    usize: QueryOutput<I, F>,
-{
+impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
     /// Build a new ATree from a slice of positions.
     /// Each position is identified by its index in the slice.
     pub fn new(positions: &[[F; D]]) -> Self {
@@ -142,8 +138,7 @@ where
             let new_offset = self.positions_sorted.len();
 
             for chunk in node_ids.chunks(W) {
-                let pdvec =
-                    PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
+                let pdvec = PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
                 self.positions_sorted.push(pdvec)
             }
             let half_len = snn.lut.len() / 2;
@@ -171,6 +166,11 @@ where
     pub fn position(&self, index: usize) -> &[F; D] {
         &self.positions[index]
     }
+
+    /// Returns the sorted PDVec slice (for ASM inspection / advanced use).
+    pub fn positions_sorted(&self) -> &[PDVec<D, W, F, I>] {
+        &self.positions_sorted
+    }
 }
 
 // ── Tree building (generic over position storage) ────────────────────
@@ -191,7 +191,10 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
     if depth == total_depth {
         let sort_dim = depth % dim;
         node_ids.sort_unstable_by(|a, b| {
-            F::total_cmp(&positions.coord(*a, sort_dim), &positions.coord(*b, sort_dim))
+            F::total_cmp(
+                &positions.coord(*a, sort_dim),
+                &positions.coord(*b, sort_dim),
+            )
         });
 
         for (d_pos, id) in d_pos.iter_mut().zip(node_ids.iter()) {

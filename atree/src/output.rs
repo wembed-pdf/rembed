@@ -109,15 +109,14 @@ impl<F: Scalar> QueryOutput<u32, F> for usize {
         _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
-        #[cfg(feature = "simd-compress")]
-        if W >= 8 {
-            // SAFETY: MaybeUninit<usize> == MaybeUninit<u64> on 64-bit
-            widen_store_wide_u32(ids, unsafe {
-                &mut *(dst as *mut _ as *mut [MaybeUninit<u64>; W])
-            });
-            return count;
+        // Two loops of 4 instead of one loop of W to widen u32→u64
+        // using ymm-only vpmovzxdq (128→256) instead of a single
+        // ymm→zmm vpmovzxdq that eats a zmm register and causes
+        // position spills in the caller's hot loop.
+        for i in 0..4.min(W) {
+            dst[i].write(ids[i] as usize);
         }
-        for i in 0..W {
+        for i in 4.min(W)..W {
             dst[i].write(ids[i] as usize);
         }
         count
@@ -386,8 +385,7 @@ unsafe fn interleave_store_u64_f32_avx512<const W: usize>(
     dst: &mut [MaybeUninit<(u64, f32)>; W],
 ) {
     use std::arch::x86_64::*;
-    let ids_wide =
-        _mm512_cvtepu32_epi64(unsafe { _mm256_loadu_epi32(ids.as_ptr() as *const i32) });
+    let ids_wide = _mm512_cvtepu32_epi64(unsafe { _mm256_loadu_epi32(ids.as_ptr() as *const i32) });
     let dists_wide = _mm512_cvtepu32_epi64(_mm256_castps_si256(unsafe {
         _mm256_loadu_ps(dists.as_ptr())
     }));

@@ -8,5 +8,4 @@ mod query;
 mod tree;
 
 pub use dynamic::DynATree;
-pub use iter::{RadiusDistIter, RadiusIter};
 pub use tree::ATree;

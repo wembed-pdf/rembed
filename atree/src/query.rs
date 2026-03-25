@@ -4,16 +4,16 @@ use crate::tree::{ATree, LeafRange, Point, W, children, lut_size};
 use std::cell::Cell;
 
 thread_local! {
-    static SCRATCH: Cell<Vec<LeafRange>> = Cell::new(Vec::with_capacity(128));
+    pub(crate) static SCRATCH: Cell<Vec<LeafRange>> = Cell::new(Vec::with_capacity(128));
 }
 
-impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I>
-where
-    usize: QueryOutput<I, F>,
-{
+impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
     /// Query all points within `radius` of `pos`.
     /// Appends matching node IDs to `results`.
-    pub fn query_radius(&self, pos: &[F; D], radius: F, results: &mut Vec<usize>) {
+    pub fn query_radius<O>(&self, pos: &[F; D], radius: F, results: &mut Vec<O>)
+    where
+        O: QueryOutput<I, F>,
+    {
         let pos = Point::new(*pos);
         let radius_sq = radius * radius;
 
@@ -27,24 +27,6 @@ where
 
             scratch.set(ranges);
         });
-    }
-
-    /// Query all points within `radius` of `pos`, returning (ID, squared_distance) pairs.
-    pub fn query_radius_with_distances(&self, pos: &[F; D], radius: F) -> Vec<(usize, F)> {
-        let mut ids = Vec::new();
-        self.query_radius(pos, radius, &mut ids);
-        ids.iter()
-            .map(|&id| {
-                let other = &self.positions[id];
-                let dist_sq: F = (0..D)
-                    .map(|j| {
-                        let d = pos[j] - other[j];
-                        d * d
-                    })
-                    .sum();
-                (id, dist_sq)
-            })
-            .collect()
     }
 
     /// Collect leaf ranges and return total PDVec count across all ranges.
@@ -125,13 +107,16 @@ where
         total
     }
 
-    pub(crate) fn snn(
+    #[inline(always)]
+    pub(crate) fn snn<O>(
         &self,
-        results: &mut Vec<usize>,
+        results: &mut Vec<O>,
         pos: Point<D, F>,
         radius_sq: F,
         ranges: &[LeafRange],
-    ) {
+    ) where
+        O: QueryOutput<I, F>,
+    {
         // Single reserve for everything
         let mut capacity = results.capacity();
 
@@ -150,16 +135,16 @@ where
             for other_pos in &self.positions_sorted[range.min_i..range.max_i] {
                 let results_slice = unsafe {
                     std::slice::from_raw_parts_mut(
-                        results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<usize>,
+                        results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<O>,
                         W,
                     )
                 };
                 let new_elements = if D < 6 {
                     let distances = other_pos.dist_squared(pos.pos);
-                    other_pos.compare(distances, radius_sq, results_slice.try_into().unwrap())
+                    other_pos.compare_into(distances, radius_sq, results_slice.try_into().unwrap())
                 } else {
                     let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
-                    other_pos.compare(
+                    other_pos.compare_into(
                         distances,
                         half_radius_threshold,
                         results_slice.try_into().unwrap(),
