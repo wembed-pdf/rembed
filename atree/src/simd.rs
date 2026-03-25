@@ -143,20 +143,6 @@ where
             std::mem::transmute::<&mut [O; W], &mut [MaybeUninit<O>; W]>(results)
         })
     }
-
-    /// Backward-compatible compare producing `usize` IDs.
-    #[inline(always)]
-    pub fn compare(
-        &self,
-        distances: [F; W],
-        squared_radius_half: F,
-        results: &mut [MaybeUninit<usize>; W],
-    ) -> usize
-    where
-        usize: QueryOutput<I, F>,
-    {
-        self.compare_into(distances, squared_radius_half, results)
-    }
 }
 
 // ── Scalar-only CompressDispatch (W=1, W=2, and unsupported combos) ──

@@ -3,18 +3,6 @@ use std::mem::MaybeUninit;
 
 // ── ASM inspection wrappers ──────────────────────────────────────────
 
-/// Old path: compare (backward-compat wrapper → compare_into::<usize>)
-#[inline(never)]
-pub fn asm_compare_usize_w8(
-    pdvec: &PDVec<4, 8>,
-    distances: [f32; 8],
-    threshold: f32,
-    results: &mut [MaybeUninit<usize>; 8],
-) -> usize {
-    pdvec.compare(distances, threshold, results)
-}
-
-/// New path: compare_into::<u32>
 #[inline(never)]
 pub fn asm_compare_u32_w8(
     pdvec: &PDVec<4, 8>,
@@ -25,7 +13,6 @@ pub fn asm_compare_u32_w8(
     pdvec.compare_into(distances, threshold, results)
 }
 
-/// New path: compare_into::<(u32, f32)>
 #[inline(never)]
 pub fn asm_compare_u32_f32_w8(
     pdvec: &PDVec<4, 8>,
@@ -36,7 +23,6 @@ pub fn asm_compare_u32_f32_w8(
     pdvec.compare_into(distances, threshold, results)
 }
 
-/// New path: compare_into::<(usize, f32)>
 #[inline(never)]
 pub fn asm_compare_usize_f32_w8(
     pdvec: &PDVec<4, 8>,
@@ -51,10 +37,6 @@ pub fn asm_compare_usize_f32_w8(
 pub fn test_asm_compare_variants() {
     let pdvec = setup_w8();
     let dist = pdvec.dist_half_squared([0.; 4], 0.);
-
-    let mut r_usize = [MaybeUninit::zeroed(); 8];
-    let len = asm_compare_usize_w8(&pdvec, dist, 0.5, &mut r_usize);
-    assert_eq!(len, 5);
 
     let mut r_u32 = [MaybeUninit::zeroed(); 8];
     let len = asm_compare_u32_w8(&pdvec, dist, 0.5, &mut r_u32);
@@ -162,41 +144,6 @@ pub fn test_compare_w8() {
     assert_eq!(&results[0..5], &[0, 1, 2, 3, 4]);
 }
 
-// ── f64 ASM inspection wrappers ──────────────────────────────────────
-
-// f64+u32, W=4: compare → usize
-#[inline(never)]
-pub fn asm_f64_u32_compare_usize_w4(
-    pdvec: &PDVec<4, 4, f64, u32>,
-    distances: [f64; 4],
-    threshold: f64,
-    results: &mut [MaybeUninit<usize>; 4],
-) -> usize {
-    pdvec.compare(distances, threshold, results)
-}
-
-// f64+u64, W=8: compare → usize
-#[inline(never)]
-pub fn asm_f64_u64_compare_usize_w8(
-    pdvec: &PDVec<4, 8, f64, u64>,
-    distances: [f64; 8],
-    threshold: f64,
-    results: &mut [MaybeUninit<usize>; 8],
-) -> usize {
-    pdvec.compare(distances, threshold, results)
-}
-
-// f64+u32, W=8: compare → usize
-#[inline(never)]
-pub fn asm_f64_u32_compare_usize_w8(
-    pdvec: &PDVec<4, 8, f64, u32>,
-    distances: [f64; 8],
-    threshold: f64,
-    results: &mut [MaybeUninit<usize>; 8],
-) -> usize {
-    pdvec.compare(distances, threshold, results)
-}
-
 // f64+u32, W=4: compress only
 #[inline(never)]
 pub fn asm_f64_u32_compress_w4(
@@ -242,17 +189,11 @@ fn test_asm_f64_variants() {
     // f64+u32 W=4
     let pdvec_f64_u32_w4 = setup_f64_w4();
     let dist = pdvec_f64_u32_w4.dist_squared([0.; 4]);
-    let mut r = [MaybeUninit::zeroed(); 4];
-    let len = asm_f64_u32_compare_usize_w4(&pdvec_f64_u32_w4, dist, 0.5, &mut r);
-    assert_eq!(len, 1);
     let _ = asm_f64_u32_compress_w4(&pdvec_f64_u32_w4, dist, 0.5);
 
     // f64+u64 W=8
     let pdvec_f64_u64_w8 = setup_f64_w8();
     let dist = pdvec_f64_u64_w8.dist_half_squared([0.; 4], 0.);
-    let mut r = [MaybeUninit::zeroed(); 8];
-    let len = asm_f64_u64_compare_usize_w8(&pdvec_f64_u64_w8, dist, 0.5, &mut r);
-    assert_eq!(len, 5);
     let _ = asm_f64_u64_compress_w8(&pdvec_f64_u64_w8, dist, 0.5);
 
     // f64+u32 W=8
@@ -269,9 +210,6 @@ fn test_asm_f64_variants() {
         .into_iter(),
     );
     let dist = pdvec_f64_u32_w8.dist_half_squared([0.; 4], 0.);
-    let mut r = [MaybeUninit::zeroed(); 8];
-    let len = asm_f64_u32_compare_usize_w8(&pdvec_f64_u32_w8, dist, 0.5, &mut r);
-    assert_eq!(len, 5);
     let _ = asm_f64_u32_compress_w8(&pdvec_f64_u32_w8, dist, 0.5);
 
     // f32 baseline compress

@@ -61,11 +61,6 @@ impl<F: Scalar> QueryOutput<u32, F> for u64 {
         _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
-        #[cfg(feature = "simd-compress")]
-        if W >= 8 {
-            widen_store_wide_u32(ids, dst);
-            return count;
-        }
         for i in 0..W {
             dst[i].write(ids[i] as u64);
         }
@@ -109,14 +104,7 @@ impl<F: Scalar> QueryOutput<u32, F> for usize {
         _dists: &[F; W],
         dst: &mut [MaybeUninit<Self>; W],
     ) -> usize {
-        // Two loops of 4 instead of one loop of W to widen u32→u64
-        // using ymm-only vpmovzxdq (128→256) instead of a single
-        // ymm→zmm vpmovzxdq that eats a zmm register and causes
-        // position spills in the caller's hot loop.
-        for i in 0..4.min(W) {
-            dst[i].write(ids[i] as usize);
-        }
-        for i in 4.min(W)..W {
+        for i in 0..W {
             dst[i].write(ids[i] as usize);
         }
         count
@@ -318,29 +306,6 @@ impl QueryOutput<u64, f64> for (usize, f64) {
 }
 
 // ── SIMD helpers ─────────────────────────────────────────────────────
-
-/// Widen u32 IDs → u64 using simd-lookup's cross-platform widening.
-#[cfg(feature = "simd-compress")]
-#[inline(always)]
-fn widen_store_wide_u32<const W: usize>(ids: &[u32; W], dst: &mut [MaybeUninit<u64>; W]) {
-    use simd_lookup::wide_utils::WideUtilsExt;
-    use wide::u32x8;
-    let v = u32x8::from(std::array::from_fn::<u32, 8, _>(|i| ids[i]));
-    let widened = v.widen_to_u64x8();
-    let arr = widened.to_array();
-    for i in 0..8 {
-        dst[i].write(arr[i]);
-    }
-
-    if W >= 16 {
-        let v = u32x8::from(std::array::from_fn::<u32, 8, _>(|i| ids[8 + i]));
-        let widened = v.widen_to_u64x8();
-        let arr = widened.to_array();
-        for i in 0..8 {
-            dst[8 + i].write(arr[i]);
-        }
-    }
-}
 
 /// Interleave u32 IDs + f32 distances → (u32, f32) pairs.
 #[cfg(target_arch = "x86_64")]

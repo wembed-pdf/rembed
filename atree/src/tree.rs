@@ -209,7 +209,10 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         let mut end_lut = vec![];
         let min = d_pos[0].floor();
         let slack = d_pos.len() - node_ids.len();
-        let max = d_pos.iter().rev().nth(slack).unwrap().ceil();
+        let mut max = d_pos.iter().rev().nth(slack).unwrap().ceil();
+        if max <= min {
+            max = min + F::ONE;
+        }
         let num_buckets = lut_size_for_dim(dim);
         let resolution = F::from_usize(num_buckets) / (max - min);
         for i in 0..num_buckets {
