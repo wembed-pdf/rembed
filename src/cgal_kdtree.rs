@@ -125,15 +125,14 @@ impl<'a, const D: usize> Update<D> for CgalKdTreeWrapper<'a, D> {
         if !positions.is_empty() {
             let flat_points = self.positions_to_flat_array();
             unsafe {
-                self.index = cgal_kdtree_create_index(
-                    flat_points.as_ptr(),
-                    positions.len(),
-                    D,
-                );
+                self.index = cgal_kdtree_create_index(flat_points.as_ptr(), positions.len(), D);
             }
 
             if self.index.is_null() {
-                eprintln!("Warning: Failed to create CGAL Kd-tree index (dimension {} may not be supported)", D);
+                eprintln!(
+                    "Warning: Failed to create CGAL Kd-tree index (dimension {} may not be supported)",
+                    D
+                );
             }
         }
     }

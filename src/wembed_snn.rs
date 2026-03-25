@@ -143,9 +143,8 @@ impl<'a, const D: usize> Query<D> for WembedSnnWrapper<'a, D> {
 
         let query_point: Vec<f32> = pos.components.iter().copied().collect();
 
-        let mut search_result = unsafe {
-            wembed_snn_radius_search(self.index, query_point.as_ptr(), radius as f32)
-        };
+        let mut search_result =
+            unsafe { wembed_snn_radius_search(self.index, query_point.as_ptr(), radius as f32) };
 
         if !search_result.indices.is_null() && search_result.count > 0 {
             let indices =

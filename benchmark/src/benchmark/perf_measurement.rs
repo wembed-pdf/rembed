@@ -44,8 +44,8 @@ impl Default for PerfCounter {
 }
 
 impl PerfCounter {
-    fn create_perf_group(
-    ) -> Result<(Group, Counter, Counter, Option<Counter>), Box<dyn std::error::Error>> {
+    fn create_perf_group()
+    -> Result<(Group, Counter, Counter, Option<Counter>), Box<dyn std::error::Error>> {
         let mut group = Group::new()?;
 
         // Add instruction counter

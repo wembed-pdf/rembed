@@ -21,7 +21,7 @@ fn main() {
         .file("wembed_snn_wrapper.cpp")
         .file("snn.cpp")
         .file("eign.cpp")
-        .include(".")  // For local headers (snn.h, eign.h)
+        .include(".") // For local headers (snn.h, eign.h)
         .flag("-std=c++17")
         .flag("-O3")
         .flag("-march=native")

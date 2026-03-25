@@ -2,7 +2,7 @@ fn main() {
     // Tell cargo to tell rustc to link our C++ library and CGAL dependencies
     println!("cargo:rustc-link-lib=static=cgal_wrapper");
     println!("cargo:rustc-link-lib=stdc++");
-    println!("cargo:rustc-link-lib=gmp");  // CGAL dependency
+    println!("cargo:rustc-link-lib=gmp"); // CGAL dependency
     println!("cargo:rustc-link-lib=mpfr"); // CGAL dependency
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
@@ -16,9 +16,7 @@ fn main() {
         .ok();
 
     // CGAL's Epick_d kernel requires Eigen3
-    let eigen3 = pkg_config::Config::new()
-        .probe("eigen3")
-        .ok();
+    let eigen3 = pkg_config::Config::new().probe("eigen3").ok();
 
     // Build the C++ wrapper
     // The cc crate automatically picks up NIX_CFLAGS_COMPILE which contains include paths

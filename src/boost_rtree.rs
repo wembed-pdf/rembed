@@ -125,15 +125,14 @@ impl<'a, const D: usize> Update<D> for BoostRTreeWrapper<'a, D> {
         if !positions.is_empty() {
             let flat_points = self.positions_to_flat_array();
             unsafe {
-                self.index = boost_rtree_create_index(
-                    flat_points.as_ptr(),
-                    positions.len(),
-                    D,
-                );
+                self.index = boost_rtree_create_index(flat_points.as_ptr(), positions.len(), D);
             }
 
             if self.index.is_null() {
-                eprintln!("Warning: Failed to create Boost R-tree index (dimension {} may not be supported)", D);
+                eprintln!(
+                    "Warning: Failed to create Boost R-tree index (dimension {} may not be supported)",
+                    D
+                );
             }
         }
     }
@@ -148,9 +147,8 @@ impl<'a, const D: usize> Query<D> for BoostRTreeWrapper<'a, D> {
         let radius_squared = (radius * radius) as f32;
         let query_point: Vec<f32> = pos.components.iter().copied().collect();
 
-        let mut search_result = unsafe {
-            boost_rtree_radius_search(self.index, query_point.as_ptr(), radius_squared)
-        };
+        let mut search_result =
+            unsafe { boost_rtree_radius_search(self.index, query_point.as_ptr(), radius_squared) };
 
         if !search_result.indices.is_null() && search_result.count > 0 {
             let indices =
