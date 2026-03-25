@@ -1,18 +1,23 @@
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
-use crate::tree::{ATree, LeafRange, Point, W, children, lut_size};
+use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount};
+use crate::tree::{ATree, LeafRange, Point, children, lut_size};
 use std::cell::Cell;
 
 thread_local! {
     pub(crate) static SCRATCH: Cell<Vec<LeafRange>> = Cell::new(Vec::with_capacity(128));
 }
 
-impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
+impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
+where
+    LaneCount<W>: SupportedLaneCount,
+{
     /// Query all points within `radius` of `pos`.
     /// Appends matching node IDs to `results`.
     pub fn query_radius<O>(&self, pos: &[F; D], radius: F, results: &mut Vec<O>)
     where
         O: QueryOutput<I, F>,
+        PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
         let pos = Point::new(*pos);
         let radius_sq = radius * radius;
@@ -116,6 +121,7 @@ impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
         ranges: &[LeafRange],
     ) where
         O: QueryOutput<I, F>,
+        PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
         // Single reserve for everything
         let mut capacity = results.capacity();

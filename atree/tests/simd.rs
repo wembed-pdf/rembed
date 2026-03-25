@@ -83,10 +83,7 @@ pub fn setup() -> PDVec<4, 16> {
 }
 
 pub fn setup_2d() -> PDVec<2, 16> {
-    let vecs: [[f32; 2]; 2] = [
-        [135.49252, 152.74605],
-        [135.5085, 152.20529],
-    ];
+    let vecs: [[f32; 2]; 2] = [[135.49252, 152.74605], [135.5085, 152.20529]];
     PDVec::from_slices(&vecs[..], &[1, 2])
 }
 
@@ -95,7 +92,13 @@ fn magnitude_squared(v: &[f32]) -> f32 {
 }
 
 fn distance_squared(a: &[f32], b: &[f32]) -> f32 {
-    a.iter().zip(b.iter()).map(|(x, y)| { let d = x - y; d * d }).sum()
+    a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| {
+            let d = x - y;
+            d * d
+        })
+        .sum()
 }
 
 #[test]
@@ -355,10 +358,15 @@ fn test_streaming_matches_vec() {
         let query = [1.0f32, 0.5];
         let mut vec_results: Vec<usize> = Vec::new();
         tree.query_radius(&query, radius, &mut vec_results);
-        let streaming_results: Vec<usize> = tree.query_radius_streaming::<usize>(&query, radius).collect();
+        let streaming_results: Vec<usize> = tree
+            .query_radius_streaming::<usize>(&query, radius)
+            .collect();
 
         // Both should contain the same elements (order is identical since both traverse ranges in order)
-        assert_eq!(vec_results, streaming_results, "mismatch at radius={radius}");
+        assert_eq!(
+            vec_results, streaming_results,
+            "mismatch at radius={radius}"
+        );
     }
 }
 
@@ -373,10 +381,12 @@ fn test_streaming_f64_u64() {
         })
         .collect();
 
-    let tree: ATree<2, f64, u64> = ATree::new(&positions);
+    let tree: ATree<2, 8, f64, u64> = ATree::new(&positions);
     let mut vec_results: Vec<usize> = Vec::new();
     tree.query_radius(&[0.0, 0.0], 1.0, &mut vec_results);
-    let streaming_results: Vec<usize> = tree.query_radius_streaming::<usize>(&[0.0, 0.0], 1.0).collect();
+    let streaming_results: Vec<usize> = tree
+        .query_radius_streaming::<usize>(&[0.0, 0.0], 1.0)
+        .collect();
     assert_eq!(vec_results, streaming_results);
 }
 
@@ -388,7 +398,9 @@ fn test_streaming_empty() {
         .collect();
     let tree: ATree<2> = ATree::new(&positions);
     // Query far from any point with tiny radius
-    let count = tree.query_radius_streaming::<usize>(&[999.0, 999.0], 0.001).count();
+    let count = tree
+        .query_radius_streaming::<usize>(&[999.0, 999.0], 0.001)
+        .count();
     assert_eq!(count, 0);
 }
 
@@ -432,8 +444,9 @@ fn test_streaming_with_distances() {
 
     let mut vec_results: Vec<(usize, f32)> = Vec::new();
     tree.query_radius(&query, radius, &mut vec_results);
-    let streaming_results: Vec<(usize, f32)> =
-        tree.query_radius_streaming::<(usize, f32)>(&query, radius).collect();
+    let streaming_results: Vec<(usize, f32)> = tree
+        .query_radius_streaming::<(usize, f32)>(&query, radius)
+        .collect();
 
     assert_eq!(vec_results.len(), streaming_results.len());
     for ((vid, vd), (sid, sd)) in vec_results.iter().zip(streaming_results.iter()) {
@@ -477,13 +490,17 @@ fn test_streaming_dist_high_dim() {
 
     let mut vec_results: Vec<(usize, f32)> = Vec::new();
     tree.query_radius(&query, 2.0, &mut vec_results);
-    let streaming_results: Vec<(usize, f32)> =
-        tree.query_radius_streaming::<(usize, f32)>(&query, 2.0).collect();
+    let streaming_results: Vec<(usize, f32)> = tree
+        .query_radius_streaming::<(usize, f32)>(&query, 2.0)
+        .collect();
 
     assert_eq!(vec_results.len(), streaming_results.len());
     for ((vid, vd), (sid, sd)) in vec_results.iter().zip(streaming_results.iter()) {
         assert_eq!(vid, sid);
-        assert!((vd - sd).abs() < 1e-5, "dist mismatch at id={vid}: {vd} vs {sd}");
+        assert!(
+            (vd - sd).abs() < 1e-5,
+            "dist mismatch at id={vid}: {vd} vs {sd}"
+        );
     }
 }
 
@@ -508,20 +525,12 @@ pub fn asm_streaming_collect_to_slice(
 }
 
 #[inline(never)]
-pub fn asm_streaming_fold_count(
-    tree: &atree::ATree<2>,
-    pos: &[f32; 2],
-    radius: f32,
-) -> usize {
+pub fn asm_streaming_fold_count(tree: &atree::ATree<2>, pos: &[f32; 2], radius: f32) -> usize {
     tree.query_radius_streaming::<usize>(pos, radius).count()
 }
 
 #[inline(never)]
-pub fn asm_streaming_fold_sum(
-    tree: &atree::ATree<2>,
-    pos: &[f32; 2],
-    radius: f32,
-) -> usize {
+pub fn asm_streaming_fold_sum(tree: &atree::ATree<2>, pos: &[f32; 2], radius: f32) -> usize {
     tree.query_radius_streaming::<usize>(pos, radius).sum()
 }
 
@@ -571,12 +580,7 @@ pub fn asm_fold_filtered_d8(
 /// fold_core path: D=8, unfiltered for_each into Vec.
 /// Inspect with: cargo asm -p atree --test=simd --target-cpu=native 'asm_fold_d8'
 #[inline(never)]
-pub fn asm_fold_d8(
-    tree: &atree::ATree<8>,
-    pos: &[f32; 8],
-    radius: f32,
-    out: &mut Vec<usize>,
-) {
+pub fn asm_fold_d8(tree: &atree::ATree<8>, pos: &[f32; 8], radius: f32, out: &mut Vec<usize>) {
     tree.query_radius_streaming::<(usize, f32)>(pos, radius)
         .for_each(|(id, _)| out.push(id));
 }
@@ -584,9 +588,16 @@ pub fn asm_fold_d8(
 /// snn path (non-iterator): D=8, for comparison.
 /// Inspect with: cargo asm -p atree --test=simd --target-cpu=native 'asm_snn_d8'
 #[inline(never)]
-pub fn asm_snn_d8(
-    tree: &atree::ATree<8>,
-    pos: &[f32; 8],
+pub fn asm_snn_d8(tree: &atree::ATree<8>, pos: &[f32; 8], radius: f32, out: &mut Vec<usize>) {
+    tree.query_radius(pos, radius, out);
+}
+
+/// query_radius: D=4, f32, u32, W=8, Vec<usize>
+/// Inspect with: cargo asm -p atree --test=simd --target-cpu=native 'asm_query_radius_d4'
+#[inline(never)]
+pub fn asm_query_radius_d4(
+    tree: &atree::ATree<4>,
+    pos: &[f32; 4],
     radius: f32,
     out: &mut Vec<usize>,
 ) {
@@ -677,6 +688,21 @@ pub fn asm_manual_compare_into_usize_f32_d8(
 }
 
 #[test]
+fn test_asm_query_radius_d4() {
+    use atree::ATree;
+    let positions: Vec<[f32; 4]> = (0..500)
+        .map(|i| {
+            let v = i as f32 * 0.1;
+            [v, v * 0.5, 0.0, 0.0]
+        })
+        .collect();
+    let tree: ATree<4> = ATree::new(&positions);
+    let mut results = Vec::new();
+    asm_query_radius_d4(&tree, &[0.0; 4], 2.0, &mut results);
+    assert!(!results.is_empty());
+}
+
+#[test]
 fn test_asm_d8_variants() {
     use atree::ATree;
     let positions: Vec<[f32; 8]> = (0..300)
@@ -723,14 +749,20 @@ fn test_asm_d8_variants() {
     asm_manual_compare_into_u32_f32_d8(pdvecs, query, sq_half, threshold, &mut u32_f32_results);
     assert_eq!(
         compare_results,
-        u32_f32_results.iter().map(|&(id, _)| id as usize).collect::<Vec<_>>()
+        u32_f32_results
+            .iter()
+            .map(|&(id, _)| id as usize)
+            .collect::<Vec<_>>()
     );
 
     let mut usize_f32_results = Vec::new();
     asm_manual_compare_into_usize_f32_d8(pdvecs, query, sq_half, threshold, &mut usize_f32_results);
     assert_eq!(
         compare_results,
-        usize_f32_results.iter().map(|&(id, _)| id).collect::<Vec<_>>()
+        usize_f32_results
+            .iter()
+            .map(|&(id, _)| id)
+            .collect::<Vec<_>>()
     );
 }
 
@@ -747,7 +779,7 @@ fn test_atree_f64_u64() {
         })
         .collect();
 
-    let tree: ATree<2, f64, u64> = ATree::new(&positions);
+    let tree: ATree<2, 8, f64, u64> = ATree::new(&positions);
     assert_eq!(tree.len(), 500);
 
     let mut results: Vec<usize> = Vec::new();

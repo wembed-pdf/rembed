@@ -1,8 +1,12 @@
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
-use crate::tree::{ATree, LeafRange, Point, W};
+use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount};
+use crate::tree::{ATree, LeafRange, Point};
 
-impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
+impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
+where
+    LaneCount<W>: SupportedLaneCount,
+{
     /// Returns a streaming iterator over all point indices within `radius` of `pos`.
     ///
     /// Unlike `query_radius`, this avoids allocating a results Vec. Internally it
@@ -17,9 +21,14 @@ impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
     /// to keep position components in SIMD registers across the hot loop, while the iterator's
     /// per-element `next()` path and closure-based `fold()` can cause register spills depending
     /// on the calling context. Benchmark both approaches for your use case.
-    pub fn query_radius_streaming<O>(&self, pos: &[F; D], radius: F) -> RadiusIter<'_, D, F, I, O>
+    pub fn query_radius_streaming<O>(
+        &self,
+        pos: &[F; D],
+        radius: F,
+    ) -> RadiusIter<'_, D, W, F, I, O>
     where
         O: QueryOutput<I, F> + Copy + Default,
+        PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
         let pos = Point::new(*pos);
         let radius_sq = radius * radius;
@@ -35,11 +44,12 @@ impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
 ///
 /// Processes one SIMD batch (W elements) at a time and buffers the
 /// compressed IDs and distances for element-by-element consumption.
-pub struct RadiusIter<'a, const D: usize, F: Scalar, I: IdStorage, O>
+pub struct RadiusIter<'a, const D: usize, const W: usize, F: Scalar, I: IdStorage, O>
 where
+    LaneCount<W>: SupportedLaneCount,
     O: QueryOutput<I, F> + Default + Copy,
 {
-    tree: &'a ATree<D, F, I>,
+    tree: &'a ATree<D, W, F, I>,
     pos: Point<D, F>,
     radius_sq: F,
     ranges: Vec<LeafRange>,
@@ -54,12 +64,15 @@ where
     remaining_pdvecs: usize,
 }
 
-impl<'a, const D: usize, F: Scalar, I: IdStorage, O: Default> RadiusIter<'a, D, F, I, O>
+impl<'a, const D: usize, const W: usize, F: Scalar, I: IdStorage, O: Default>
+    RadiusIter<'a, D, W, F, I, O>
 where
+    LaneCount<W>: SupportedLaneCount,
     O: QueryOutput<I, F> + Default + Copy,
+    PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
 {
     fn new(
-        tree: &'a ATree<D, F, I>,
+        tree: &'a ATree<D, W, F, I>,
         pos: Point<D, F>,
         radius_sq: F,
         ranges: Vec<LeafRange>,
@@ -142,8 +155,10 @@ where
     }
 }
 
-impl<'a, const D: usize, F: Scalar, I: IdStorage, O> Drop for RadiusIter<'a, D, F, I, O>
+impl<'a, const D: usize, const W: usize, F: Scalar, I: IdStorage, O> Drop
+    for RadiusIter<'a, D, W, F, I, O>
 where
+    LaneCount<W>: SupportedLaneCount,
     O: QueryOutput<I, F> + Default + Copy,
 {
     fn drop(&mut self) {
@@ -152,9 +167,12 @@ where
     }
 }
 
-impl<'a, const D: usize, F: Scalar, I: IdStorage, O> Iterator for RadiusIter<'a, D, F, I, O>
+impl<'a, const D: usize, const W: usize, F: Scalar, I: IdStorage, O> Iterator
+    for RadiusIter<'a, D, W, F, I, O>
 where
+    LaneCount<W>: SupportedLaneCount,
     O: QueryOutput<I, F> + Default + Copy,
+    PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
 {
     type Item = O;
 

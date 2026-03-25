@@ -1,8 +1,7 @@
 use crate::scalar::{IdStorage, Scalar};
-use crate::simd::PDVec;
+use crate::simd::{LaneCount, PDVec, SupportedLaneCount};
 
 pub(crate) const LEAFSIZE: usize = 150;
-pub(crate) const W: usize = 8;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Point<const D: usize, F: Scalar> {
@@ -53,7 +52,10 @@ impl<const D: usize, F: Scalar> Positions<F> for [[F; D]] {
 // ── ATree ────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
-pub struct ATree<const D: usize, F: Scalar = f32, I: IdStorage = u32> {
+pub struct ATree<const D: usize, const W: usize = 8, F: Scalar = f32, I: IdStorage = u32>
+where
+    LaneCount<W>: SupportedLaneCount,
+{
     pub(crate) positions: Vec<[F; D]>,
     pub(crate) positions_sorted: Vec<PDVec<D, W, F, I>>,
     pub(crate) node_ids: Vec<usize>,
@@ -63,7 +65,10 @@ pub struct ATree<const D: usize, F: Scalar = f32, I: IdStorage = u32> {
     pub(crate) total_depth: usize,
 }
 
-impl<const D: usize, F: Scalar, I: IdStorage> ATree<D, F, I> {
+impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
+where
+    LaneCount<W>: SupportedLaneCount,
+{
     /// Build a new ATree from a slice of positions.
     /// Each position is identified by its index in the slice.
     pub fn new(positions: &[[F; D]]) -> Self {

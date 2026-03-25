@@ -1,9 +1,11 @@
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
-use crate::simd::compress_with_ids;
+use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount, compress_with_ids};
 use crate::tree::{
-    LeafRange, Positions, Snn, W, build_tree, children, compute_total_depth, lut_size_for_dim,
+    LeafRange, Positions, Snn, build_tree, children, compute_total_depth, lut_size_for_dim,
 };
+
+const W: usize = 8;
 use std::array::from_fn;
 use std::cell::Cell;
 use std::mem::MaybeUninit;
@@ -85,7 +87,13 @@ impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I> {
 
         from_fn(|i| acc1[i] + acc2[i])
     }
+}
 
+impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I>
+where
+    LaneCount<W>: SupportedLaneCount,
+    PDVec<1, W, F, I>: CompressDispatch<W, F, I>,
+{
     #[inline(always)]
     fn compress(&self, distances: [F; W], threshold: F) -> (usize, [I; W], [F; W]) {
         compress_with_ids(self.ids, distances, threshold)
@@ -149,6 +157,7 @@ pub struct DynATree<F: Scalar = f32, I: IdStorage = u32> {
 impl<F: Scalar, I: IdStorage> DynATree<F, I>
 where
     usize: QueryOutput<I, F>,
+    PDVec<1, W, F, I>: CompressDispatch<W, F, I>,
 {
     /// Build a new DynATree from flat position data.
     ///
