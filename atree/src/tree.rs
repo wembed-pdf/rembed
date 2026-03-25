@@ -223,6 +223,11 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
             let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
             end_lut.push(end_idx + offset);
         }
+        // Ensure the last bucket covers points landing exactly on max
+        // (take_while x < max misses them when max == ceil(coord))
+        if let Some(last) = end_lut.last_mut() {
+            *last = node_ids.len() + offset;
+        }
         lut.extend_from_slice(&end_lut);
 
         let leaf_idx = heap_idx - ((1 << total_depth) - 1);
