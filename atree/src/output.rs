@@ -310,6 +310,7 @@ impl QueryOutput<u64, f64> for (usize, f64) {
 /// Interleave u32 IDs + f32 distances → (u32, f32) pairs.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
+// TODO: Return custum struct, tupls are not guaranteed to have its fields represented in memory in order. This is currently potentially unsound
 unsafe fn interleave_store_u32_f32_avx512<const W: usize>(
     ids: &[u32; W],
     dists: &[f32; W],

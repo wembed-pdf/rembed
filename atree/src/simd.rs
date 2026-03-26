@@ -132,6 +132,16 @@ where
 
     /// Generic compare: compress + type-specific store via QueryOutput.
     #[inline(always)]
+    pub fn store_into<O: QueryOutput<I, F>>(
+        &self,
+        distances: [F; W],
+        results: &mut [MaybeUninit<O>; W],
+    ) -> usize {
+        O::store_compressed(W, &self.ids, &distances, results)
+    }
+
+    /// Generic compare: compress + type-specific store via QueryOutput.
+    #[inline(always)]
     pub fn compare_into_initialized<O: QueryOutput<I, F> + Copy>(
         &self,
         distances: [F; W],
