@@ -137,6 +137,10 @@ where
         self.positions_sorted.clear();
 
         for snn in self.leaves.iter_mut() {
+            if snn.lut.is_empty() {
+                continue;
+            }
+
             let offset = snn.lut[0];
             let last = snn.lut.last().expect("empty lut");
             let node_ids = &self.node_ids[offset..*last];
@@ -192,6 +196,10 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
     offset: usize,
 ) {
     let dim = positions.dim();
+
+    if node_ids.is_empty() {
+        return;
+    }
 
     if depth == total_depth {
         let sort_dim = depth % dim;

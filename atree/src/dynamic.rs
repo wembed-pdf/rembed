@@ -244,6 +244,9 @@ where
 
         let dim = self.dim;
         for snn in self.leaves.iter_mut() {
+            if snn.lut.is_empty() {
+                continue;
+            }
             let offset = snn.lut[0];
             let last = snn.lut.last().expect("empty lut");
             let node_ids = &self.node_ids[offset..*last];
