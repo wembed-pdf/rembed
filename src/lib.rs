@@ -24,6 +24,8 @@ pub mod nabo;
 pub mod nanoflann;
 pub mod neighbourhood;
 pub mod parsing;
+#[cfg(feature = "py_snn")]
+pub mod py_snn;
 pub mod quadtree;
 pub mod query;
 pub mod random_projection_lsh;
