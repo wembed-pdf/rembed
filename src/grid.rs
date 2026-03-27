@@ -192,9 +192,7 @@ impl<'a, const D: usize> Query<D> for Grid<'a, D> {
         let own_position_2d = DVec::from([own_position[0], own_position[1]]);
         let own_x = own_position[0];
         let own_y = own_position[1];
-        let scaled_radius =
-            ((radius * radius) as f32 - own_position_2d[0].powi(2) - own_position_2d[1].powi(2))
-                + 0.01;
+        let scaled_radius = (radius * radius) as f32;
 
         let min_grid_x = max(
             0,
@@ -232,17 +230,22 @@ impl<'a, const D: usize> Query<D> for Grid<'a, D> {
                     let cell_min_y = self.min_y as f32 + (y as f32) * self.grid_size as f32;
                     let cell_max_y = cell_min_y + self.grid_size as f32;
 
-                    let top_left_is_within = cell_min_x * cell_min_x + cell_min_y * cell_min_y
-                        - 2.0 * (cell_min_x * own_position_2d[0] + cell_min_y * own_position_2d[1])
+                    let top_left_is_within = (cell_min_x - own_position_2d[0])
+                        * (cell_min_x - own_position_2d[0])
+                        + (cell_min_y - own_position_2d[1]) * (cell_min_y - own_position_2d[1])
                         <= scaled_radius;
-                    let top_right_is_within = cell_max_x * cell_max_x + cell_min_y * cell_min_y
-                        - 2.0 * (cell_max_x * own_position_2d[0] + cell_min_y * own_position_2d[1])
+                    let top_right_is_within = (cell_max_x - own_position_2d[0])
+                        * (cell_max_x - own_position_2d[0])
+                        + (cell_min_y - own_position_2d[1]) * (cell_min_y - own_position_2d[1])
                         <= scaled_radius;
-                    let bottom_left_is_within = cell_min_x * cell_min_x + cell_max_y * cell_max_y
+                    let bottom_left_is_within = (cell_min_x - own_position_2d[0])
+                        * (cell_min_x - own_position_2d[0])
+                        + (cell_max_y - own_position_2d[1]) * (cell_max_y - own_position_2d[1])
                         - 2.0 * (cell_min_x * own_position_2d[0] + cell_max_y * own_position_2d[1])
                         <= scaled_radius;
-                    let bottom_right_is_within = cell_max_x * cell_max_x + cell_max_y * cell_max_y
-                        - 2.0 * (cell_max_x * own_position_2d[0] + cell_max_y * own_position_2d[1])
+                    let bottom_right_is_within = (cell_max_x - own_position_2d[0])
+                        * (cell_max_x - own_position_2d[0])
+                        + (cell_max_y - own_position_2d[1]) * (cell_max_y - own_position_2d[1])
                         <= scaled_radius;
 
                     if top_left_is_within
@@ -261,11 +264,9 @@ impl<'a, const D: usize> Query<D> for Grid<'a, D> {
                         let position = self.grid[x][y].positions.get_unchecked(i);
 
                         *results.get_unchecked_mut(len) = position.id;
-                        len += (position.position_0 * position.position_0
-                            + position.position_1 * position.position_1
-                            <= scaled_radius
-                                + 2.0 * (position.position_0 * own_x + position.position_1 * own_y))
-                            as usize;
+                        len += (((own_x - position.position_0) * (own_x - position.position_0)
+                            + (own_y - position.position_1) * (own_y - position.position_1))
+                            <= scaled_radius) as usize;
                     }
                 }
                 unsafe {

@@ -103,10 +103,7 @@ pub struct TreeQuery {
 
 impl TreeQuery {
     pub fn contains_fast(&self, point: DVec<2>) -> bool {
-        // (point - self.center).lp_norm(2.0) <= self.radius
-        point[0] * point[0] + point[1] * point[1]
-            - 2.0 * (point[0] * self.center[0] + point[1] * self.center[1])
-            <= self.radius
+        (point[0] - self.center[0]).powi(2) + (point[1] - self.center[1]).powi(2) <= self.radius
     }
 
     pub fn contains_rect(&self, rect: &Rect) -> bool {
@@ -411,12 +408,9 @@ impl<'a, const D: usize> Query<D> for Quadtree<'a, D> {
             return;
         }
 
-        let fast_radius = (scaled_radius) as f32 - pos[0] * pos[0] - pos[1] * pos[1] + 0.01;
-
         let query = TreeQuery {
             center: DVec::<2>::new([pos[0], pos[1]]),
-            radius: fast_radius,
-            // radius: radius as f32,
+            radius: scaled_radius as f32,
             aabb: Rect {
                 aa: DVec::<2>::new([pos[0] - radius as f32, pos[1] - radius as f32]),
                 bb: DVec::<2>::new([pos[0] + radius as f32, pos[1] + radius as f32]),
