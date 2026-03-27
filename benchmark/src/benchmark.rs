@@ -533,6 +533,8 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                             embedding,
                             &mut group,
                             &query_list,
+                            None,
+                            None,
                             benchmark_type.clone(),
                             structure.as_ref(),
                             fast,

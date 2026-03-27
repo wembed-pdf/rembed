@@ -12,6 +12,7 @@ pub struct DistributionBenchConfig {
     pub radii: Vec<f64>,
     pub distributions: Option<Vec<PointDistribution>>,
     pub benchmarksets: Option<Vec<String>>,
+    pub querysets: Option<Vec<String>>,
     pub path_to_benchmarksets: Option<String>,
     pub structures: Vec<String>,
     pub num_queries: usize,
@@ -48,9 +49,8 @@ impl DistributionBenchRunner {
 
     pub fn run(&self) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         let mut all_results = Vec::new();
+        let fast = self.config.fast;
         if self.config.distributions.is_some() {
-            let fast = self.config.fast; // fast mode off for distribution benchmarks
-
             eprintln!("Running distribution benchmarks:");
             eprintln!("  Dimensions: {:?}", self.config.dims);
             eprintln!("  Node counts: {:?}", self.config.counts);
@@ -97,6 +97,7 @@ impl DistributionBenchRunner {
                                 node_count,
                                 radius,
                                 distribution,
+                                None,
                                 fast,
                             )?;
 
@@ -121,6 +122,7 @@ impl DistributionBenchRunner {
                                     node_count,
                                     radius,
                                     distribution,
+                                    None,
                                     fast,
                                 )?;
 
@@ -133,7 +135,7 @@ impl DistributionBenchRunner {
         }
 
         if let Some(benchmarksets) = &self.config.benchmarksets {
-            for benchmarkset in benchmarksets {
+            for (i, benchmarkset) in benchmarksets.iter().enumerate() {
                 if self.config.expected_queries.is_some() {
                     todo!("Implement expected_queries for benchmarksets");
                 }
@@ -164,12 +166,43 @@ impl DistributionBenchRunner {
                         .unwrap()
                         .split(',')
                         .count();
+                    let queryset = if self.config.querysets.is_some() {
+                        assert!(
+                            benchmarksets.len() == self.config.querysets.as_ref().unwrap().len(),
+                            "Number of querysets must match number of benchmarksets"
+                        );
+                        let queryset = &self.config.querysets.as_ref().unwrap()[i];
+                        eprintln!(
+                            "Using queryset: {} for benchmarkset: {}",
+                            queryset, benchmarkset
+                        );
+                        let query_path = format!(
+                            "{}/{}",
+                            self.config.path_to_benchmarksets.as_ref().unwrap(),
+                            queryset
+                        );
+                        Some(
+                            fs::read_to_string(query_path)?
+                                .lines()
+                                .map(|line| {
+                                    line.split(',')
+                                        .map(|s| {
+                                            s.trim().parse().expect("Failed to parse query point")
+                                        })
+                                        .collect::<Vec<f32>>()
+                                })
+                                .collect::<Vec<Vec<f32>>>(),
+                        )
+                    } else {
+                        None
+                    };
                     let results = self.run_benchmarks_for_dimension(
                         dimension,
                         node_count,
                         radius,
                         &distribution,
-                        false,
+                        queryset,
+                        fast,
                     )?;
                     all_results.extend(results);
                 }
@@ -184,6 +217,7 @@ impl DistributionBenchRunner {
         node_count: usize,
         radius: f64,
         distribution: &PointDistribution,
+        queryset: Option<Vec<Vec<f32>>>,
         fast: bool,
     ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         // Generate synthetic points
@@ -266,14 +300,40 @@ impl DistributionBenchRunner {
         let mut c = Criterion::default();
         let mut group = c.benchmark_group(format!("dist_bench_d{}_n{}", D, node_count));
 
+        let query_pos_list = if queryset.is_some() {
+            Some(
+                queryset
+                    .unwrap()
+                    .iter()
+                    .map(|q| {
+                        assert_eq!(
+                            q.len(),
+                            D,
+                            "Query point dimension does not match embedding dimension"
+                        );
+                        rembed::dvec::DVec::<D> {
+                            components: q
+                                .clone()
+                                .try_into()
+                                .expect("Failed to convert query point"),
+                        }
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+
         for structure in &data_structures {
             let measurement = runner::profile_datastructure_query(
                 &embedding,
                 &mut group,
                 &query_indices,
+                query_pos_list.clone(),
+                Some(radius as f64),
                 runner::BenchmarkType::Radius(radius as f32, format!("radius_{}", radius)),
                 structure.as_ref(),
-                fast, // fast mode off for distribution benchmarks
+                fast,
             );
 
             results.push(BenchmarkRecord {
@@ -417,41 +477,129 @@ impl DistributionBenchRunner {
         node_count: usize,
         radius: f64,
         distribution: &PointDistribution,
+        queryset: Option<Vec<Vec<f32>>>,
         fast: bool,
     ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         match dim {
-            2 => Ok(self.run_benchmark_for_config::<2>(node_count, radius, distribution, fast)?),
-            3 => Ok(self.run_benchmark_for_config::<3>(node_count, radius, distribution, fast)?),
-            4 => Ok(self.run_benchmark_for_config::<4>(node_count, radius, distribution, fast)?),
-            5 => Ok(self.run_benchmark_for_config::<5>(node_count, radius, distribution, fast)?),
-            6 => Ok(self.run_benchmark_for_config::<6>(node_count, radius, distribution, fast)?),
-            7 => Ok(self.run_benchmark_for_config::<7>(node_count, radius, distribution, fast)?),
-            8 => Ok(self.run_benchmark_for_config::<8>(node_count, radius, distribution, fast)?),
-            9 => Ok(self.run_benchmark_for_config::<9>(node_count, radius, distribution, fast)?),
-            10 => {
-                Ok(self.run_benchmark_for_config::<10>(node_count, radius, distribution, fast)?)
-            }
-            11 => {
-                Ok(self.run_benchmark_for_config::<11>(node_count, radius, distribution, fast)?)
-            }
-            12 => {
-                Ok(self.run_benchmark_for_config::<12>(node_count, radius, distribution, fast)?)
-            }
-            13 => {
-                Ok(self.run_benchmark_for_config::<13>(node_count, radius, distribution, fast)?)
-            }
-            14 => {
-                Ok(self.run_benchmark_for_config::<14>(node_count, radius, distribution, fast)?)
-            }
-            15 => {
-                Ok(self.run_benchmark_for_config::<15>(node_count, radius, distribution, fast)?)
-            }
-            16 => {
-                Ok(self.run_benchmark_for_config::<16>(node_count, radius, distribution, fast)?)
-            }
-            32 => {
-                Ok(self.run_benchmark_for_config::<32>(node_count, radius, distribution, fast)?)
-            }
+            2 => Ok(self.run_benchmark_for_config::<2>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            3 => Ok(self.run_benchmark_for_config::<3>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            4 => Ok(self.run_benchmark_for_config::<4>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            5 => Ok(self.run_benchmark_for_config::<5>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            6 => Ok(self.run_benchmark_for_config::<6>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            7 => Ok(self.run_benchmark_for_config::<7>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            8 => Ok(self.run_benchmark_for_config::<8>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            9 => Ok(self.run_benchmark_for_config::<9>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            10 => Ok(self.run_benchmark_for_config::<10>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            11 => Ok(self.run_benchmark_for_config::<11>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            12 => Ok(self.run_benchmark_for_config::<12>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            13 => Ok(self.run_benchmark_for_config::<13>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            14 => Ok(self.run_benchmark_for_config::<14>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            15 => Ok(self.run_benchmark_for_config::<15>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            16 => Ok(self.run_benchmark_for_config::<16>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            32 => Ok(self.run_benchmark_for_config::<32>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            128 => Ok(self.run_benchmark_for_config::<128>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
             _ => {
                 eprintln!("Unsupported dimension: {}", dim);
                 panic!("Unsupported dimension");

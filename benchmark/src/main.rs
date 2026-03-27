@@ -194,12 +194,12 @@ enum Commands {
     /// Benchmark data structures with synthetic distributions
     BenchDistributions {
         /// Dimensions to test (range format: "2-16" or single value "8")
-        #[arg(long, default_value = "2-16")]
-        dimensions: String,
+        #[arg(long)]
+        dimensions: Option<String>,
 
         /// Node counts to test (range format: "1000-10000" or single value)
-        #[arg(long, default_value = "1000-10000")]
-        node_counts: String,
+        #[arg(long)]
+        node_counts: Option<String>,
 
         /// Radiuses to test (range format: "0.5-2.0" or single value)
         #[arg(long)]
@@ -212,6 +212,10 @@ enum Commands {
         /// Benchmarkset names (optional)
         #[arg(long)]
         benchmarksets: Option<String>,
+
+        /// Queryset names (optional, only relevant if benchmarksets are specified)
+        #[arg(long)]
+        querysets: Option<String>,
 
         /// Path to benchmarksets (optional)
         #[arg(long)]
@@ -565,6 +569,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             distributions,
             benchmarksets,
             benchmarksets_path,
+            querysets,
             structures,
             num_queries,
             seed,
@@ -593,20 +598,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 num_queries,
                 seed,
                 benchmarksets: None,
+                querysets: None,
                 path_to_benchmarksets: benchmarksets_path.clone(),
                 fast,
                 expected_queries,
                 only_center_nodes,
             };
 
-            config.dims = dimensions
-                .split(',')
-                .map(|s| s.trim().parse::<usize>())
-                .collect::<Result<Vec<usize>, _>>()?;
-            config.counts = node_counts
-                .split(',')
-                .map(|s| s.trim().parse::<usize>())
-                .collect::<Result<Vec<usize>, _>>()?;
+            if dimensions.is_some() && node_counts.is_some() {
+                config.dims = dimensions
+                    .unwrap()
+                    .split(',')
+                    .map(|s| s.trim().parse::<usize>())
+                    .collect::<Result<Vec<usize>, _>>()?;
+                config.counts = node_counts
+                    .unwrap()
+                    .split(',')
+                    .map(|s| s.trim().parse::<usize>())
+                    .collect::<Result<Vec<usize>, _>>()?;
+            }
             if let Some(expected) = expected_queries {
                 assert!(
                     radiuses.is_none(),
@@ -615,6 +625,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // If expected_queries is provided, calculate the radius for each node count to achieve that many expected queries
                 config.expected_queries = Some(expected);
             } else {
+                assert!(
+                    radiuses.is_some(),
+                    "Either expected_queries or radiuses must be provided"
+                );
                 config.radii = radiuses
                     .unwrap()
                     .split(',')
@@ -623,7 +637,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Parse distributions
-            config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
+            if distributions.is_some() {
+                config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
+            }
 
             // Parse benchmarksets
             if benchmarksets.is_some() {
@@ -631,7 +647,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     benchmarksets_path.is_some(),
                     "Benchmarksets path must be provided when benchmarksets are specified"
                 );
-                config.benchmarksets = Some(parse_benchmarksets(&benchmarksets.unwrap())?);
+                config.benchmarksets = Some(parse_benchmarksets(benchmarksets.as_ref().unwrap())?);
+            }
+
+            if querysets.is_some() {
+                assert!(
+                    benchmarksets.is_some(),
+                    "Queryset is only relevant if benchmarksets are specified"
+                );
+                config.querysets = Some(parse_benchmarksets(querysets.as_ref().unwrap())?);
             }
 
             let runner = DistributionBenchRunner::new(config);

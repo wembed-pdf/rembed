@@ -63,6 +63,7 @@ pub fn generate_points<const D: usize>(
         }
         PointDistribution::Benchmarkset { path, .. } => {
             // Read from benchmarkset file
+            println!("Reading benchmarkset from: {}", path);
             let components = fs::read_to_string(path).expect("Failed to read benchmarkset file");
             points = components
                 .lines()

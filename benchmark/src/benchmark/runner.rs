@@ -91,6 +91,8 @@ pub fn profile_datastructures<'a, const D: usize>(
             embedding,
             c,
             query_list,
+            None,
+            None,
             benchmark_type.clone(),
             structure.as_ref(),
             fast,
@@ -103,6 +105,8 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
     c: &mut BenchmarkGroup<WallTime>,
     query_list: &[usize],
+    query_pos_list: Option<Vec<rembed::dvec::DVec<D>>>,
+    radius: Option<f64>,
     benchmark_type: BenchmarkType,
     structure: &(dyn IndexClone<D> + 'a),
     fast: bool,
@@ -114,7 +118,6 @@ pub fn profile_datastructure_query<'a, const D: usize>(
         warmup = Duration::from_secs(1);
         measure = Duration::from_secs(5);
     }
-    let queries = query_list.len();
     let sample_count = 10;
     c.warm_up_time(warmup);
     c.measurement_time(measure);
@@ -122,31 +125,74 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     c.sample_size(sample_count);
     let benchmark_id = format!("{}/{}", benchmark_type.as_str(), structure.name());
 
-    c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
-        b.iter_custom(|iters| {
-            // let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
-            let mut structure = structure.clone_box();
-            let mut results = Vec::with_capacity(structure.num_nodes());
-            samples.start();
-            for _ in 0..iters {
-                // for mut structure in data_structures {
-                match benchmark_type {
-                    BenchmarkType::PositionUpdate => {
-                        structure.update_positions(&embedding.positions, None);
-                    }
-                    _ => {
-                        for &i in query_list {
-                            results.clear();
-                            structure.nearest_neighbors(i, 1., &mut results);
-                            std::hint::black_box(&results);
+    let queries = if query_pos_list.is_some() {
+        query_pos_list.as_ref().unwrap().len()
+    } else {
+        query_list.len()
+    };
+    if let Some(query_pos_list) = query_pos_list {
+        println!(
+            "Running benchmark '{}' with {} queries",
+            benchmark_id,
+            query_pos_list.len()
+        );
+        c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
+            b.iter_custom(|iters| {
+                let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
+                let structure = structure.clone_box();
+                let mut results = Vec::with_capacity(structure.num_nodes());
+                samples.start();
+                // for _ in 0..iters {
+                for mut structure in data_structures {
+                    match benchmark_type {
+                        BenchmarkType::PositionUpdate => {
+                            structure.update_positions(&embedding.positions, None);
+                        }
+                        _ => {
+                            for &pos in &query_pos_list {
+                                results.clear();
+                                structure.query_radius(
+                                    pos,
+                                    radius.expect("Radius must be provided for queryset benchmarks")
+                                        as f64,
+                                    &mut results,
+                                );
+                                std::hint::black_box(&results);
+                            }
                         }
                     }
                 }
-            }
-            let sample_bench = samples.stop(iters) / queries as u32;
-            sample_bench
+                let sample_bench = samples.stop(iters) / queries as u32;
+                sample_bench
+            });
         });
-    });
+    } else {
+        c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
+            b.iter_custom(|iters| {
+                // let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
+                let mut structure = structure.clone_box();
+                let mut results = Vec::with_capacity(structure.num_nodes());
+                samples.start();
+                for _ in 0..iters {
+                    // for mut structure in data_structures {
+                    match benchmark_type {
+                        BenchmarkType::PositionUpdate => {
+                            structure.update_positions(&embedding.positions, None);
+                        }
+                        _ => {
+                            for &i in query_list {
+                                results.clear();
+                                structure.nearest_neighbors(i, 1., &mut results);
+                                std::hint::black_box(&results);
+                            }
+                        }
+                    }
+                }
+                let sample_bench = samples.stop(iters) / queries as u32;
+                sample_bench
+            });
+        });
+    }
 
     let statistics = samples.get_statistics(queries, warmup);
 
