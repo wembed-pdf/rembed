@@ -2178,6 +2178,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "py-snn"
+version = "0.1.0"
+dependencies = [
+ "numpy",
+ "pyo3",
+]
+
+[[package]]
 name = "pyo3"
 version = "0.23.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2485,6 +2493,7 @@ dependencies = [
  "nanoflann",
  "neighbourhood",
  "quadtree",
+ "py-snn",
  "rand 0.9.2",
  "rayon",
  "rustc-hash",

@@ -28,6 +28,7 @@ boost-rtree = { version = "0.1.0", path = "boost-rtree", optional = true }
 cgal = { version = "0.1.0", path = "cgal", optional = true }
 wembed-snn = { version = "0.1.0", path = "wembed-snn", optional = true }
 sklearn = { version = "0.1.0", path = "sklearn", optional = true }
+py-snn = { version = "0.1.0", path = "py-snn", optional = true }
 neighbourhood = "0.0.1"
 rand = "0.9.1"
 rayon = "1.10.0"
@@ -47,6 +48,8 @@ boost-rtree = ["dep:boost-rtree"]
 cgal = ["dep:cgal"]
 wembed-snn = ["dep:wembed-snn"]
 sklearn = ["dep:sklearn"]
+py_snn = ["dep:py-snn"]
+default = []
 
 [profile.release]
 debug = true
