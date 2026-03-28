@@ -153,7 +153,7 @@ pub struct DynATree<F: Scalar = f32, I: IdStorage = u32> {
     nodes: Vec<F>,
     leaves: Vec<Snn<F>>,
     total_depth: usize,
-    svd: DynamicSVD<f32>,
+    svd: DynamicSVD,
 }
 
 impl<F: Scalar, I: IdStorage> DynATree<F, I>
