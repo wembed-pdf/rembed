@@ -1,5 +1,6 @@
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{LaneCount, PDVec, SupportedLaneCount};
+use crate::svd::SVD;
 
 pub(crate) const LEAFSIZE: usize = 150;
 
@@ -63,6 +64,7 @@ where
     pub(crate) nodes: Vec<F>,
     pub(crate) leaves: Vec<Snn<F>>,
     pub(crate) total_depth: usize,
+    pub(crate) svd: SVD<D, f32>,
 }
 
 impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
@@ -85,6 +87,7 @@ where
             nodes: vec![F::ZERO; num_internal],
             leaves: vec![Snn::default(); num_leaves],
             total_depth: td,
+            svd: SVD::new(),
         };
         if !positions.is_empty() {
             tree.update(positions);
@@ -103,6 +106,17 @@ where
         let n = positions.len();
         let td = compute_total_depth(n);
         self.total_depth = td;
+
+        self.svd.compute_svd(
+            &positions
+                .iter()
+                .map(|pos| pos.map(|x| x.to_f32()))
+                .collect::<Vec<[f32; D]>>(),
+        );
+
+        self.positions
+            .iter_mut()
+            .for_each(|pos| *pos = self.svd.project(&pos.map(F::to_f32)).map(F::from_f32));
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;

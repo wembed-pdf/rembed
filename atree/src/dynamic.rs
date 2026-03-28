@@ -1,6 +1,7 @@
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount, compress_with_ids};
+use crate::svd::DynamicSVD;
 use crate::tree::{
     LeafRange, Positions, Snn, build_tree, children, compute_total_depth, lut_size_for_dim,
 };
@@ -152,6 +153,7 @@ pub struct DynATree<F: Scalar = f32, I: IdStorage = u32> {
     nodes: Vec<F>,
     leaves: Vec<Snn<F>>,
     total_depth: usize,
+    svd: DynamicSVD<f32>,
 }
 
 impl<F: Scalar, I: IdStorage> DynATree<F, I>
@@ -183,6 +185,7 @@ where
             nodes: vec![F::ZERO; num_internal],
             leaves: vec![Snn::default(); num_leaves],
             total_depth: td,
+            svd: DynamicSVD::new(),
         };
         if !positions.is_empty() {
             tree.update(positions);
@@ -205,6 +208,25 @@ where
 
         let td = compute_total_depth(n);
         self.total_depth = td;
+
+        self.svd.compute_svd(
+            &positions
+                .chunks(self.dim)
+                .map(|chunk| chunk.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>())
+                .collect::<Vec<Vec<f32>>>(),
+        );
+
+        self.positions.chunks_mut(self.dim).for_each(|chunk| {
+            let projected = self
+                .svd
+                .project(&chunk.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>());
+            for (c, val) in chunk
+                .iter_mut()
+                .zip(projected.iter().map(|&x| F::from_f32(x)))
+            {
+                *c = val;
+            }
+        });
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
@@ -301,7 +323,14 @@ where
         O: QueryOutput<I, F>,
     {
         assert_eq!(pos.len(), self.dim);
-        let pos = DynPoint::new(pos);
+        let pos = DynPoint::new(
+            &self
+                .svd
+                .project(&pos.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>())
+                .into_iter()
+                .map(F::from_f32)
+                .collect::<Vec<F>>(),
+        );
         let radius_sq = radius * radius;
 
         SCRATCH.with(|scratch| {

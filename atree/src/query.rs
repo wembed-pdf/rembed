@@ -19,7 +19,8 @@ where
         O: QueryOutput<I, F>,
         PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
-        let pos = Point::new(*pos);
+        let pos = Point::new(self.svd.project(&pos.map(F::to_f32)).map(F::from_f32));
+
         let radius_sq = radius * radius;
 
         SCRATCH.with(|scratch| {

@@ -14,7 +14,7 @@ pub trait Scalar:
     + Sum
     + Send
     + Sync
-    + std::fmt::Debug
+    + std::fmt::Debug // + nalgebra::ComplexField
 {
     const NAN: Self;
     const INFINITY: Self;
