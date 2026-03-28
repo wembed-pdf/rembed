@@ -296,7 +296,10 @@ where
 
     /// Query all points within `radius` of `pos`.
     /// Appends matching node IDs to `results`.
-    pub fn query_radius(&self, pos: &[F], radius: F, results: &mut Vec<usize>) {
+    pub fn query_radius<O>(&self, pos: &[F], radius: F, results: &mut Vec<O>)
+    where
+        O: QueryOutput<I, F>,
+    {
         assert_eq!(pos.len(), self.dim);
         let pos = DynPoint::new(pos);
         let radius_sq = radius * radius;
@@ -407,7 +410,10 @@ where
         total
     }
 
-    fn snn(&self, results: &mut Vec<usize>, pos: &DynPoint<F>, radius_sq: F, ranges: &[LeafRange]) {
+    fn snn<O>(&self, results: &mut Vec<O>, pos: &DynPoint<F>, radius_sq: F, ranges: &[LeafRange])
+    where
+        O: QueryOutput<I, F>,
+    {
         let mut capacity = results.capacity();
         let initial_len = results.len();
         let mut len = results.len();
