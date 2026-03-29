@@ -1,7 +1,7 @@
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount};
-use crate::tree::{ATree, LeafRange, Point, children, lut_size};
+use crate::tree::{ATree, LeafRange, Point, SVD_THRESHOLD, children, lut_size};
 use std::cell::Cell;
 
 thread_local! {
@@ -19,7 +19,11 @@ where
         O: QueryOutput<I, F>,
         PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
-        let projected_pos = Point::new(self.svd.project(pos));
+        let projected_pos = if D > SVD_THRESHOLD {
+            self.svd.project(pos)
+        } else {
+            *pos
+        };
 
         let radius_sq = radius * radius;
 
@@ -45,7 +49,7 @@ where
     /// Collect leaf ranges and return total PDVec count across all ranges.
     pub(crate) fn collect_ranges(
         &self,
-        pos: &Point<D, F>,
+        pos: &[F; D],
         depth: usize,
         heap_idx: usize,
         dim_radius_squared: F,
@@ -61,7 +65,7 @@ where
                 return 0;
             }
 
-            let own_pos = pos.pos[dim] - snn.min;
+            let own_pos = pos[dim] - snn.min;
             let reduced_radius = num_traits::Float::sqrt(dim_radius_squared + distances[dim]);
             let min = own_pos - reduced_radius;
             let max = own_pos + reduced_radius;
@@ -94,7 +98,7 @@ where
 
         let split = self.nodes[heap_idx];
         let (left, right) = children(heap_idx);
-        let own_pos = pos.pos[dim];
+        let own_pos = pos[dim];
         let current_delta = distances[dim];
         let dist = num_traits::Float::powi(own_pos - split, 2);
         let other_radius = dim_radius_squared + current_delta - dist;

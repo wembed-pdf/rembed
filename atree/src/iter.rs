@@ -1,7 +1,7 @@
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount};
-use crate::tree::{ATree, LeafRange, Point};
+use crate::tree::{ATree, LeafRange, Point, SVD_THRESHOLD};
 
 impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
 where
@@ -30,7 +30,11 @@ where
         O: QueryOutput<I, F> + Copy + Default,
         PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
-        let projected_pos = Point::new(self.svd.project(pos));
+        let projected_pos = if D > SVD_THRESHOLD {
+            self.svd.project(pos)
+        } else {
+            *pos
+        };
         let pos = Point::new(*pos);
         let radius_sq = radius * radius;
         let mut ranges = crate::query::SCRATCH.take();

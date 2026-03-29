@@ -5,6 +5,7 @@ use crate::simd::{LaneCount, PDVec, SupportedLaneCount};
 use crate::svd::SVD;
 
 pub(crate) const LEAFSIZE: usize = 150;
+pub(crate) const SVD_THRESHOLD: usize = 16;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Point<const D: usize, F: Scalar> {
@@ -109,12 +110,15 @@ where
         let td = compute_total_depth(n);
         self.total_depth = td;
 
-        self.svd.compute_svd(positions);
-
-        let positions_projected = positions
-            .iter()
-            .map(|chunk| self.svd.project(chunk))
-            .collect::<Vec<_>>();
+        let positions_projected = if D > 16 {
+            self.svd.compute_svd(positions);
+            positions
+                .iter()
+                .map(|chunk| self.svd.project(chunk))
+                .collect::<Vec<_>>()
+        } else {
+            positions.to_vec()
+        };
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
