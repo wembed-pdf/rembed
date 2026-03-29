@@ -8,6 +8,12 @@ simd-lookup = { version = "0.1.0", optional = true }
 wide = { version = "0.8", optional = true }
 nalgebra = "0.34.1"
 num-traits = "0.2.19"
+nalgebra-lapack = { version = "0.27.0", default-features = false, features = ["lapack-openblas"] }
+
+# openblas-src use precompiled nix binaries
+[dependencies.openblas-src]
+version = "0.10.15"
+features = ["system"]
 
 [features]
 default = ["simd-compress"]

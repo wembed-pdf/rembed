@@ -147,6 +147,7 @@ thread_local! {
 pub struct DynATree<F: Scalar = f32, I: IdStorage = u32> {
     dim: usize,
     positions: Vec<F>,
+    positions_projected: Vec<F>,
     positions_sorted: Vec<DynPDVec<W, F, I>>,
     node_ids: Vec<usize>,
     d_pos: Vec<F>,
@@ -178,7 +179,8 @@ where
 
         let mut tree = DynATree {
             dim,
-            positions: Vec::new(),
+            positions: positions.to_vec(),
+            positions_projected: Vec::new(),
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
@@ -198,12 +200,13 @@ where
     /// `positions` must have length `n * dim` (same dim as construction).
     pub fn update(&mut self, positions: &[F]) {
         assert!(positions.len() % self.dim == 0);
+        self.positions.copy_from_slice(positions);
         let n = positions.len() / self.dim;
 
-        if self.positions.len() != positions.len() {
-            self.positions = positions.to_vec();
+        if self.positions_projected.len() != positions.len() {
+            self.positions_projected = positions.to_vec();
         } else {
-            self.positions.copy_from_slice(positions);
+            self.positions_projected.copy_from_slice(positions);
         }
 
         let td = compute_total_depth(n);
@@ -216,17 +219,20 @@ where
                 .collect::<Vec<Vec<f32>>>(),
         );
 
-        self.positions.chunks_mut(self.dim).for_each(|chunk| {
-            let projected = self
-                .svd
-                .project(&chunk.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>());
-            for (c, val) in chunk
-                .iter_mut()
-                .zip(projected.iter().map(|&x| F::from_f32(x)))
-            {
-                *c = val;
-            }
-        });
+        self.positions_projected
+            .chunks_mut(self.dim)
+            .for_each(|chunk| {
+                let projected = self
+                    .svd
+                    .project(&chunk.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>());
+                for (c, val) in chunk
+                    .iter_mut()
+                    .zip(projected.iter().map(|&x| F::from_f32(x)))
+                {
+                    *c = val;
+                }
+            });
+        // self.positions_projected.copy_from_slice(positions);
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
@@ -244,7 +250,7 @@ where
         let mut d_pos = vec![F::ZERO; node_ids.len()];
 
         let pos_view = FlatPositions {
-            data: &self.positions,
+            data: &self.positions_projected,
             dim: self.dim,
         };
         build_tree(
@@ -323,7 +329,7 @@ where
         O: QueryOutput<I, F>,
     {
         assert_eq!(pos.len(), self.dim);
-        let pos = DynPoint::new(
+        let pos_projected = DynPoint::new(
             &self
                 .svd
                 .project(&pos.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>())
@@ -331,14 +337,27 @@ where
                 .map(F::from_f32)
                 .collect::<Vec<F>>(),
         );
+        let pos = DynPoint::new(pos);
         let radius_sq = radius * radius;
+        let normalized_radius = F::from_f32(self.svd.normalize_radius(F::to_f32(radius)));
+        let norm_radius_sq = normalized_radius * normalized_radius;
+
+        // let pos_projected = DynPoint::new(&pos.pos);
+        // let norm_radius_sq = radius_sq;
 
         SCRATCH.with(|scratch| {
             let mut ranges = scratch.take();
             ranges.clear();
 
             let mut distances = vec![F::ZERO; self.dim];
-            let _ = self.collect_ranges(&pos, 0, 0, radius_sq, &mut distances, &mut ranges);
+            let _ = self.collect_ranges(
+                &pos_projected,
+                0,
+                0,
+                norm_radius_sq,
+                &mut distances,
+                &mut ranges,
+            );
 
             self.snn(results, &pos, radius_sq, &ranges);
 

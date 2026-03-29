@@ -93,6 +93,13 @@
             eigen      # Required by CGAL for Epick_d kernel
             gmp        # Required by CGAL
             mpfr       # Required by CGAL
+
+            # fast svd requires fortran
+            cmake
+            gfortran
+            openssl
+            gfortran.cc
+            openblas
           ]);
 
           shellHook = commonShellHook;
@@ -122,8 +129,11 @@
             pkgs.stdenv.cc.cc.lib
             pkgs.gmp
             pkgs.mpfr
+            pkgs.openblas
           ];
           LIBCLANG_PATH = pkgs.lib.makeLibraryPath [ pkgs.llvmPackages_latest.libclang.lib ];
+          # required for fast svd
+          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
         };
       }
     );
