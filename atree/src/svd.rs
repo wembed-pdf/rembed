@@ -1,20 +1,36 @@
 use crate::scalar::Scalar;
+#[cfg(feature = "svd")]
 use nalgebra::{DMatrix, DVector};
 
 #[derive(Clone, Debug)]
 pub struct SVD<const D: usize, F: Scalar> {
+    #[cfg(feature = "svd")]
     mean: [F; D],
+    #[cfg(feature = "svd")]
     vt: DMatrix<F>,
+    _phantom: std::marker::PhantomData<[F; D]>,
+}
+
+impl<const D: usize, F: Scalar + Default> Default for SVD<D, F> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<const D: usize, F: Scalar> SVD<D, F> {
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "svd")]
             mean: [F::ZERO; D],
+            #[cfg(feature = "svd")]
             vt: DMatrix::<F>::zeros(D, D),
+            _phantom: std::marker::PhantomData,
         }
     }
+    #[cfg(not(feature = "svd"))]
+    pub fn compute_svd(&mut self, _: &[[F; D]]) {}
 
+    #[cfg(feature = "svd")]
     pub fn compute_svd(&mut self, data: &[[F; D]]) {
         let n = data.len();
         if n == 0 {
@@ -40,6 +56,12 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
         self.vt = svd.v_t.unwrap();
     }
 
+    #[cfg(not(feature = "svd"))]
+    pub fn project(&self, point: &[F; D]) -> [F; D] {
+        *point
+    }
+
+    #[cfg(feature = "svd")]
     pub fn project(&self, point: &[F; D]) -> [F; D] {
         let mut centered = DVector::<F>::zeros(D);
         for i in 0..D {
@@ -57,20 +79,34 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
 
 #[derive(Clone, Debug)]
 pub struct DynamicSVD<F: Scalar> {
+    #[cfg(feature = "svd")]
     mean: Vec<F>,
+    #[cfg(feature = "svd")]
     vt: Option<DMatrix<F>>,
     normalization_factor: F,
+}
+
+impl<F: Scalar + Default> Default for DynamicSVD<F> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<F: Scalar> DynamicSVD<F> {
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "svd")]
             mean: Vec::new(),
+            #[cfg(feature = "svd")]
             vt: None,
             normalization_factor: F::ONE,
         }
     }
 
+    #[cfg(not(feature = "svd"))]
+    pub fn compute_svd(&mut self, _data: &[&[F]]) {}
+
+    #[cfg(feature = "svd")]
     pub fn compute_svd(&mut self, data: &[&[F]]) {
         let n = data.len();
         if n == 0 {
@@ -117,6 +153,12 @@ impl<F: Scalar> DynamicSVD<F> {
         self.vt = svd.v_t;
     }
 
+    #[cfg(not(feature = "svd"))]
+    pub fn project(&self, point: &[F]) -> Vec<F> {
+        point.to_vec()
+    }
+
+    #[cfg(feature = "svd")]
     pub fn project(&self, point: &[F]) -> Vec<F> {
         let d = self.mean.len();
         let mut centered = DVector::<F>::zeros(d);

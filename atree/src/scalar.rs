@@ -1,6 +1,16 @@
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use num_traits::FromPrimitive;
+
+#[cfg(feature = "svd")]
+pub trait Svd: nalgebra::RealField {}
+#[cfg(not(feature = "svd"))]
+pub trait Svd {}
+
+impl Svd for f32 {}
+impl Svd for f64 {}
+
 pub trait Scalar:
     Copy
     + Default
@@ -15,13 +25,13 @@ pub trait Scalar:
     + Div<Output = Self>
     + DivAssign
     + Neg<Output = Self>
+    + FromPrimitive
     + Sum
     + Send
     + Sync
     + num_traits::Float
     + std::fmt::Debug // TODO:
-// #[cfg(feature = "svd")]
-    + nalgebra::RealField
+    + Svd
 {
     const NAN: Self;
     const INFINITY: Self;
