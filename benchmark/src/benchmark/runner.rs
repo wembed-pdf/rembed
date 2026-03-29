@@ -138,12 +138,12 @@ pub fn profile_datastructure_query<'a, const D: usize>(
         );
         c.bench_with_input(benchmark_id, &structure.name(), |b, _| {
             b.iter_custom(|iters| {
-                let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
-                let structure = structure.clone_box();
+                // let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
+                let mut structure = structure.clone_box();
                 let mut results = Vec::with_capacity(structure.num_nodes());
                 samples.start();
-                // for _ in 0..iters {
-                for mut structure in data_structures {
+                for _ in 0..iters {
+                    // for mut structure in data_structures {
                     match benchmark_type {
                         BenchmarkType::PositionUpdate => {
                             structure.update_positions(&embedding.positions, None);
