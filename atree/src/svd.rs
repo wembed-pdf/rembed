@@ -2,20 +2,20 @@ use crate::scalar::Scalar;
 use nalgebra::{DMatrix, DVector};
 
 #[derive(Clone, Debug)]
-pub struct SVD<const D: usize> {
-    mean: [f32; D],
-    vt: DMatrix<f32>,
+pub struct SVD<const D: usize, F: Scalar> {
+    mean: [F; D],
+    vt: DMatrix<F>,
 }
 
-impl<const D: usize> SVD<D> {
+impl<const D: usize, F: Scalar> SVD<D, F> {
     pub fn new() -> Self {
         Self {
-            mean: [f32::ZERO; D],
-            vt: DMatrix::<f32>::zeros(D, D),
+            mean: [F::ZERO; D],
+            vt: DMatrix::<F>::zeros(D, D),
         }
     }
 
-    pub fn compute_svd(&mut self, data: &[[f32; D]]) {
+    pub fn compute_svd(&mut self, data: &[[F; D]]) {
         let n = data.len();
         if n == 0 {
             eprintln!("Error: Input data is empty.");
@@ -24,12 +24,11 @@ impl<const D: usize> SVD<D> {
 
         // Compute mean
         for i in 0..D {
-            self.mean[i] = data.iter().map(|v| v[i]).sum::<f32>()
-                / <f32 as crate::scalar::Scalar>::from_usize(n);
+            self.mean[i] = data.iter().map(|v| v[i]).sum::<F>() / F::from_usize(n).unwrap();
         }
 
         // Center data
-        let mut centered_data = DMatrix::<f32>::zeros(n, D);
+        let mut centered_data = DMatrix::<F>::zeros(n, D);
         for (i, v) in data.iter().enumerate() {
             for j in 0..D {
                 centered_data[(i, j)] = v[j] - self.mean[j];
@@ -41,8 +40,8 @@ impl<const D: usize> SVD<D> {
         self.vt = svd.v_t.unwrap();
     }
 
-    pub fn project(&self, point: &[f32; D]) -> [f32; D] {
-        let mut centered = DVector::<f32>::zeros(D);
+    pub fn project(&self, point: &[F; D]) -> [F; D] {
+        let mut centered = DVector::<F>::zeros(D);
         for i in 0..D {
             centered[i] = point[i] - self.mean[i];
         }
@@ -52,27 +51,27 @@ impl<const D: usize> SVD<D> {
             .data
             .as_slice()
             .try_into()
-            .unwrap_or([f32::ZERO; D])
+            .unwrap_or([F::ZERO; D])
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct DynamicSVD {
-    mean: Vec<f32>,
-    vt: Option<DMatrix<f32>>,
-    normalization_factor: f32,
+pub struct DynamicSVD<F: Scalar> {
+    mean: Vec<F>,
+    vt: Option<DMatrix<F>>,
+    normalization_factor: F,
 }
 
-impl DynamicSVD {
+impl<F: Scalar> DynamicSVD<F> {
     pub fn new() -> Self {
         Self {
             mean: Vec::new(),
             vt: None,
-            normalization_factor: 1.0,
+            normalization_factor: F::ONE,
         }
     }
 
-    pub fn compute_svd(&mut self, data: &[Vec<f32>]) {
+    pub fn compute_svd(&mut self, data: &[&[F]]) {
         let n = data.len();
         if n == 0 {
             return;
@@ -80,14 +79,13 @@ impl DynamicSVD {
         let d = data[0].len();
 
         // Compute mean
-        self.mean = vec![0.0; d];
+        self.mean = vec![F::ZERO; d];
         for i in 0..d {
-            self.mean[i] = data.iter().map(|v| v[i]).sum::<f32>()
-                / <f32 as crate::scalar::Scalar>::from_usize(n);
+            self.mean[i] = data.iter().map(|v| v[i]).sum::<F>() / F::from_usize(n).unwrap();
         }
 
         // Center data
-        let mut centered_data = DMatrix::<f32>::zeros(n, d);
+        let mut centered_data = DMatrix::<F>::zeros(n, d);
         for (i, v) in data.iter().enumerate() {
             for j in 0..d {
                 centered_data[(i, j)] = v[j] - self.mean[j];
@@ -95,16 +93,16 @@ impl DynamicSVD {
         }
 
         // Normalize data to improve numerical stability
-        let mut max_abs_value = 0.0;
+        let mut max_abs_value = F::zero();
         for i in 0..n {
             for j in 0..d {
-                let abs_value = centered_data[(i, j)].abs();
+                let abs_value = num_traits::Float::abs(centered_data[(i, j)]);
                 if abs_value > max_abs_value {
                     max_abs_value = abs_value;
                 }
             }
         }
-        if max_abs_value > 0.0 {
+        if max_abs_value > F::ZERO {
             self.normalization_factor = max_abs_value;
             for i in 0..n {
                 for j in 0..d {
@@ -119,9 +117,9 @@ impl DynamicSVD {
         self.vt = svd.v_t;
     }
 
-    pub fn project(&self, point: &[f32]) -> Vec<f32> {
+    pub fn project(&self, point: &[F]) -> Vec<F> {
         let d = self.mean.len();
-        let mut centered = DVector::<f32>::zeros(d);
+        let mut centered = DVector::<F>::zeros(d);
         for i in 0..d {
             centered[i] = point[i] - self.mean[i];
         }
@@ -130,7 +128,7 @@ impl DynamicSVD {
         projection.data.as_vec().clone()
     }
 
-    pub fn normalize_radius(&self, radius: f32) -> f32 {
+    pub fn normalize_radius(&self, radius: F) -> F {
         radius / self.normalization_factor
     }
 }

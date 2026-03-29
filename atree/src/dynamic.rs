@@ -1,3 +1,5 @@
+use num_traits::Float;
+
 use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount, compress_with_ids};
@@ -18,7 +20,7 @@ pub(crate) struct FlatPositions<'a, F> {
     dim: usize,
 }
 
-impl<F: Scalar> Positions<F> for FlatPositions<'_, F> {
+impl<'a, F: Scalar> Positions<F> for FlatPositions<'a, F> {
     #[inline(always)]
     fn dim(&self) -> usize {
         self.dim
@@ -66,7 +68,7 @@ impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I> {
         let mut acc = diff.map(|x| x * x);
         for j in 1..dim {
             let diff: [F; W] = from_fn(|i| self.lanes[j][i] - pos[j]);
-            acc = from_fn(|i| diff[i].mul_add(diff[i], acc[i]));
+            acc = from_fn(|i| Float::mul_add(diff[i], diff[i], acc[i]));
         }
         acc
     }
@@ -79,11 +81,11 @@ impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I> {
 
         for j in 0..dim / 2 {
             let j = j * 2;
-            acc1 = from_fn(|i| self.lanes[j][i].mul_add(-pos[j], acc1[i]));
-            acc2 = from_fn(|i| self.lanes[j + 1][i].mul_add(-pos[j + 1], acc2[i]));
+            acc1 = from_fn(|i| Float::mul_add(self.lanes[j][i], -pos[j], acc1[i]));
+            acc2 = from_fn(|i| Float::mul_add(self.lanes[j + 1][i], -pos[j + 1], acc2[i]));
         }
         if dim & 1 > 0 {
-            acc1 = from_fn(|i| self.lanes[dim - 1][i].mul_add(-pos[dim - 1], acc1[i]));
+            acc1 = from_fn(|i| Float::mul_add(self.lanes[dim - 1][i], -pos[dim - 1], acc1[i]));
         }
 
         from_fn(|i| acc1[i] + acc2[i])
@@ -147,14 +149,14 @@ thread_local! {
 pub struct DynATree<F: Scalar = f32, I: IdStorage = u32> {
     dim: usize,
     positions: Vec<F>,
-    positions_projected: Vec<F>,
+    // positions_projected: Vec<F>,
     positions_sorted: Vec<DynPDVec<W, F, I>>,
     node_ids: Vec<usize>,
     d_pos: Vec<F>,
     nodes: Vec<F>,
     leaves: Vec<Snn<F>>,
     total_depth: usize,
-    svd: DynamicSVD,
+    svd: DynamicSVD<F>,
 }
 
 impl<F: Scalar, I: IdStorage> DynATree<F, I>
@@ -180,7 +182,7 @@ where
         let mut tree = DynATree {
             dim,
             positions: positions.to_vec(),
-            positions_projected: Vec::new(),
+            // positions_projected: Vec::new(),
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
@@ -203,36 +205,24 @@ where
         self.positions.copy_from_slice(positions);
         let n = positions.len() / self.dim;
 
-        if self.positions_projected.len() != positions.len() {
-            self.positions_projected = positions.to_vec();
-        } else {
-            self.positions_projected.copy_from_slice(positions);
-        }
-
         let td = compute_total_depth(n);
         self.total_depth = td;
 
         self.svd.compute_svd(
             &positions
                 .chunks(self.dim)
-                .map(|chunk| chunk.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>())
-                .collect::<Vec<Vec<f32>>>(),
+                .map(|chunk| chunk)
+                .collect::<Vec<_>>(),
         );
 
-        self.positions_projected
-            .chunks_mut(self.dim)
-            .for_each(|chunk| {
-                let projected = self
-                    .svd
-                    .project(&chunk.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>());
-                for (c, val) in chunk
-                    .iter_mut()
-                    .zip(projected.iter().map(|&x| F::from_f32(x)))
-                {
-                    *c = val;
-                }
-            });
-        // self.positions_projected.copy_from_slice(positions);
+        let positions_projected = positions
+            .chunks(self.dim)
+            .map(|chunk| {
+                self.svd
+                    .project(&chunk.iter().map(|&x| x).collect::<Vec<_>>())
+            })
+            .flatten()
+            .collect::<Vec<_>>();
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
@@ -250,7 +240,7 @@ where
         let mut d_pos = vec![F::ZERO; node_ids.len()];
 
         let pos_view = FlatPositions {
-            data: &self.positions_projected,
+            data: &positions_projected,
             dim: self.dim,
         };
         build_tree(
@@ -332,14 +322,13 @@ where
         let pos_projected = DynPoint::new(
             &self
                 .svd
-                .project(&pos.iter().map(|&x| F::to_f32(x)).collect::<Vec<f32>>())
+                .project(&pos.iter().map(|&x| x).collect::<Vec<_>>())
                 .into_iter()
-                .map(F::from_f32)
                 .collect::<Vec<F>>(),
         );
         let pos = DynPoint::new(pos);
         let radius_sq = radius * radius;
-        let normalized_radius = F::from_f32(self.svd.normalize_radius(F::to_f32(radius)));
+        let normalized_radius = self.svd.normalize_radius(radius);
         let norm_radius_sq = normalized_radius * normalized_radius;
 
         // let pos_projected = DynPoint::new(&pos.pos);
@@ -403,21 +392,21 @@ where
             }
 
             let own_pos = pos.pos[dim] - snn.min;
-            let reduced_radius = (dim_radius_squared + distances[dim]).sqrt();
+            let reduced_radius = Float::sqrt(dim_radius_squared + distances[dim]);
             let min = own_pos - reduced_radius;
             let max = own_pos + reduced_radius;
             let max_lut = lut_size_for_dim(self.dim) - 1;
 
             let min_scaled = min * snn.resolution;
             let idx = if min_scaled >= F::ZERO {
-                F::to_f32(min_scaled) as usize
+                min_scaled.to_usize_unchecked()
             } else {
                 0
             }
             .min(max_lut);
             let max_scaled = max * snn.resolution;
             let end_idx = if max_scaled >= F::ZERO {
-                F::to_f32(max_scaled) as usize
+                max_scaled.to_usize_unchecked()
             } else {
                 0
             }
@@ -435,7 +424,7 @@ where
         let (left, right) = children(heap_idx);
         let own_pos = pos.pos[dim];
         let current_delta = distances[dim];
-        let dist = (own_pos - split).powi(2);
+        let dist = Float::powi(own_pos - split, 2);
         let other_radius = dim_radius_squared + current_delta - dist;
 
         let mut total = 0;
@@ -465,7 +454,7 @@ where
         let mut capacity = results.capacity();
         let initial_len = results.len();
         let mut len = results.len();
-        let half_radius_threshold = radius_sq * F::HALF + F::from_f32(1e-4);
+        let half_radius_threshold = radius_sq * F::HALF + F::from_f32(1e-4).unwrap();
         let use_half = self.dim >= 6;
 
         for range in ranges.iter() {

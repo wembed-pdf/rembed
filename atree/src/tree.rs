@@ -1,3 +1,5 @@
+use num_traits::Float;
+
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{LaneCount, PDVec, SupportedLaneCount};
 use crate::svd::SVD;
@@ -64,7 +66,7 @@ where
     pub(crate) nodes: Vec<F>,
     pub(crate) leaves: Vec<Snn<F>>,
     pub(crate) total_depth: usize,
-    pub(crate) svd: SVD<D>,
+    pub(crate) svd: SVD<D, F>,
 }
 
 impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
@@ -107,16 +109,12 @@ where
         let td = compute_total_depth(n);
         self.total_depth = td;
 
-        self.svd.compute_svd(
-            &positions
-                .iter()
-                .map(|pos| pos.map(|x| x.to_f32()))
-                .collect::<Vec<[f32; D]>>(),
-        );
+        self.svd.compute_svd(positions);
 
-        self.positions
-            .iter_mut()
-            .for_each(|pos| *pos = self.svd.project(&pos.map(F::to_f32)).map(F::from_f32));
+        let positions_projected = positions
+            .iter()
+            .map(|chunk| self.svd.project(chunk))
+            .collect::<Vec<_>>();
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
@@ -141,7 +139,7 @@ where
             0,
             td,
             0,
-            self.positions.as_slice(),
+            positions_projected.as_slice(),
             0,
         );
 
@@ -198,6 +196,7 @@ where
 
 // ── Tree building (generic over position storage) ────────────────────
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
     nodes: &mut [F],
     leaves: &mut [Snn<F>],
@@ -229,19 +228,19 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         }
         let mut lut = vec![];
         let mut end_lut = vec![];
-        let min = d_pos[0].floor();
+        let min = Float::floor(d_pos[0]);
         let slack = d_pos.len() - node_ids.len();
-        let mut max = d_pos.iter().rev().nth(slack).unwrap().ceil();
+        let mut max = Float::ceil(*d_pos.iter().rev().nth(slack).unwrap());
         if max <= min {
             max = min + F::ONE;
         }
         let num_buckets = lut_size_for_dim(dim);
-        let resolution = F::from_usize(num_buckets) / (max - min);
+        let resolution = F::from_usize(num_buckets).unwrap() / (max - min);
         for i in 0..num_buckets {
-            let boundary = F::from_usize(i) / resolution + min;
+            let boundary = F::from_usize(i).unwrap() / resolution + min;
             let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
             lut.push(start_idx + offset);
-            let next_boundary = F::from_usize(i + 1) / resolution + min;
+            let next_boundary = F::from_usize(i + 1).unwrap() / resolution + min;
             let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
             end_lut.push(end_idx + offset);
         }
@@ -255,7 +254,7 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         let leaf_idx = heap_idx - ((1 << total_depth) - 1);
         leaves[leaf_idx] = Snn {
             lut: lut.into(),
-            min: d_pos[0].floor(),
+            min: Float::floor(d_pos[0]),
             resolution,
         };
         return;

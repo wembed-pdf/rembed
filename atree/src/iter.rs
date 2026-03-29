@@ -30,12 +30,19 @@ where
         O: QueryOutput<I, F> + Copy + Default,
         PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
+        let projected_pos = Point::new(self.svd.project(pos));
         let pos = Point::new(*pos);
         let radius_sq = radius * radius;
         let mut ranges = crate::query::SCRATCH.take();
         ranges.clear();
-        let total_pdvecs =
-            self.collect_ranges(&pos, 0, 0, radius_sq, &mut [F::ZERO; D], &mut ranges);
+        let total_pdvecs = self.collect_ranges(
+            &projected_pos,
+            0,
+            0,
+            radius_sq,
+            &mut [F::ZERO; D],
+            &mut ranges,
+        );
         RadiusIter::new(self, pos, radius_sq, ranges, total_pdvecs)
     }
 }
@@ -78,7 +85,7 @@ where
         ranges: Vec<LeafRange>,
         total_pdvecs: usize,
     ) -> Self {
-        let half_radius_threshold = radius_sq * F::HALF + F::from_f32(1e-4);
+        let half_radius_threshold = radius_sq * F::HALF + F::DIST_EPS;
         let radius_sq = if D < 6 {
             radius_sq
         } else {
