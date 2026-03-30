@@ -4,7 +4,13 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 use num_traits::FromPrimitive;
 
 #[cfg(feature = "svd")]
-pub trait Svd: nalgebra::RealField {}
+pub trait Svd:
+    // nalgebra::RealField
+    // + nalgebra_lapack::SVDScalar<nalgebra::Dyn, nalgebra::Dyn>
+    faer_core::Entity
+    + faer_core::ComplexField
+{
+}
 #[cfg(not(feature = "svd"))]
 pub trait Svd {}
 
