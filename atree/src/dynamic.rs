@@ -273,6 +273,7 @@ where
         self.leaves = leaves;
         self.node_ids = node_ids;
         self.positions_sorted.clear();
+        self.positions_sorted.reserve(n);
 
         let dim = self.dim;
         for snn in self.leaves.iter_mut() {

@@ -151,6 +151,7 @@ where
         self.leaves = leaves;
         self.node_ids = node_ids;
         self.positions_sorted.clear();
+        self.positions_sorted.reserve(positions.len());
 
         for snn in self.leaves.iter_mut() {
             if snn.lut.is_empty() {
