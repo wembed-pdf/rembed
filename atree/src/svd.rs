@@ -6,6 +6,11 @@ use faer_core::Mat;
 #[cfg(feature = "svd")]
 use faer_svd;
 
+/// Maximum number of rows fed into the SVD solver.
+/// Above this limit we use strided sampling.
+#[cfg(feature = "svd")]
+const SVD_SAMPLE_LIMIT: usize = 100_000;
+
 #[derive(Clone, Debug)]
 pub struct SVD<const D: usize, F: Scalar> {
     #[cfg(feature = "svd")]
@@ -42,23 +47,37 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
             return;
         }
 
-        // Compute mean
-        for i in 0..D {
-            self.mean[i] = data.iter().map(|v| v[i]).sum::<F>() / F::from_usize(n).unwrap();
+        let stride = if n > SVD_SAMPLE_LIMIT {
+            n / SVD_SAMPLE_LIMIT
+        } else {
+            1
+        };
+        let sample_n = n.div_ceil(stride);
+
+        // Compute mean over sample (row-major for cache locality)
+        self.mean = [F::ZERO; D];
+        let inv_n = F::ONE / F::from_usize(sample_n).unwrap();
+        for i in (0..n).step_by(stride) {
+            for j in 0..D {
+                self.mean[j] += data[i][j];
+            }
+        }
+        for j in 0..D {
+            self.mean[j] *= inv_n;
         }
 
-        // Center data
-        let centered_data = Mat::<F>::from_fn(n, D, |i, j| data[i][j] - self.mean[j]);
+        // Center sampled data
+        let centered_data =
+            Mat::<F>::from_fn(sample_n, D, |si, j| data[si * stride][j] - self.mean[j]);
 
         // Compute SVD
-        let k = D.min(n);
+        let k = D.min(sample_n);
         let mut s = Mat::<F>::zeros(k, 1);
 
-        // let parallelism = faer_core::Parallelism::None;
         let parallelism = faer_core::Parallelism::Rayon(0);
 
         let stack_req = faer_svd::compute_svd_req::<F>(
-            n,
+            sample_n,
             D,
             faer_svd::ComputeVectors::No,
             faer_svd::ComputeVectors::Thin,
@@ -141,30 +160,46 @@ impl<F: Scalar> DynamicSVD<F> {
         }
         let d = data[0].len();
 
-        // Compute mean
+        // Sample rows when dataset is large
+        let stride = if n > SVD_SAMPLE_LIMIT {
+            n / SVD_SAMPLE_LIMIT
+        } else {
+            1
+        };
+        let sample_n = n.div_ceil(stride);
+
+        // Compute mean over the sample (row-major traversal for cache locality)
         self.mean = vec![F::ZERO; d];
-        for i in 0..d {
-            self.mean[i] = data.iter().map(|v| v[i]).sum::<F>() / F::from_usize(n).unwrap();
-        }
-
-        // Center data
-        let mut centered_data = Mat::from_fn(n, d, |i, j| data[i][j] - self.mean[j]);
-
-        // Normalize data to improve numerical stability
-        let mut max_abs_value = F::zero();
-        for i in 0..n {
+        let inv_n = F::ONE / F::from_usize(sample_n).unwrap();
+        for i in (0..n).step_by(stride) {
+            let row = data[i];
             for j in 0..d {
-                let abs_value = num_traits::Float::abs(centered_data.read(i, j));
-                if abs_value > max_abs_value {
-                    max_abs_value = abs_value;
-                }
+                self.mean[j] += row[j];
             }
         }
+        for j in 0..d {
+            self.mean[j] *= inv_n;
+        }
+
+        // Center sampled data and find max abs value in one pass
+        let mut max_abs_value = F::zero();
+        let centered_data = Mat::from_fn(sample_n, d, |si, j| {
+            let val = data[si * stride][j] - self.mean[j];
+            let abs_val = num_traits::Float::abs(val);
+            if abs_val > max_abs_value {
+                max_abs_value = abs_val;
+            }
+            val
+        });
+
+        // Normalize for numerical stability
+        let mut centered_data = centered_data;
         if max_abs_value > F::ZERO {
             self.normalization_factor = max_abs_value;
-            for i in 0..n {
+            let inv_norm = F::ONE / self.normalization_factor;
+            for i in 0..sample_n {
                 for j in 0..d {
-                    centered_data.write(i, j, centered_data.read(i, j) / self.normalization_factor);
+                    centered_data.write(i, j, centered_data.read(i, j) * inv_norm);
                 }
             }
         }
@@ -175,7 +210,7 @@ impl<F: Scalar> DynamicSVD<F> {
         let parallelism = faer_core::Parallelism::Rayon(0);
 
         let stack_req = faer_svd::compute_svd_req::<F>(
-            n,
+            sample_n,
             d,
             faer_svd::ComputeVectors::No,
             faer_svd::ComputeVectors::Thin,
@@ -218,6 +253,42 @@ impl<F: Scalar> DynamicSVD<F> {
             output[j] = projected.read(j);
         }
         output
+    }
+
+    /// Batch-project all points, truncating output to `k` dimensions.
+    /// Returns flat Vec of length `n * k`.
+    #[cfg(not(feature = "svd"))]
+    pub fn project_all(&self, data: &[F], _dim: usize, _k: usize) -> Vec<F> {
+        data.to_vec()
+    }
+
+    /// Batch-project all points, truncating output to `k` dimensions.
+    /// Returns flat Vec of length `n * k`.
+    #[cfg(feature = "svd")]
+    pub fn project_all(&self, data: &[F], dim: usize, k: usize) -> Vec<F> {
+        let n = data.len() / dim;
+        let k = k.min(dim);
+        let inv_norm = F::ONE / self.normalization_factor;
+
+        // Build centered data matrix: n × d
+        let centered = Mat::<F>::from_fn(n, dim, |i, j| {
+            (data[i * dim + j] - self.mean[j]) * inv_norm
+        });
+
+        // Vt is d × d; take first k rows → k × d
+        let vt_k = self.vt.as_ref().subrows(0, k);
+
+        // result = centered (n × d) × Vt_k^T (d × k) = n × k
+        let result = centered * vt_k.transpose();
+
+        // Flatten to Vec<F> of length n * k
+        let mut out = vec![F::ZERO; n * k];
+        for i in 0..n {
+            for j in 0..k {
+                out[i * k + j] = result.read(i, j);
+            }
+        }
+        out
     }
 
     pub fn normalize_radius(&self, radius: F) -> F {
