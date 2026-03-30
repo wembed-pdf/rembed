@@ -6,8 +6,6 @@ use faer_core::Mat;
 #[cfg(feature = "svd")]
 use faer_svd;
 
-
-
 #[derive(Clone, Debug)]
 pub struct SVD<const D: usize, F: Scalar> {
     #[cfg(feature = "svd")]
@@ -53,14 +51,16 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
         let centered_data = Mat::<F>::from_fn(n, D, |i, j| data[i][j] - self.mean[j]);
 
         // Compute SVD
-        let mut s = Mat::<F>::zeros(D, 1);
+        let k = D.min(n);
+        let mut s = Mat::<F>::zeros(k, 1);
 
-        let parallelism = faer_core::Parallelism::None;
+        // let parallelism = faer_core::Parallelism::None;
+        let parallelism = faer_core::Parallelism::Rayon(0);
 
-        let stack_req: faer_core::dyn_stack::StackReq = faer_svd::compute_svd_req::<F>(
-            data.len(),
+        let stack_req = faer_svd::compute_svd_req::<F>(
+            n,
             D,
-            faer_svd::ComputeVectors::Thin,
+            faer_svd::ComputeVectors::No,
             faer_svd::ComputeVectors::Thin,
             parallelism,
             faer_svd::SvdParams::default(),
@@ -140,7 +140,6 @@ impl<F: Scalar> DynamicSVD<F> {
             return;
         }
         let d = data[0].len();
-        self.vt = Mat::<F>::zeros(d, d);
 
         // Compute mean
         self.mean = vec![F::ZERO; d];
@@ -173,12 +172,12 @@ impl<F: Scalar> DynamicSVD<F> {
         // Compute SVD
         let mut s = Mat::<F>::zeros(d, 1);
 
-        let parallelism = faer_core::Parallelism::None;
+        let parallelism = faer_core::Parallelism::Rayon(0);
 
-        let stack_req: faer_core::dyn_stack::StackReq = faer_svd::compute_svd_req::<F>(
+        let stack_req = faer_svd::compute_svd_req::<F>(
             n,
             d,
-            faer_svd::ComputeVectors::Thin,
+            faer_svd::ComputeVectors::No,
             faer_svd::ComputeVectors::Thin,
             parallelism,
             faer_svd::SvdParams::default(),

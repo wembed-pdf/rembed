@@ -215,28 +215,28 @@ where
     ///
     /// `positions` must have length `n * dim` (same dim as construction).
     pub fn update(&mut self, positions: &[F]) {
-        assert!(positions.len() % self.dim == 0);
+        assert!(positions.len().is_multiple_of(self.dim));
         self.positions.copy_from_slice(positions);
         let n = positions.len() / self.dim;
 
         let td = compute_total_depth(n);
         self.total_depth = td;
 
-        self.svd.compute_svd(
-            &positions
-                .chunks(self.dim)
-                .map(|chunk| chunk)
-                .collect::<Vec<_>>(),
-        );
+        let start = std::time::Instant::now();
+        eprintln!("starting svd computation");
+        self.svd
+            .compute_svd(&positions.chunks(self.dim).collect::<Vec<_>>());
+        eprintln!("svd computation took {:.1}s", start.elapsed().as_secs_f32());
+        let start = std::time::Instant::now();
 
         let positions_projected = positions
             .chunks(self.dim)
-            .map(|chunk| {
-                self.svd
-                    .project(&chunk.iter().map(|&x| x).collect::<Vec<_>>())
-            })
-            .flatten()
+            .flat_map(|chunk| self.svd.project(chunk))
             .collect::<Vec<_>>();
+        eprintln!(
+            "projecting points took {:.1}s",
+            start.elapsed().as_secs_f32()
+        );
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
