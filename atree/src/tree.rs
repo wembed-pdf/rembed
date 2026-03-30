@@ -112,10 +112,7 @@ where
 
         let positions_projected = if D > 16 {
             self.svd.compute_svd(positions);
-            positions
-                .iter()
-                .map(|chunk| self.svd.project(chunk))
-                .collect::<Vec<_>>()
+            self.svd.project_all(positions)
         } else {
             positions.to_vec()
         };

@@ -4,9 +4,7 @@ use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount, compress_with_ids};
 use crate::svd::DynamicSVD;
-use crate::tree::{
-    LeafRange, Positions, Snn, build_tree, children, compute_total_depth, lut_size_for_dim,
-};
+use crate::tree::{LeafRange, Positions, Snn, build_tree, children, compute_total_depth};
 
 const W: usize = 8;
 use std::array::from_fn;
@@ -162,8 +160,8 @@ thread_local! {
 #[derive(Clone)]
 pub struct DynATree<F: Scalar = f32, I: IdStorage = u32> {
     dim: usize,
+    projected_dim: usize,
     positions: Vec<F>,
-    // positions_projected: Vec<F>,
     positions_sorted: Vec<DynPDVec<W, F, I>>,
     node_ids: Vec<usize>,
     d_pos: Vec<F>,
@@ -185,7 +183,7 @@ where
     pub fn new(dim: usize, positions: &[F]) -> Self {
         assert!(dim > 0, "dimension must be at least 1");
         assert!(
-            positions.len() % dim == 0,
+            positions.len().is_multiple_of(dim),
             "positions length must be a multiple of dim"
         );
         let n = positions.len() / dim;
@@ -195,8 +193,8 @@ where
 
         let mut tree = DynATree {
             dim,
+            projected_dim: dim.min(td + 1),
             positions: positions.to_vec(),
-            // positions_projected: Vec::new(),
             positions_sorted: Vec::new(),
             node_ids: Vec::new(),
             d_pos: Vec::new(),
@@ -221,22 +219,13 @@ where
 
         let td = compute_total_depth(n);
         self.total_depth = td;
+        let k = self.dim.min(td + 1);
+        self.projected_dim = k;
 
-        let start = std::time::Instant::now();
-        eprintln!("starting svd computation");
         self.svd
             .compute_svd(&positions.chunks(self.dim).collect::<Vec<_>>());
-        eprintln!("svd computation took {:.1}s", start.elapsed().as_secs_f32());
-        let start = std::time::Instant::now();
 
-        let positions_projected = positions
-            .chunks(self.dim)
-            .flat_map(|chunk| self.svd.project(chunk))
-            .collect::<Vec<_>>();
-        eprintln!(
-            "projecting points took {:.1}s",
-            start.elapsed().as_secs_f32()
-        );
+        let positions_projected = self.svd.project_all(positions, self.dim, k);
 
         let num_internal = (1usize << td) - 1;
         let num_leaves = 1usize << td;
@@ -255,7 +244,7 @@ where
 
         let pos_view = FlatPositions {
             data: &positions_projected,
-            dim: self.dim,
+            dim: k,
         };
         build_tree(
             &mut nodes,
@@ -334,20 +323,17 @@ where
         O: QueryOutput<I, F>,
     {
         assert_eq!(pos.len(), self.dim);
-        let pos_projected = DynPoint::new(&self.svd.project(pos));
+        let pos_projected = DynPoint::new(&self.svd.project_truncated(pos, self.projected_dim));
         let pos = DynPoint::new(pos);
         let radius_sq = radius * radius;
         let normalized_radius = self.svd.normalize_radius(radius);
         let norm_radius_sq = normalized_radius * normalized_radius;
 
-        // let pos_projected = DynPoint::new(&pos.pos);
-        // let norm_radius_sq = radius_sq;
-
         SCRATCH.with(|scratch| {
             let mut ranges = scratch.take();
             ranges.clear();
 
-            let mut distances = vec![F::ZERO; self.dim];
+            let mut distances = vec![F::ZERO; self.projected_dim];
             let _ = self.collect_ranges(
                 &pos_projected,
                 0,
@@ -404,7 +390,7 @@ where
             let reduced_radius = Float::sqrt(dim_radius_squared + distances[dim]);
             let min = own_pos - reduced_radius;
             let max = own_pos + reduced_radius;
-            let max_lut = lut_size_for_dim(self.dim) - 1;
+            let max_lut = snn.lut.len() / 2 - 1;
 
             let min_scaled = min * snn.resolution;
             let idx = if min_scaled >= F::ZERO {

@@ -119,6 +119,35 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
         }
         output
     }
+
+    /// Batch-project all points via a single matrix multiply.
+    /// Returns Vec of length `n`, each element `[F; D]`.
+    #[cfg(not(feature = "svd"))]
+    pub fn project_all(&self, data: &[[F; D]]) -> Vec<[F; D]> {
+        data.to_vec()
+    }
+
+    /// Batch-project all points via a single matrix multiply.
+    /// Returns Vec of length `n`, each element `[F; D]`.
+    #[cfg(feature = "svd")]
+    pub fn project_all(&self, data: &[[F; D]]) -> Vec<[F; D]> {
+        let n = data.len();
+
+        // Build centered data matrix: n × D
+        let centered = Mat::<F>::from_fn(n, D, |i, j| data[i][j] - self.mean[j]);
+
+        // result = centered (n × D) × Vt^T (D × D) = n × D
+        let result = centered * self.vt.transpose();
+
+        // Convert back to array form
+        let mut out = vec![[F::ZERO; D]; n];
+        for i in 0..n {
+            for j in 0..D {
+                out[i][j] = result.read(i, j);
+            }
+        }
+        out
+    }
 }
 
 // ── Faer-based DynamicSVD ───────────────────────────────────────────
@@ -236,21 +265,24 @@ impl<F: Scalar> DynamicSVD<F> {
         self.vt = v.transpose().to_owned();
     }
 
+    /// Project a single point, truncating to first `k` output dimensions.
     #[cfg(not(feature = "svd"))]
-    pub fn project(&self, point: &[F]) -> Vec<F> {
-        point.to_vec()
+    pub fn project_truncated(&self, point: &[F], k: usize) -> Vec<F> {
+        point[..k].to_vec()
     }
 
+    /// Project a single point, truncating to first `k` output dimensions.
     #[cfg(feature = "svd")]
-    pub fn project(&self, point: &[F]) -> Vec<F> {
+    pub fn project_truncated(&self, point: &[F], k: usize) -> Vec<F> {
         let d = self.mean.len();
-        let centered = faer_core::Col::<F>::from_fn(d, |j| {
-            (point[j] - self.mean[j]) / self.normalization_factor
-        });
-        let projected = self.vt.as_ref() * centered;
-        let mut output = vec![F::ZERO; d];
-        for j in 0..d {
-            output[j] = projected.read(j);
+        let inv_norm = F::ONE / self.normalization_factor;
+        let mut output = vec![F::ZERO; k];
+        for i in 0..k {
+            let mut acc = F::ZERO;
+            for j in 0..d {
+                acc += self.vt.read(i, j) * (point[j] - self.mean[j]);
+            }
+            output[i] = acc * inv_norm;
         }
         output
     }
@@ -271,9 +303,8 @@ impl<F: Scalar> DynamicSVD<F> {
         let inv_norm = F::ONE / self.normalization_factor;
 
         // Build centered data matrix: n × d
-        let centered = Mat::<F>::from_fn(n, dim, |i, j| {
-            (data[i * dim + j] - self.mean[j]) * inv_norm
-        });
+        let centered =
+            Mat::<F>::from_fn(n, dim, |i, j| (data[i * dim + j] - self.mean[j]) * inv_norm);
 
         // Vt is d × d; take first k rows → k × d
         let vt_k = self.vt.as_ref().subrows(0, k);
