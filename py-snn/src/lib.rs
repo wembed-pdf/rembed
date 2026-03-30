@@ -7,7 +7,6 @@ use std::sync::Once;
 
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 static PYTHON_INIT: Once = Once::new();
 
@@ -38,11 +37,6 @@ pub struct SnnIndex {
     dimensions: usize,
 }
 
-/// Result from a radius query
-pub struct SklearnResult {
-    pub indices: Vec<usize>,
-}
-
 impl SnnIndex {
     /// Create a new KDTree index from flat position data.
     ///
@@ -59,23 +53,22 @@ impl SnnIndex {
     ) -> PyResult<Self> {
         ensure_python_initialized();
         Python::with_gil(|py| {
-            let sklearn_neighbors = py.import("sklearn.neighbors")?;
-            let kdtree_class = sklearn_neighbors.getattr("KDTree")?;
+            let sys = py.import("sys")?;
+            let current_dir = std::env::current_dir().expect("Failed to get current directory");
+            let snn_python_path = current_dir.join("snn/python").to_str().unwrap().to_string();
+            sys.getattr("path")?
+                .call_method1("append", (snn_python_path,))?;
+            let snn_lib = py.import("snnpy")?;
 
-            // Convert to f64 for sklearn (it uses float64 internally)
+            // snn = build_snn_model(fmn_train)
+            let build_snn_model = snn_lib.getattr("build_snn_model")?;
             let points_f64: Vec<f64> = points.iter().map(|&x| x as f64).collect();
-
-            // Create numpy array directly from slice and reshape
-            let array = PyArray1::from_slice(py, &points_f64);
-            let reshaped = array.reshape([num_points, dimensions])?;
-
-            // Create KDTree
-            let kwargs = PyDict::new(py);
-            kwargs.set_item("leaf_size", leaf_size)?;
-            let tree = kdtree_class.call((reshaped,), Some(&kwargs))?;
+            let points_array = PyArray1::from_slice(py, &points_f64);
+            let points_reshaped = points_array.reshape([num_points, dimensions])?;
+            let snn = build_snn_model.call1((points_reshaped, leaf_size))?;
 
             Ok(Self {
-                tree: tree.unbind(),
+                tree: snn.into(),
                 num_points,
                 dimensions,
             })
@@ -90,22 +83,15 @@ impl SnnIndex {
     ///
     /// # Returns
     /// Indices of all points within the radius
-    pub fn radius_search(&self, query_point: &[f32], radius: f64) -> PyResult<SklearnResult> {
+    pub fn radius_search(&self, query_point: &[f32], radius: f64) -> PyResult<Vec<usize>> {
         Python::with_gil(|py| {
             let query_f64: Vec<f64> = query_point.iter().map(|&x| x as f64).collect();
-            let dimensions = query_point.len();
-
             let query_array = PyArray1::from_slice(py, &query_f64);
-            let query_reshaped = query_array.reshape([1, dimensions])?;
 
             let tree = self.tree.bind(py);
-            let result = tree.call_method1("query_radius", (query_reshaped, radius))?;
+            let result = tree.call_method1("query_radius", (query_array, radius))?;
 
-            // Result is an array of arrays; get first element
-            let indices_array = result.get_item(0)?;
-            let indices: Vec<usize> = indices_array.extract()?;
-
-            Ok(SklearnResult { indices })
+            Ok(result.extract::<Vec<usize>>()?)
         })
     }
 
@@ -121,10 +107,8 @@ impl SnnIndex {
 }
 
 // PyObject is Send when GIL is properly acquired
-unsafe impl Send for SklearnKDTreeIndex {}
-unsafe impl Sync for SklearnKDTreeIndex {}
-unsafe impl Send for SklearnBallTreeIndex {}
-unsafe impl Sync for SklearnBallTreeIndex {}
+unsafe impl Send for SnnIndex {}
+unsafe impl Sync for SnnIndex {}
 
 #[cfg(test)]
 mod tests {
@@ -152,9 +136,9 @@ mod tests {
         let query = vec![0.0f32, 0.0];
         let result = tree.radius_search(&query, 1.1).expect("Search failed");
 
-        assert!(result.indices.contains(&0)); // (0,0)
-        assert!(result.indices.contains(&1)); // (1,0)
-        assert!(result.indices.contains(&2)); // (0,1)
-        assert!(!result.indices.contains(&3)); // (1,1) is sqrt(2) away
+        assert!(result.contains(&0)); // (0,0)
+        assert!(result.contains(&1)); // (1,0)
+        assert!(result.contains(&2)); // (0,1)
+        assert!(!result.contains(&3)); // (1,1) is sqrt(2) away
     }
 }

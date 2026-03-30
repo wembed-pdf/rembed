@@ -111,5 +111,10 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(sklearn::SklearnBallTree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
     ]);
 
+    #[cfg(feature = "py_snn")]
+    let iter = iter.chain(Some(
+        Box::new(py_snn::PySnn::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>
+    ));
+
     iter.collect::<Vec<_>>().into_iter()
 }

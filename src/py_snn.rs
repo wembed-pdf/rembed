@@ -93,10 +93,10 @@ impl<'a, const D: usize> Update<D> for PySnn<'a, D> {
         }
 
         let flat_points = self.positions_to_flat_array();
-        match SklearnKDTreeIndex::create(&flat_points, positions.len(), D, 40) {
+        match SnnIndex::create(&flat_points, positions.len(), D, 40) {
             Ok(idx) => self.index = Some(idx),
             Err(e) => {
-                eprintln!("Warning: Failed to create sklearn KDTree: {}", e);
+                eprintln!("Warning: Failed to create PySnn KDTree: {}", e);
                 self.index = None;
             }
         }
@@ -114,10 +114,10 @@ impl<'a, const D: usize> Query<D> for PySnn<'a, D> {
 
         match tree.radius_search(&query_point, radius) {
             Ok(result) => {
-                results.extend(result.indices);
+                results.extend(result);
             }
             Err(e) => {
-                eprintln!("Warning: sklearn KDTree query failed: {}", e);
+                eprintln!("Warning: PySnn query failed: {}", e);
             }
         }
     }
@@ -125,11 +125,11 @@ impl<'a, const D: usize> Query<D> for PySnn<'a, D> {
 
 impl<'a, const D: usize> SpatialIndex<D> for PySnn<'a, D> {
     fn name(&self) -> String {
-        "sklearn_kdtree".to_string()
+        "py_snn".to_string()
     }
 
     fn implementation_string(&self) -> &'static str {
-        include_str!("sklearn.rs")
+        include_str!("py_snn.rs")
     }
 }
 
@@ -139,6 +139,6 @@ impl<'a, const D: usize> query::Embedder<'a, D> for PySnn<'a, D> {
     }
 }
 
-// Send + Sync: sklearn crate handles GIL acquisition for thread safety
+// Send + Sync: PySnn crate handles GIL acquisition for thread safety
 unsafe impl<'a, const D: usize> Send for PySnn<'a, D> {}
 unsafe impl<'a, const D: usize> Sync for PySnn<'a, D> {}
