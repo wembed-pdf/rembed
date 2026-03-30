@@ -13,8 +13,8 @@ struct WembedSnnIndex {
     size_t num_points;
     size_t dimensions;
     // Buffers for query operations (reused to avoid allocations)
-    mutable Eigen::VectorXd query_buffer;
-    mutable Eigen::VectorXd distance_buffer;
+    mutable Eigen::VectorXf query_buffer;
+    mutable Eigen::VectorXf distance_buffer;
 };
 
 extern "C" {
@@ -28,14 +28,14 @@ WembedSnnIndex* wembed_snn_create_index(
         return nullptr;
     }
 
-    // Convert from float row-major to double column-major
-    // Original SnnModel expects column-major: data[r + rows * c]
-    std::vector<double> data(num_points * dimensions);
+    // Convert from row-major to column-major
+    // SnnModel expects column-major: data[r + rows * c]
+    std::vector<float> data(num_points * dimensions);
     for (size_t r = 0; r < num_points; ++r) {
         for (size_t c = 0; c < dimensions; ++c) {
             // Input is row-major: points[r * dimensions + c]
             // Output is column-major: data[r + num_points * c]
-            data[r + num_points * c] = static_cast<double>(points[r * dimensions + c]);
+            data[r + num_points * c] = points[r * dimensions + c];
         }
     }
 
@@ -68,17 +68,14 @@ WembedSnnResult wembed_snn_radius_search(
         return result;
     }
 
-    // Convert query point to double
-    std::vector<double> query(index->dimensions);
-    for (size_t i = 0; i < index->dimensions; ++i) {
-        query[i] = static_cast<double>(query_point[i]);
-    }
+    // Wrap query point directly (no conversion needed)
+    std::vector<float> query(query_point, query_point + index->dimensions);
 
     // Perform the query - results vector grows dynamically
     std::vector<size_t> results;
     index->model->radius_single_query(
         query,
-        static_cast<double>(radius),
+        radius,
         results,
         [](int id) -> size_t { return static_cast<size_t>(id); },
         index->query_buffer,

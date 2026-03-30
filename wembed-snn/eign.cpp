@@ -30,7 +30,7 @@ SOFTWARE.
 #include <eigen3/Eigen/SVD>
 
 void svd_eigen_sovler(const Matrix& mat, Matrix& vt) {
-    Eigen::BDCSVD<Eigen::MatrixXd> svd_wrapper = mat.bdcSvd(Eigen::ComputeFullV);
+    Eigen::BDCSVD<Eigen::MatrixXf> svd_wrapper = mat.bdcSvd(Eigen::ComputeFullV);
     assert(!svd_wrapper.computeU() && svd_wrapper.computeV());
     auto info = svd_wrapper.info();
     if (info == Eigen::ComputationInfo::Success) {
@@ -38,6 +38,6 @@ void svd_eigen_sovler(const Matrix& mat, Matrix& vt) {
     } else {
         // this is bad, just choose any axis
         std::cout << "Warning: Singular Value Decomposition failed" << std::endl;
-        vt(0, 0) = 1.0;
+        vt(0, 0) = 1.0f;
     }
 }

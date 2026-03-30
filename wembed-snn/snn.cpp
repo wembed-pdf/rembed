@@ -35,11 +35,11 @@ SOFTWARE.
 
 #include "eign.h"
 
-using Matrix = Eigen::MatrixXd;
-using Vector = Eigen::VectorXd;
+using Matrix = Eigen::MatrixXf;
+using Vector = Eigen::VectorXf;
 using Eigen::seqN;
 using Eigen::all;
-using RawVec = Eigen::Map<Eigen::VectorXd>;
+using RawVec = Eigen::Map<Eigen::VectorXf>;
 
 void argsort(const Vector& input, std::vector<int>& output) {
     std::iota(output.begin(), output.end(), 0);
@@ -66,20 +66,20 @@ void reorderArray2D(const Matrix& input, Matrix& output, const std::vector<int>&
 
 void calculate_matrix_mean(const Matrix& mat, Vector& ret) {
     for (Eigen::Index i = 0; i < mat.cols(); i++){
-        ret[i] = mat(all, i).sum() / static_cast<double>(mat.rows());
+        ret[i] = mat(all, i).sum() / static_cast<float>(mat.rows());
     }
 }
 
 void calculate_skip_euclid_norm(const Vector& xxt, const Matrix& mat, const Vector& arr, Vector& ret, size_t start, size_t end) {
     const auto range = seqN(start, end-start);
 
-    double inner_prod = arr.dot(arr);
+    float inner_prod = arr.dot(arr);
     ret(range) = xxt(range).array() + inner_prod;
-    ret(range) -= 2.0 * mat(range, all) * arr;
+    ret(range) -= 2.0f * mat(range, all) * arr;
 }
 
 // for 1-dimensional data
-size_t binarySearch(const Vector& arr, double point){
+size_t binarySearch(const Vector& arr, float point){
     size_t lo = 0, hi = arr.size();
 
     while (hi != lo) {
@@ -94,7 +94,7 @@ size_t binarySearch(const Vector& arr, double point){
 }
 
 
-SnnModel::SnnModel(double *data, int r, int c): rows(r), cols(c) {
+SnnModel::SnnModel(float *data, int r, int c): rows(r), cols(c) {
     Matrix tempNormData(rows, cols);
     normData.resize(rows, cols);
     for (int c = 0; c < cols; ++c) {
@@ -122,11 +122,11 @@ SnnModel::SnnModel(double *data, int r, int c): rows(r), cols(c) {
         principal_axis = vt(0, all);
 
         // TODO: zero would be bad?!
-        double sign_flip = (principal_axis[0] > 0) ? 1 : ((principal_axis[0] < 0) ? -1 : 0); // flip sign
+        float sign_flip = (principal_axis[0] > 0) ? 1.0f : ((principal_axis[0] < 0) ? -1.0f : 0.0f); // flip sign
         principal_axis *= sign_flip;
         temp_sortVals = tempNormData * principal_axis;
     } else if (cols == 1){
-        principal_axis[0] = 1.0;
+        principal_axis[0] = 1.0f;
         temp_sortVals = tempNormData(all, 0);
     } else{
         std::cerr << "Error occured in input, please enter correct value for cols." << std::endl;
@@ -146,12 +146,12 @@ SnnModel::SnnModel(double *data, int r, int c): rows(r), cols(c) {
     }
 }
 
-void SnnModel::radius_single_query(double *query, double radius, std::vector<int>& knnID, Vector& query_buffer, Vector& distance_buffer) const {
+void SnnModel::radius_single_query(float *query, float radius, std::vector<int>& knnID, Vector& query_buffer, Vector& distance_buffer) const {
     radius_single_query(RawVec(query, cols), radius, knnID, [](int id){ return id; }, query_buffer, distance_buffer);
 }
 
-std::pair<size_t, size_t> SnnModel::radius_single_query_impl(const Vector& normalized_query, double radius, Vector& distances) const {
-    double sv_q = principal_axis.dot(normalized_query);
+std::pair<size_t, size_t> SnnModel::radius_single_query_impl(const Vector& normalized_query, float radius, Vector& distances) const {
+    float sv_q = principal_axis.dot(normalized_query);
     size_t left = binarySearch(sortVals, sv_q-radius);
     size_t right = binarySearch(sortVals, sv_q+radius);
     calculate_skip_euclid_norm(xxt, normData, normalized_query, distances, left, right);
