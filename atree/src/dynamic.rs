@@ -75,20 +75,34 @@ impl<const W: usize, F: Scalar, I: IdStorage> DynPDVec<W, F, I> {
 
     #[inline(always)]
     fn dist_half_squared(&self, pos: &[F], squared_half: F) -> [F; W] {
-        let dim = self.lanes.len();
-        let mut acc1: [F; W] = self.squared_half;
-        let mut acc2: [F; W] = [squared_half; W];
+        // let dim = self.lanes.len();
+        const UNROLL: usize = 8;
+        let mut accs: [_; UNROLL] = std::array::from_fn(|i| {
+            if i == 0 {
+                self.squared_half
+            } else if i == 1 {
+                [squared_half; W]
+            } else {
+                [F::ZERO; W]
+            }
+        });
 
-        for j in 0..dim / 2 {
-            let j = j * 2;
-            acc1 = from_fn(|i| Float::mul_add(self.lanes[j][i], -pos[j], acc1[i]));
-            acc2 = from_fn(|i| Float::mul_add(self.lanes[j + 1][i], -pos[j + 1], acc2[i]));
+        let (chunks, remainder) = self.lanes.as_chunks::<UNROLL>();
+        let (pos_chunks, pos_remainder) = pos.as_chunks::<UNROLL>();
+        for (chunk, pos_slice) in chunks.iter().zip(pos_chunks) {
+            for ((acc, slice), &p) in accs.iter_mut().zip(chunk.iter()).zip(pos_slice.iter()) {
+                *acc = from_fn(|i| Float::mul_add(slice[i], -p, acc[i]));
+            }
         }
-        if dim & 1 > 0 {
-            acc1 = from_fn(|i| Float::mul_add(self.lanes[dim - 1][i], -pos[dim - 1], acc1[i]));
+        let mut acc: [F; W] = accs[0];
+        for (slice, &p) in remainder.iter().zip(pos_remainder.iter()) {
+            acc = from_fn(|i| Float::mul_add(slice[i], -p, acc[i]));
+        }
+        for j in 1..UNROLL {
+            acc = from_fn(|i| acc[i] + accs[j][i]);
         }
 
-        from_fn(|i| acc1[i] + acc2[i])
+        acc
     }
 }
 
