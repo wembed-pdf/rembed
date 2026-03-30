@@ -67,7 +67,10 @@ impl<const D: usize> SpatialIndex<D> for ATree<'_, D> {
     fn implementation_string(&self) -> &'static str {
         concat!(
             include_str!("../atree/src/lib.rs"),
-            include_str!("../atree/src/simd.rs")
+            include_str!("../atree/src/simd.rs"),
+            include_str!("../atree/src/output.rs"),
+            include_str!("../atree/src/tree.rs"),
+            include_str!("../atree/src/query.rs")
         )
     }
 }
