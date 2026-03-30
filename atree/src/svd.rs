@@ -3,9 +3,10 @@ use crate::scalar::Scalar;
 use faer_core;
 #[cfg(feature = "svd")]
 use faer_core::Mat;
-// use nalgebra::{DMatrix, DVector};
 #[cfg(feature = "svd")]
 use faer_svd;
+
+
 
 #[derive(Clone, Debug)]
 pub struct SVD<const D: usize, F: Scalar> {
@@ -49,23 +50,12 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
         }
 
         // Center data
-        // let mut centered_data = Mat::<F>::zeros(n, D);
-        // for (i, v) in data.iter().enumerate() {
-        //     for j in 0..D {
-        //         centered_data.write(i, j, v[j] - self.mean[j]);
-        //     }
-        // }
-
         let centered_data = Mat::<F>::from_fn(n, D, |i, j| data[i][j] - self.mean[j]);
-
-        // Compute covariance matrix
-        // let covariance =
-        //     &centered_data.transpose() * &centered_data / F::from_usize(n - 1).unwrap();
 
         // Compute SVD
         let mut s = Mat::<F>::zeros(D, 1);
 
-        let parallelism = faer_core::Parallelism::None; // You can choose Parallelism::Rayon for multi-threading
+        let parallelism = faer_core::Parallelism::None;
 
         let stack_req: faer_core::dyn_stack::StackReq = faer_svd::compute_svd_req::<F>(
             data.len(),
@@ -80,20 +70,18 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
         let mut buffer = vec![0u8; stack_req.size_bytes()];
         let stack = faer_core::dyn_stack::PodStack::new(&mut buffer);
 
+        let mut v = Mat::<F>::zeros(D, D);
         faer_svd::compute_svd(
             centered_data.as_ref(),
             s.as_mut(),
             None,
-            Some(self.vt.as_mut()),
+            Some(v.as_mut()),
             parallelism,
             stack,
             faer_svd::SvdParams::default(),
         );
-
-        // Alternative SVD using nalgebra-lapack for better performance on large datasets
-        // use nalgebra_lapack::SVD as LapackSVD;
-        // let svd = LapackSVD::new(centered_data);
-        // self.vt = svd.unwrap().vt;
+        // faer outputs V (columns = singular vectors), we need V^T (rows = singular vectors)
+        self.vt = v.transpose().to_owned();
     }
 
     #[cfg(not(feature = "svd"))]
@@ -105,7 +93,7 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
     pub fn project(&self, point: &[F; D]) -> [F; D] {
         let centered = faer_core::Col::<F>::from_fn(D, |j| point[j] - self.mean[j]);
 
-        let projected = self.vt.clone() * centered;
+        let projected = &self.vt * centered;
         let mut output = [F::ZERO; D];
         for j in 0..D {
             output[j] = projected.read(j);
@@ -113,6 +101,8 @@ impl<const D: usize, F: Scalar> SVD<D, F> {
         output
     }
 }
+
+// ── Faer-based DynamicSVD ───────────────────────────────────────────
 
 #[derive(Clone, Debug)]
 pub struct DynamicSVD<F: Scalar> {
@@ -180,21 +170,14 @@ impl<F: Scalar> DynamicSVD<F> {
             }
         }
 
-        // Compute covariance matrix
-        // let covariance =
-        //     &centered_data.transpose() * &centered_data / F::from_usize(n - 1).unwrap();
-
         // Compute SVD
-        // let centered_data_for_svd = centered_data.clone();
-        // let svd = centered_data_for_svd.svd(false, true);
-        // self.vt = svd.v_t;
         let mut s = Mat::<F>::zeros(d, 1);
 
-        let parallelism = faer_core::Parallelism::None; // You can choose Parallelism::Rayon for multi-threading
+        let parallelism = faer_core::Parallelism::None;
 
         let stack_req: faer_core::dyn_stack::StackReq = faer_svd::compute_svd_req::<F>(
+            n,
             d,
-            data.len(),
             faer_svd::ComputeVectors::Thin,
             faer_svd::ComputeVectors::Thin,
             parallelism,
@@ -205,20 +188,18 @@ impl<F: Scalar> DynamicSVD<F> {
         let mut buffer = vec![0u8; stack_req.size_bytes()];
         let stack = faer_core::dyn_stack::PodStack::new(&mut buffer);
 
+        let mut v = Mat::<F>::zeros(d, d);
         faer_svd::compute_svd(
             centered_data.as_ref(),
             s.as_mut(),
             None,
-            Some(self.vt.as_mut()),
+            Some(v.as_mut()),
             parallelism,
             stack,
             faer_svd::SvdParams::default(),
         );
-
-        // Alternative SVD using nalgebra-lapack for better performance on large datasets
-        // use nalgebra_lapack::SVD as LapackSVD;
-        // let svd = LapackSVD::new(centered_data);
-        // self.vt = Some(svd.unwrap().vt);
+        // faer outputs V (columns = singular vectors), we need V^T (rows = singular vectors)
+        self.vt = v.transpose().to_owned();
     }
 
     #[cfg(not(feature = "svd"))]
@@ -245,7 +226,6 @@ impl<F: Scalar> DynamicSVD<F> {
     }
 }
 
-// Test SVD implementation with a simple dataset
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,14 +235,18 @@ mod tests {
     }
 
     #[test]
-    fn test_svd() {
+    fn test_faer_svd() {
         let data = setup_data();
         let mut svd = SVD::<2, f32>::new();
         svd.compute_svd(&data);
-        dbg!(&svd);
 
         let projected = svd.project(&[1.0, 1.0]);
-        println!("Projected point: {:?}", projected);
-        panic!("SVD test not fully implemented yet");
+        // SVD projection should be an orthogonal rotation — norm is preserved
+        let input_norm = (1.0f32 * 1.0 + 1.0 * 1.0).sqrt();
+        let output_norm = (projected[0] * projected[0] + projected[1] * projected[1]).sqrt();
+        assert!(
+            (input_norm - output_norm).abs() < 1e-5,
+            "Norm not preserved: input={input_norm}, output={output_norm}"
+        );
     }
 }
