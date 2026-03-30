@@ -1,9 +1,10 @@
 //! Low-level bindings for scikit-learn's spatial data structures.
 //!
-//! This crate provides efficient Rust bindings to scikit-learn's KDTree and BallTree
+//! This crate provides efficient Rust bindings to git@github.com:nla-group/snn.git
+//! This requires the snnpy repository to be cloned into the same directory as src e.g. py-snn/snn
 //! implementations using PyO3 and NumPy for minimal data transfer overhead.
 
-use std::sync::Once;
+use std::{os::unix::thread, sync::Once};
 
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
@@ -30,15 +31,15 @@ fn ensure_python_initialized() {
     });
 }
 
-/// Opaque handle to a scikit-learn KDTree
 pub struct SnnIndex {
     tree: PyObject,
     num_points: usize,
     dimensions: usize,
+    threadpool_limits: PyObject,
 }
 
 impl SnnIndex {
-    /// Create a new KDTree index from flat position data.
+    /// Create a new SNN index from flat position data.
     ///
     /// # Arguments
     /// * `points` - Flat array of f32 coordinates (row-major: [x0, y0, z0, x1, y1, z1, ...])
@@ -54,21 +55,26 @@ impl SnnIndex {
         ensure_python_initialized();
         Python::with_gil(|py| {
             let sys = py.import("sys")?;
-            let current_dir = std::env::current_dir().expect("Failed to get current directory");
-            let snn_python_path = current_dir.join("snn/python").to_str().unwrap().to_string();
+            let snn_python_path = "/home/tobias/Uni/pdf/pdf/rembed/py-snn/snn/python";
+            // println!("Adding {} to Python path", snn_python_path);
             sys.getattr("path")?
                 .call_method1("append", (snn_python_path,))?;
             let snn_lib = py.import("snnpy")?;
 
             // snn = build_snn_model(fmn_train)
             let build_snn_model = snn_lib.getattr("build_snn_model")?;
-            let points_f64: Vec<f64> = points.iter().map(|&x| x as f64).collect();
+            let points_f64: Vec<f32> = points.iter().map(|&x| x as f32).collect();
             let points_array = PyArray1::from_slice(py, &points_f64);
             let points_reshaped = points_array.reshape([num_points, dimensions])?;
             let snn = build_snn_model.call1((points_reshaped, leaf_size))?;
+            let threadpool_limits = py.import("threadpoolctl")?.getattr("threadpool_limits")?;
+            // // with threadpool_limits(limits=1):
+            // let threadpool_limits = self.threadpool_limits.bind(py);
+            let _threadpool_guard = threadpool_limits.call1((1,))?;
 
             Ok(Self {
                 tree: snn.into(),
+                threadpool_limits: threadpool_limits.into(),
                 num_points,
                 dimensions,
             })
@@ -85,11 +91,11 @@ impl SnnIndex {
     /// Indices of all points within the radius
     pub fn radius_search(&self, query_point: &[f32], radius: f64) -> PyResult<Vec<usize>> {
         Python::with_gil(|py| {
-            let query_f64: Vec<f64> = query_point.iter().map(|&x| x as f64).collect();
-            let query_array = PyArray1::from_slice(py, &query_f64);
+            let query_array: Bound<'_, numpy::PyArray<f32, numpy::ndarray::Dim<[usize; 1]>>> =
+                PyArray1::from_slice(py, &query_point);
 
             let tree = self.tree.bind(py);
-            let result = tree.call_method1("query_radius", (query_array, radius))?;
+            let result = tree.call_method1("query_radius", (query_array, radius + 1e-2))?;
 
             Ok(result.extract::<Vec<usize>>()?)
         })
@@ -119,18 +125,18 @@ mod tests {
         // 4 points in 2D
         let points: Vec<f32> = vec![0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
 
-        let tree = SnnIndex::create(&points, 4, 2, 40).expect("Failed to create KDTree");
+        let tree = SnnIndex::create(&points, 4, 2, 40).expect("Failed to create python SNN");
 
         assert_eq!(tree.point_count(), 4);
         assert_eq!(tree.dimensions(), 2);
     }
 
     #[test]
-    fn test_kdtree_radius_search() {
+    fn test_snn_radius_search() {
         // 4 points in 2D: (0,0), (1,0), (0,1), (1,1)
         let points: Vec<f32> = vec![0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
 
-        let tree = SnnIndex::create(&points, 4, 2, 40).expect("Failed to create KDTree");
+        let tree = SnnIndex::create(&points, 4, 2, 40).expect("Failed to create python SNN");
 
         // Search from (0,0) with radius 1.1 should find (0,0), (1,0), (0,1)
         let query = vec![0.0f32, 0.0];
