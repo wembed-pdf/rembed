@@ -333,13 +333,7 @@ where
         O: QueryOutput<I, F>,
     {
         assert_eq!(pos.len(), self.dim);
-        let pos_projected = DynPoint::new(
-            &self
-                .svd
-                .project(&pos.iter().map(|&x| x).collect::<Vec<_>>())
-                .into_iter()
-                .collect::<Vec<F>>(),
-        );
+        let pos_projected = DynPoint::new(&self.svd.project(pos));
         let pos = DynPoint::new(pos);
         let radius_sq = radius * radius;
         let normalized_radius = self.svd.normalize_radius(radius);
