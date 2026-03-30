@@ -4,7 +4,7 @@ use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{LaneCount, PDVec, SupportedLaneCount};
 use crate::svd::SVD;
 
-pub(crate) const LEAFSIZE: usize = 150;
+pub(crate) const LEAFSIZE: usize = 500;
 pub(crate) const SVD_THRESHOLD: usize = 16;
 
 #[derive(Clone, Copy, Debug)]
@@ -323,7 +323,7 @@ pub(crate) fn compute_total_depth(n: usize) -> usize {
     if n <= LEAFSIZE {
         0
     } else {
-        (n / LEAFSIZE).ilog2() as usize + 1
+        (n / LEAFSIZE).ilog2() as usize
     }
 }
 
