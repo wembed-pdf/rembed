@@ -42,13 +42,6 @@ pub trait SpatialIndex<const D: usize>: Query<D> + Update<D> + Graph + Position<
     }
 }
 
-// struct Statistics {
-//     nodes_queried: usize,
-//     branches: usize,
-//     dist_checks: usize,
-//     final_radius:
-// }
-
 pub trait Query<const D: usize>: Position<D> + Graph {
     fn query_radius(&self, _pos: DVec<D>, _radius: f64, _results: &mut Vec<NodeId>) {
         unimplemented!(
