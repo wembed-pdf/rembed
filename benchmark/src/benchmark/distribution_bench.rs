@@ -1,6 +1,7 @@
 use crate::benchmark::runner;
 use crate::synthetic_data::{self, PointDistribution};
 use criterion::Criterion;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rembed::{Embedding, NodeId};
 use std::fs;
 use std::io::Write;
@@ -20,6 +21,7 @@ pub struct DistributionBenchConfig {
     pub fast: bool,
     pub expected_queries: Option<usize>,
     pub only_center_nodes: bool,
+    pub parallel: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -72,64 +74,40 @@ impl DistributionBenchRunner {
                 * self.config.distributions.as_ref().unwrap().len();
             let mut current = 0;
 
+            if self.config.parallel {
+                return Ok(self
+                    .config
+                    .dims
+                    .par_iter()
+                    .flat_map(|&dim| {
+                        self.config.counts.par_iter().map(move |&node_count| {
+                            let mut temp_results = Vec::new();
+                            self.run_benchmarks_for_dimension_and_nodecount(
+                                &mut temp_results,
+                                fast,
+                                total,
+                                &mut 0,
+                                dim,
+                                node_count,
+                            )
+                            .unwrap();
+                            temp_results
+                        })
+                    })
+                    .flatten()
+                    .collect());
+            }
+
             for &dim in &self.config.dims {
                 for &node_count in &self.config.counts {
-                    if let Some(expected) = self.config.expected_queries {
-                        // Adjust radius to achieve expected number of queries
-                        let radius = (expected as f64
-                            / node_count as f64
-                            / hypersphere_volume_factor_recursive(dim))
-                        .powf(1.0 / dim as f64);
-                        for distribution in self.config.distributions.as_ref().unwrap() {
-                            current += 1;
-                            eprintln!(
-                                "[{}/{}] Running dim={}, n={}, r~{:.3}, dist={}",
-                                current,
-                                total,
-                                dim,
-                                node_count,
-                                radius,
-                                distribution.name()
-                            );
-
-                            let results = self.run_benchmarks_for_dimension(
-                                dim,
-                                node_count,
-                                radius,
-                                distribution,
-                                None,
-                                fast,
-                            )?;
-
-                            all_results.extend(results);
-                        }
-                    } else {
-                        for &radius in &self.config.radii {
-                            for distribution in self.config.distributions.as_ref().unwrap() {
-                                current += 1;
-                                eprintln!(
-                                    "[{}/{}] Running dim={}, n={}, r={}, dist={}",
-                                    current,
-                                    total,
-                                    dim,
-                                    node_count,
-                                    radius,
-                                    distribution.name()
-                                );
-
-                                let results = self.run_benchmarks_for_dimension(
-                                    dim,
-                                    node_count,
-                                    radius,
-                                    distribution,
-                                    None,
-                                    fast,
-                                )?;
-
-                                all_results.extend(results);
-                            }
-                        }
-                    }
+                    self.run_benchmarks_for_dimension_and_nodecount(
+                        &mut all_results,
+                        fast,
+                        total,
+                        &mut current,
+                        dim,
+                        node_count,
+                    )?;
                 }
             }
         }
@@ -210,6 +188,72 @@ impl DistributionBenchRunner {
         }
 
         Ok(all_results)
+    }
+
+    fn run_benchmarks_for_dimension_and_nodecount(
+        &self,
+        all_results: &mut Vec<BenchmarkRecord>,
+        fast: bool,
+        total: usize,
+        current: &mut i32,
+        dim: usize,
+        node_count: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(if let Some(expected) = self.config.expected_queries {
+            // Adjust radius to achieve expected number of queries
+            let radius =
+                (expected as f64 / node_count as f64 / hypersphere_volume_factor_recursive(dim))
+                    .powf(1.0 / dim as f64);
+            for distribution in self.config.distributions.as_ref().unwrap() {
+                *current += 1;
+                eprintln!(
+                    "[{}/{}] Running dim={}, n={}, r~{:.3}, dist={}",
+                    current,
+                    total,
+                    dim,
+                    node_count,
+                    radius,
+                    distribution.name()
+                );
+
+                let results = self.run_benchmarks_for_dimension(
+                    dim,
+                    node_count,
+                    radius,
+                    distribution,
+                    None,
+                    fast,
+                )?;
+
+                all_results.extend(results);
+            }
+        } else {
+            for &radius in &self.config.radii {
+                for distribution in self.config.distributions.as_ref().unwrap() {
+                    *current += 1;
+                    eprintln!(
+                        "[{}/{}] Running dim={}, n={}, r={}, dist={}",
+                        current,
+                        total,
+                        dim,
+                        node_count,
+                        radius,
+                        distribution.name()
+                    );
+
+                    let results = self.run_benchmarks_for_dimension(
+                        dim,
+                        node_count,
+                        radius,
+                        distribution,
+                        None,
+                        fast,
+                    )?;
+
+                    all_results.extend(results);
+                }
+            }
+        })
     }
 
     fn run_benchmark_for_config<const D: usize>(

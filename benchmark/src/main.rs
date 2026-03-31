@@ -248,6 +248,10 @@ enum Commands {
         /// Choose only nodes that are not closer than the radius to the boundary as query points to avoid edge effects
         #[arg(long, default_value_t = false)]
         only_center_nodes: bool,
+
+        /// Execute all dimension/node count combinations in parallel using rayon (only recommended if dimensions * node_counts << num_cpus)
+        #[arg(long, default_value_t = false)]
+        parallel: bool,
     },
 }
 
@@ -577,6 +581,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             fast,
             expected_queries,
             only_center_nodes,
+            parallel,
         } => {
             use benchmark::benchmark::distribution_bench::{
                 DistributionBenchConfig, DistributionBenchRunner,
@@ -603,6 +608,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fast,
                 expected_queries,
                 only_center_nodes,
+                parallel,
             };
 
             if dimensions.is_some() && node_counts.is_some() {
