@@ -330,8 +330,9 @@ pub(crate) fn compute_total_depth(n: usize) -> usize {
 pub(crate) fn lut_size_for_dim(d: usize) -> usize {
     let multiplier = match d {
         0..=2 => 0.1,
-        3..=8 => 0.5,
-        9..=12 => 0.8,
+        3..=6 => 0.5,
+        7..=9 => 0.8,
+        10..=12 => 1.,
         _ => 1.5,
     };
     (multiplier * (LEAFSIZE as f32)) as usize
