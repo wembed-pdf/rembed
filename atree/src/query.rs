@@ -69,7 +69,7 @@ where
             let reduced_radius = num_traits::Float::sqrt(dim_radius_squared + distances[dim]);
             let min = own_pos - reduced_radius;
             let max = own_pos + reduced_radius;
-            let max_lut = lut_size::<D>() - 1;
+            let max_lut = lut_size(D) - 1;
 
             let min_scaled = min * snn.resolution;
             let idx = if min_scaled >= F::ZERO {

@@ -236,7 +236,7 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         if max <= min {
             max = min + F::ONE;
         }
-        let num_buckets = lut_size_for_dim(dim);
+        let num_buckets = lut_size(dim);
         let resolution = F::from_usize(num_buckets).unwrap() / (max - min);
         for i in 0..num_buckets {
             let boundary = F::from_usize(i).unwrap() / resolution + min;
@@ -326,27 +326,19 @@ pub(crate) fn compute_total_depth(n: usize) -> usize {
         (n / LEAFSIZE).ilog2() as usize
     }
 }
+pub(crate) const fn lut_size(d: usize) -> usize {
+    // 0.1 * 2^((d+2)/4) * LEAFSIZE
+    // Split exponent: 2^(q + r/4) = 2^q * 2^(r/4)
+    const FRAC: [f64; 4] = [1.0, 1.18920712, std::f64::consts::SQRT_2, 1.68179283];
 
-pub(crate) fn lut_size_for_dim(d: usize) -> usize {
-    let multiplier = match d {
-        0..=2 => 0.1,
-        3..=6 => 0.5,
-        7..=9 => 0.8,
-        10..=12 => 1.,
-        _ => 1.5,
-    };
-    (multiplier * (LEAFSIZE as f32)) as usize
-}
+    let n = d + 2;
+    let q = n / 4;
+    let r = n % 4;
 
-pub(crate) const fn lut_size<const D: usize>() -> usize {
-    let multiplier = match D {
-        x if x <= 2 => 0.1,
-        x if x <= 8 => 0.5,
-        x if x <= 12 => 0.8,
-        x if x > 12 => 1.5,
-        _ => unreachable!(),
-    };
-    (multiplier * (LEAFSIZE as f32)) as usize
+    let multiplier = 0.1 * FRAC[r] * (1 << q) as f64;
+    let multiplier = f64::min(multiplier, 2.0);
+
+    (multiplier * LEAFSIZE as f64) as usize
 }
 
 #[inline(always)]
