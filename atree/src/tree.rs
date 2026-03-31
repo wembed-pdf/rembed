@@ -1,4 +1,5 @@
 use num_traits::Float;
+use std::sync::Mutex;
 
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{LaneCount, PDVec, SupportedLaneCount};
@@ -6,6 +7,8 @@ use crate::svd::SVD;
 
 pub(crate) const LEAFSIZE: usize = 500;
 pub(crate) const SVD_THRESHOLD: usize = 16;
+#[cfg(feature = "parallel")]
+const PAR_THRESHOLD: usize = 10_000;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Point<const D: usize, F: Scalar> {
@@ -147,31 +150,96 @@ where
         self.nodes = nodes;
         self.leaves = leaves;
         self.node_ids = node_ids;
+
+        // Compute per-leaf PDVec counts and prefix-sum offsets
+        let pdvec_counts: Vec<usize> = self
+            .leaves
+            .iter()
+            .map(|snn| {
+                if snn.lut.is_empty() {
+                    return 0;
+                }
+                let offset = snn.lut[0];
+                let last = *snn.lut.last().unwrap();
+                (last - offset).div_ceil(W)
+            })
+            .collect();
+        let mut pdvec_offsets = Vec::with_capacity(pdvec_counts.len());
+        let mut running = 0usize;
+        for &count in &pdvec_counts {
+            pdvec_offsets.push(running);
+            running += count;
+        }
+        let total_pdvecs = running;
+
+        // Pre-allocate and fill PDVecs in parallel
         self.positions_sorted.clear();
-        self.positions_sorted.reserve(positions.len());
+        self.positions_sorted
+            .resize_with(total_pdvecs, PDVec::inf);
 
-        for snn in self.leaves.iter_mut() {
-            if snn.lut.is_empty() {
-                continue;
-            }
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            self.leaves
+                .par_iter_mut()
+                .zip(pdvec_offsets.par_iter())
+                .for_each(|(snn, &new_offset)| {
+                    if snn.lut.is_empty() {
+                        return;
+                    }
+                    let id_offset = snn.lut[0];
+                    let last = *snn.lut.last().unwrap();
+                    let node_ids = &self.node_ids[id_offset..last];
+                    let positions = &self.positions;
 
-            let offset = snn.lut[0];
-            let last = snn.lut.last().expect("empty lut");
-            let node_ids = &self.node_ids[offset..*last];
-            let new_offset = self.positions_sorted.len();
+                    for (i, chunk) in node_ids.chunks(W).enumerate() {
+                        let pdvec =
+                            PDVec::new(chunk.iter().map(|id| (positions[*id], *id)));
+                        // SAFETY: each leaf writes to its own disjoint range
+                        // [new_offset..new_offset+count)
+                        unsafe {
+                            let ptr = self.positions_sorted.as_ptr().add(new_offset + i)
+                                as *mut PDVec<D, W, F, I>;
+                            ptr.write(pdvec);
+                        }
+                    }
 
-            for chunk in node_ids.chunks(W) {
-                let pdvec = PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
-                self.positions_sorted.push(pdvec)
-            }
-            let half_len = snn.lut.len() / 2;
-            for lut_entry in &mut snn.lut[0..half_len] {
-                *lut_entry = (*lut_entry - offset) / W + new_offset;
-            }
-            for lut_entry in &mut snn.lut[half_len..] {
-                *lut_entry = (*lut_entry - offset).div_ceil(W) + new_offset;
+                    let half_len = snn.lut.len() / 2;
+                    for lut_entry in &mut snn.lut[0..half_len] {
+                        *lut_entry = (*lut_entry - id_offset) / W + new_offset;
+                    }
+                    for lut_entry in &mut snn.lut[half_len..] {
+                        *lut_entry = (*lut_entry - id_offset).div_ceil(W) + new_offset;
+                    }
+                });
+        }
+
+        #[cfg(not(feature = "parallel"))]
+        {
+            for (snn, &new_offset) in self.leaves.iter_mut().zip(pdvec_offsets.iter()) {
+                if snn.lut.is_empty() {
+                    continue;
+                }
+                let id_offset = snn.lut[0];
+                let last = *snn.lut.last().unwrap();
+                let node_ids = &self.node_ids[id_offset..last];
+
+                for (i, chunk) in node_ids.chunks(W).enumerate() {
+                    let pdvec =
+                        PDVec::new(chunk.iter().map(|id| (self.positions[*id], *id)));
+                    self.positions_sorted[new_offset + i] = pdvec;
+                }
+
+                let half_len = snn.lut.len() / 2;
+                for lut_entry in &mut snn.lut[0..half_len] {
+                    *lut_entry = (*lut_entry - id_offset) / W + new_offset;
+                }
+                for lut_entry in &mut snn.lut[half_len..] {
+                    *lut_entry = (*lut_entry - id_offset).div_ceil(W) + new_offset;
+                }
             }
         }
+
         self.d_pos = d_pos;
     }
 
@@ -199,9 +267,36 @@ where
 // ── Tree building (generic over position storage) ────────────────────
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
+pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized + Sync>(
     nodes: &mut [F],
     leaves: &mut [Snn<F>],
+    node_ids: &mut [usize],
+    d_pos: &mut [F],
+    depth: usize,
+    total_depth: usize,
+    heap_idx: usize,
+    positions: &P,
+    offset: usize,
+) {
+    let shared_nodes = Mutex::new(nodes);
+    let shared_leaves = Mutex::new(leaves);
+    build_tree_inner(
+        &shared_nodes,
+        &shared_leaves,
+        node_ids,
+        d_pos,
+        depth,
+        total_depth,
+        heap_idx,
+        positions,
+        offset,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_tree_inner<F: Scalar, P: Positions<F> + ?Sized + Sync>(
+    nodes: &Mutex<&mut [F]>,
+    leaves: &Mutex<&mut [Snn<F>]>,
     node_ids: &mut [usize],
     d_pos: &mut [F],
     depth: usize,
@@ -260,7 +355,7 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         lut.extend_from_slice(&end_lut);
 
         let leaf_idx = heap_idx - ((1 << total_depth) - 1);
-        leaves[leaf_idx] = Snn {
+        leaves.lock().unwrap()[leaf_idx] = Snn {
             lut: lut.into(),
             min: Float::floor(d_pos[0]),
             resolution,
@@ -297,18 +392,18 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
     let (a_id, b_id) = children(heap_idx);
     let depth = depth + 1;
 
-    build_tree(
-        nodes,
-        leaves,
-        a_ids,
-        a_dpos,
-        depth,
-        total_depth,
-        a_id,
-        positions,
-        offset,
-    );
-    build_tree(
+    #[cfg(feature = "parallel")]
+    if a_ids.len() + b_ids.len() > PAR_THRESHOLD {
+        rayon::join(
+            || build_tree_inner(nodes, leaves, a_ids, a_dpos, depth, total_depth, a_id, positions, offset),
+            || build_tree_inner(nodes, leaves, b_ids, b_dpos, depth, total_depth, b_id, positions, offset + split_pos),
+        );
+        nodes.lock().unwrap()[heap_idx] = split;
+        return;
+    }
+
+    build_tree_inner(nodes, leaves, a_ids, a_dpos, depth, total_depth, a_id, positions, offset);
+    build_tree_inner(
         nodes,
         leaves,
         b_ids,
@@ -320,7 +415,7 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         offset + split_pos,
     );
 
-    nodes[heap_idx] = split;
+    nodes.lock().unwrap()[heap_idx] = split;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
