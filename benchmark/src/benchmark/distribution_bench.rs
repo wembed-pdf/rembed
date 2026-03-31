@@ -1,6 +1,7 @@
 use crate::benchmark::runner;
 use crate::synthetic_data::{self, PointDistribution};
 use criterion::Criterion;
+use rand_distr::Distribution;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rembed::{Embedding, NodeId};
 use std::fs;
@@ -52,7 +53,7 @@ impl DistributionBenchRunner {
     pub fn run(&self) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         let mut all_results = Vec::new();
         let fast = self.config.fast;
-        if self.config.distributions.is_some() {
+        if self.config.distributions.is_some() && self.config.expected_queries.is_none() {
             eprintln!("Running distribution benchmarks:");
             eprintln!("  Dimensions: {:?}", self.config.dims);
             eprintln!("  Node counts: {:?}", self.config.counts);
@@ -110,6 +111,67 @@ impl DistributionBenchRunner {
                     )?;
                 }
             }
+        }
+
+        if self.config.distributions.is_some() && self.config.expected_queries.is_some() {
+            eprintln!("Generating centered benchmarks for expected queries:");
+            eprintln!("  Dimensions: {:?}", self.config.dims);
+            eprintln!("  Node counts: {:?}", self.config.counts);
+            eprintln!("  Expected queries: {:?}", self.config.expected_queries);
+            eprintln!(
+                "  Distributions: {:?}",
+                self.config
+                    .distributions
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .map(|d| d.name())
+                    .collect::<Vec<_>>()
+            );
+            eprintln!();
+            let total = self.config.dims.len()
+                * self.config.counts.len()
+                * self.config.distributions.as_ref().unwrap().len();
+            let pb = indicatif::ProgressBar::new(total as u64);
+
+            for distribution in self.config.distributions.as_ref().unwrap() {
+                eprintln!("Running distribution: {}", distribution.name());
+                for &dim in &self.config.dims {
+                    for &node_count in &self.config.counts {
+                        let radius = (self.config.expected_queries.unwrap() as f64
+                            / node_count as f64
+                            / hypersphere_volume_factor_recursive(dim))
+                        .powf(1.0 / dim as f64);
+
+                        // Compute query set with distance to boundary at least radius to avoid edge effects skewing results
+                        let mut rng = <rand::rngs::StdRng as rand::SeedableRng>::seed_from_u64(
+                            self.config.seed,
+                        );
+                        let distribution_gen =
+                            rand_distr::Uniform::new(radius as f32, 1.0 - radius as f32).unwrap();
+                        let queryset = (0..self.config.num_queries)
+                            .map(|_| {
+                                let components = (0..dim)
+                                    .map(|_| distribution_gen.sample(&mut rng))
+                                    .collect::<Vec<f32>>();
+                                components
+                            })
+                            .collect();
+
+                        let results = self.run_benchmarks_for_dimension(
+                            dim,
+                            node_count,
+                            radius,
+                            distribution,
+                            Some(queryset),
+                            fast,
+                        )?;
+                        all_results.extend(results);
+                        pb.inc(1);
+                    }
+                }
+            }
+            pb.finish_with_message("Benchmarks completed");
         }
 
         if let Some(benchmarksets) = &self.config.benchmarksets {
@@ -291,7 +353,7 @@ impl DistributionBenchRunner {
             structure.update_positions(&embedding.positions, None);
         }
 
-        let eligible_nodes: Vec<NodeId> = if self.config.only_center_nodes {
+        let eligible_nodes: Vec<NodeId> = if self.config.only_center_nodes && queryset.is_none() {
             // Generate query indices, only use nodes that are not closer than radius to the boundary to avoid edge effects skewing results
             let mut reduced_elegible_nodes: Vec<NodeId> = (0..node_count)
                 .filter(|&i| {
