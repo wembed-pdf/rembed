@@ -238,13 +238,19 @@ pub(crate) fn build_tree<F: Scalar, P: Positions<F> + ?Sized>(
         }
         let num_buckets = lut_size(dim);
         let resolution = F::from_usize(num_buckets).unwrap() / (max - min);
+        let mut start_cursor = 0usize;
+        let mut end_cursor = 0usize;
         for i in 0..num_buckets {
             let boundary = F::from_usize(i).unwrap() / resolution + min;
-            let start_idx = d_pos.iter().take_while(|&&x| x < boundary).count();
-            lut.push(start_idx + offset);
+            while start_cursor < d_pos.len() && d_pos[start_cursor] < boundary {
+                start_cursor += 1;
+            }
+            lut.push(start_cursor + offset);
             let next_boundary = F::from_usize(i + 1).unwrap() / resolution + min;
-            let end_idx = d_pos.iter().take_while(|&&x| x < next_boundary).count();
-            end_lut.push(end_idx + offset);
+            while end_cursor < d_pos.len() && d_pos[end_cursor] < next_boundary {
+                end_cursor += 1;
+            }
+            end_lut.push(end_cursor + offset);
         }
         // Ensure the last bucket covers points landing exactly on max
         // (take_while x < max misses them when max == ceil(coord))
