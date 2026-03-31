@@ -7,11 +7,14 @@ edition = "2024"
 simd-lookup = { version = "0.1.0", optional = true }
 wide = { version = "0.8", optional = true }
 num-traits = { version = "0.2",  default-features = false }
+rayon = { version = "1.10.0", optional = true }
+sharded-vec-writer = { version = "0.4.0", optional = true }
 faer-svd = { version = "0.17.1", optional = true }
 faer-core = { version = "0.17.1", optional = true }
 dyn-stack = { version = "0.13.2", optional = true }
 
 [features]
-default = ["simd-compress", "svd"]
+default = ["simd-compress", "svd", "parallel"]
+parallel = ["dep:rayon", "dep:sharded-vec-writer"]
 simd-compress = ["dep:simd-lookup", "dep:wide"]
 svd = ["faer-svd", "faer-core", "dyn-stack"]
