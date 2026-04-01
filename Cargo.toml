@@ -3,6 +3,7 @@ members = [
     ".",
     "atree",
     "benchmark",
+    "benchmark/poi",
     "simulation",
     # "nanoflann"
     # "sklearn"

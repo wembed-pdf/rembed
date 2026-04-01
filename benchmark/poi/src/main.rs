@@ -101,7 +101,7 @@ fn write_csv(
         //     "{},{},{},{},{},{}",
         //     poi.osm_id, poi.lat, poi.lon, poi.x, poi.y, name_escaped
         // )?;
-        writeln!(w, "{},{}", poi.x, poi.y)?;
+        writeln!(w, "{}, {}", poi.x, poi.y)?;
     }
     Ok(())
 }
