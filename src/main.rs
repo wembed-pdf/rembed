@@ -77,7 +77,7 @@ fn main() -> io::Result<()> {
     let mut out_pos = String::new();
     for pos in embedder.positions() {
         for x in pos.components {
-            let _ = write!(&mut out_pos, "{}", x);
+            let _ = write!(&mut out_pos, "{}, ", x);
         }
         let _ = writeln!(&mut out_pos);
     }
