@@ -30,10 +30,14 @@ pub struct Grid<'a, const D: usize> {
 impl<'a, const D: usize> Grid<'a, D> {
     pub fn new(embedding: Embedding<'a, D>) -> Self {
         if D != 2 {
-            println!(
-                "Warning: Grid is only implemented for 2D embeddings. The provided embedding has dimension {}.",
-                D
-            );
+            return Self {
+                positions: embedding.positions.clone(),
+                graph: embedding.graph,
+                grid: Vec::new(),
+                grid_size: 0.,
+                min_x: 0.,
+                min_y: 0.,
+            };
         }
 
         let mut min_x = f32::MAX;
@@ -77,10 +81,14 @@ impl<'a, const D: usize> Grid<'a, D> {
 impl<'a, const D: usize> Clone for Grid<'a, D> {
     fn clone(&self) -> Self {
         if D != 2 {
-            println!(
-                "Warning: Grid is only implemented for 2D embeddings. The provided embedding has dimension {}.",
-                D
-            );
+            return Self {
+                positions: self.positions.clone(),
+                graph: self.graph,
+                grid: self.grid.clone(),
+                grid_size: self.grid_size,
+                min_x: self.min_x,
+                min_y: self.min_y,
+            };
         }
         let mut tree = Self {
             positions: self.positions.clone(),
@@ -122,10 +130,7 @@ impl<'a, const D: usize> Position<D> for Grid<'a, D> {
 impl<'a, const D: usize> Update<D> for Grid<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         if D != 2 {
-            println!(
-                "Warning: Grid is only implemented for 2D embeddings. The provided embedding has dimension {}.",
-                D
-            );
+            return;
         }
         // Clear the grid before updating positions
         let mut grid = vec![
@@ -183,12 +188,11 @@ impl<'a, const D: usize> Update<D> for Grid<'a, D> {
 
 impl<'a, const D: usize> Query<D> for Grid<'a, D> {
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
-        let own_position = pos;
-
         if D != 2 {
             return;
         }
 
+        let own_position = pos;
         let own_position_2d = DVec::from([own_position[0], own_position[1]]);
         let own_x = own_position[0];
         let own_y = own_position[1];

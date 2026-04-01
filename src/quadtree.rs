@@ -282,10 +282,18 @@ pub struct Quadtree<'a, const D: usize> {
 impl<'a, const D: usize> Quadtree<'a, D> {
     pub fn new(embedding: Embedding<'a, D>) -> Self {
         if D != 2 {
-            println!(
-                "Warning: Quadtree is only implemented for 2D. The provided embedding has dimension {}.",
-                D
-            );
+            return Self {
+                positions: embedding.positions.to_vec(),
+                graph: embedding.graph,
+                quadtree: QuadtreeTree::new(
+                    Rect {
+                        aa: DVec::<2>::new([0.0, 0.0]),
+                        bb: DVec::<2>::new([1.0, 1.0]),
+                    },
+                    NODE_CAPACITY,
+                    DEPTH,
+                ),
+            };
         }
         let mut tree = Self {
             positions: embedding.positions.to_vec(),
@@ -307,10 +315,18 @@ impl<'a, const D: usize> Quadtree<'a, D> {
 impl<'a, const D: usize> Clone for Quadtree<'a, D> {
     fn clone(&self) -> Self {
         if D != 2 {
-            println!(
-                "Warning: Quadtree is only implemented for 2D embeddings. The provided embedding has dimension {}.",
-                D
-            );
+            return Self {
+                positions: self.positions.clone(),
+                graph: self.graph,
+                quadtree: QuadtreeTree::new(
+                    Rect {
+                        aa: DVec::<2>::new([0.0, 0.0]),
+                        bb: DVec::<2>::new([1.0, 1.0]),
+                    },
+                    NODE_CAPACITY,
+                    DEPTH,
+                ),
+            };
         }
         let mut tree = Self {
             positions: self.positions.clone(),
@@ -357,10 +373,7 @@ impl<'a, const D: usize> Update<D> for Quadtree<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         self.positions = positions.to_vec();
         if D != 2 {
-            println!(
-                "Warning: Quadtree is only implemented for 2D embeddings. The provided embedding has dimension {}.",
-                D
-            );
+            return;
         }
         let min_x = self
             .positions
@@ -402,11 +415,10 @@ impl<'a, const D: usize> Update<D> for Quadtree<'a, D> {
 
 impl<'a, const D: usize> Query<D> for Quadtree<'a, D> {
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
-        let scaled_radius = radius.powi(2);
-
         if D != 2 {
             return;
         }
+        let scaled_radius = radius.powi(2);
 
         let query = TreeQuery {
             center: DVec::<2>::new([pos[0], pos[1]]),
