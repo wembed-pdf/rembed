@@ -133,7 +133,7 @@ impl<const D: usize> DVec<D> {
     pub fn distance_squared(&self, other: &Self) -> f32 {
         let a = &self.components;
         let b = &other.components;
-        if D % 4 == 0 {
+        if D.is_multiple_of(4) {
             let mut acc = [0.0f32; 4];
             let chunks = D / 4;
             for i in 0..chunks {
@@ -166,7 +166,7 @@ impl<const D: usize> DVec<D> {
             let d0 = a[tail] - b[tail];
             let d1 = a[tail + 1] - b[tail + 1];
             (acc[0] + acc[1]) + (acc[2] + acc[3]) + (d0 * d0 + d1 * d1)
-        } else if D % 2 == 0 {
+        } else if D.is_multiple_of(2) {
             let mut acc = [0.0f32; 2];
             let chunks = D / 2;
             for i in 0..chunks {
