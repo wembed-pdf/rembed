@@ -9,12 +9,18 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    snn = {
+      url = "github:wembed-pdf/snn";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, snn }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        overlays = [ (import rust-overlay) ];
+        overlays = [ (import rust-overlay) snn.overlays.default ];
         toolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = ["rust-src" "clippy" "rust-analyzer"];
         };
@@ -65,6 +71,7 @@
         python-with-sklearn = pkgs.python3.withPackages (ps: with ps; [
           numpy
           scikit-learn
+          snnpy
         ]);
 
         # Common development tools
