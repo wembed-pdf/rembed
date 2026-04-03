@@ -99,10 +99,9 @@ pub fn create_minimal_graph(node_count: usize, weight: f64) -> Graph {
         })
         .collect();
 
-    Graph {
-        nodes,
-        edges: Vec::new(),
-    }
+    let mut graph = Graph::new();
+    graph.nodes = nodes;
+    graph
 }
 
 #[cfg(test)]
