@@ -1,9 +1,29 @@
 use std::cmp::max;
 use std::collections::HashSet;
 use std::fs::read_to_string;
+use std::hash::Hasher;
 use std::io;
 
 use crate::NodeId;
+use rustc_hash::FxBuildHasher;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct EdgeKey(u64);
+
+impl EdgeKey {
+    #[inline(always)]
+    fn new(a: usize, b: usize) -> Self {
+        let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+        Self((lo as u64) << 32 | hi as u64)
+    }
+}
+
+impl std::hash::Hash for EdgeKey {
+    #[inline(always)]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0);
+    }
+}
 
 // A node in the graph
 // Each node has a weight, which is degree ^ (d/8)
@@ -20,6 +40,7 @@ pub struct Node {
 pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<(NodeId, NodeId)>,
+    edge_set: HashSet<EdgeKey, FxBuildHasher>,
 }
 
 impl Default for Graph {
@@ -33,6 +54,7 @@ impl Graph {
         Graph {
             nodes: Vec::new(),
             edges: Vec::new(),
+            edge_set: HashSet::with_hasher(FxBuildHasher),
         }
     }
 
@@ -89,11 +111,13 @@ impl Graph {
                 neighbors_set: HashSet::new(),
             });
         });
+        graph.edge_set.reserve(graph.edges.len());
         for (u, v) in graph.edges.iter() {
             graph.nodes[*u].neighbors.push(*v);
             graph.nodes[*u].neighbors_set.insert(*v);
             graph.nodes[*v].neighbors.push(*u);
             graph.nodes[*v].neighbors_set.insert(*u);
+            graph.edge_set.insert(EdgeKey::new(*u, *v));
         }
         for node in &mut graph.nodes {
             node.neighbors.sort_unstable();
@@ -107,11 +131,7 @@ impl Graph {
 
 impl crate::query::Graph for Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
-        debug_assert_eq!(
-            self.nodes[first].neighbors_set.contains(&second),
-            self.nodes[second].neighbors_set.contains(&first)
-        );
-        self.nodes[first].neighbors_set.contains(&second)
+        self.edge_set.contains(&EdgeKey::new(first, second))
     }
     fn neighbors(&self, index: NodeId) -> &[NodeId] {
         &self.nodes[index].neighbors

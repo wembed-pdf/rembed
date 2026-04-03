@@ -121,10 +121,11 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for DynamicQuery<'a, D, I
         let weight = self.weight(index);
         let remaining_radius = self.query_buffer;
         let filter = |&id: &usize| {
-            !self.structure.is_connected(index, id)
+            index != id
                 && (weight > self.weight(id) || (weight == self.weight(id) && index > id))
                 && (self.position(id).distance_squared(pos) as f64)
                     < (weight * self.weight(id)).powi(2) * remaining_radius
+                && !self.structure.is_connected(index, id)
         };
         let radius_one = |&id: &usize| {
             (self.position(id).distance_squared(pos) as f64) < (weight * self.weight(id)).powi(2)
@@ -185,11 +186,11 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> query::Embedder<'a, D> for Dynamic
 
             result.retain(|&x| {
                 index != x
-                    && !self.is_connected(index, x)
                     // TODO: remove dedup from embedder
                     && (weight > self.weight(x) || weight == self.weight(x) && index > x)
                     && (self.position(x).distance_squared(pos) as f64)
                         < (weight * self.weight(x)).powi(2)
+                    && !self.is_connected(index, x)
             });
         }
     }
