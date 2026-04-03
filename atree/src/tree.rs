@@ -77,7 +77,7 @@ impl<const D: usize, F: Scalar> Positions<F> for [[F; D]] {
 /// use atree::ATree;
 ///
 /// let positions = vec![[1.0f32, 2.0], [3.0, 4.0], [5.0, 6.0]];
-/// let tree = ATree::new(&positions);
+/// let tree: ATree<2> = ATree::new(&positions);
 ///
 /// let mut neighbors: Vec<u32> = Vec::new();
 /// tree.query_radius(&[2.0, 3.0], 3.0, &mut neighbors);

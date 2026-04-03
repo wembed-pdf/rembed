@@ -11,7 +11,7 @@
 //! use atree::ATree;
 //!
 //! let positions = vec![[0.0f32, 0.0], [1.0, 0.0], [0.0, 1.0], [5.0, 5.0]];
-//! let tree = ATree::new(&positions);
+//! let tree: ATree<2> = ATree::new(&positions);
 //!
 //! let mut results: Vec<u32> = Vec::new();
 //! tree.query_radius(&[0.5, 0.5], 1.5, &mut results);
@@ -31,6 +31,7 @@ pub mod svd;
 mod iter;
 mod query;
 mod tree;
+mod vec_writer;
 
 pub use dynamic::DynATree;
 pub use tree::ATree;

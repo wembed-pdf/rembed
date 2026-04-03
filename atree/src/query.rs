@@ -2,6 +2,7 @@ use crate::output::QueryOutput;
 use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount};
 use crate::tree::{ATree, LeafRange, Point, SVD_THRESHOLD, children, lut_size};
+use crate::vec_writer::VecWriter;
 use std::cell::Cell;
 
 thread_local! {
@@ -22,7 +23,7 @@ where
     ///
     /// ```
     /// # use atree::ATree;
-    /// let tree = ATree::new(&[[0.0f32, 0.0], [1.0, 0.0], [10.0, 10.0]]);
+    /// let tree: ATree<2> = ATree::new(&[[0.0f32, 0.0], [1.0, 0.0], [10.0, 10.0]]);
     /// let mut ids: Vec<u32> = Vec::new();
     /// tree.query_radius(&[0.5, 0.0], 1.0, &mut ids);
     /// assert_eq!(ids.len(), 2);
@@ -148,42 +149,27 @@ where
         O: QueryOutput<I, F>,
         PDVec<D, W, F, I>: CompressDispatch<W, F, I>,
     {
-        // Single reserve for everything
-        let mut capacity = results.capacity();
-
-        // Phase 2: forward sweep through positions_sorted
-        let initial_len = results.len();
-        let mut len = results.len();
+        let mut writer = VecWriter::new(results);
         let half_radius_threshold = radius_sq * F::HALF + F::DIST_EPS;
 
         for range in ranges.iter() {
-            // SAFETY: We need to allocate enough space upfront to allow us to write to the vector without checking if the size is valid
-            if len + (range.max_i - range.min_i) * W + W - 1 > capacity {
-                results.reserve((len - initial_len) + (range.max_i - range.min_i) * W + W - 1);
-                capacity = results.capacity();
-            }
+            writer.ensure_capacity((range.max_i - range.min_i) * W + W - 1);
 
             for other_pos in &self.positions_sorted[range.min_i..range.max_i] {
-                let results_slice = unsafe {
-                    std::slice::from_raw_parts_mut(
-                        results.as_mut_ptr().wrapping_add(len) as *mut std::mem::MaybeUninit<O>,
-                        W,
-                    )
-                };
+                // SAFETY: ensure_capacity was called above with enough room for
+                // all PDVecs in this range. compare_into initializes exactly
+                // new_elements entries in the chunk.
+                let chunk = unsafe { writer.next_chunk_unchecked::<W>() };
                 let new_elements = if D < 6 {
                     let distances = other_pos.dist_squared(pos.pos);
-                    other_pos.compare_into(distances, radius_sq, results_slice.try_into().unwrap())
+                    other_pos.compare_into(distances, radius_sq, chunk)
                 } else {
                     let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
-                    other_pos.compare_into(
-                        distances,
-                        half_radius_threshold,
-                        results_slice.try_into().unwrap(),
-                    )
+                    other_pos.compare_into(distances, half_radius_threshold, chunk)
                 };
-                len += new_elements;
+                unsafe { writer.advance(new_elements) };
             }
         }
-        unsafe { results.set_len(len) };
+        writer.finish();
     }
 }

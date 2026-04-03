@@ -5,6 +5,7 @@ use crate::scalar::{IdStorage, Scalar};
 use crate::simd::{CompressDispatch, LaneCount, PDVec, SupportedLaneCount, compress_with_ids};
 use crate::svd::DynamicSVD;
 use crate::tree::{LeafRange, Positions, Snn, build_tree, children, compute_total_depth};
+use crate::vec_writer::VecWriter;
 
 const W: usize = 8;
 use std::array::from_fn;
@@ -115,17 +116,14 @@ where
     }
 
     #[inline(always)]
-    fn compare(
+    fn compare_into<O: QueryOutput<I, F>>(
         &self,
         distances: [F; W],
         threshold: F,
-        results: &mut [MaybeUninit<usize>; W],
-    ) -> usize
-    where
-        usize: QueryOutput<I, F>,
-    {
+        results: &mut [MaybeUninit<O>; W],
+    ) -> usize {
         let (count, ids, dists) = self.compress(distances, threshold);
-        usize::store_compressed(count, &ids, &dists, results)
+        O::store_compressed(count, &ids, &dists, results)
     }
 }
 
@@ -460,39 +458,28 @@ where
     where
         O: QueryOutput<I, F>,
     {
-        let mut capacity = results.capacity();
-        let initial_len = results.len();
-        let mut len = results.len();
+        let mut writer = VecWriter::new(results);
         let half_radius_threshold = radius_sq * F::HALF + F::from_f32(1e-4).unwrap();
         let use_half = self.dim >= 6;
 
         for range in ranges.iter() {
-            if len + (range.max_i - range.min_i) * W + W - 1 > capacity {
-                results.reserve((len - initial_len) + (range.max_i - range.min_i) * W + W - 1);
-                capacity = results.capacity();
-            }
+            writer.ensure_capacity((range.max_i - range.min_i) * W + W - 1);
 
             for other_pos in &self.positions_sorted[range.min_i..range.max_i] {
-                let results_slice = unsafe {
-                    std::slice::from_raw_parts_mut(
-                        results.as_mut_ptr().wrapping_add(len) as *mut MaybeUninit<usize>,
-                        W,
-                    )
-                };
+                // SAFETY: ensure_capacity was called above with enough room for
+                // all PDVecs in this range. compare_into initializes exactly
+                // new_elements entries in the chunk.
+                let chunk = unsafe { writer.next_chunk_unchecked::<W>() };
                 let new_elements = if !use_half {
                     let distances = other_pos.dist_squared(&pos.pos);
-                    other_pos.compare(distances, radius_sq, results_slice.try_into().unwrap())
+                    other_pos.compare_into(distances, radius_sq, chunk)
                 } else {
                     let distances = other_pos.dist_half_squared(&pos.pos, pos.squared_half);
-                    other_pos.compare(
-                        distances,
-                        half_radius_threshold,
-                        results_slice.try_into().unwrap(),
-                    )
+                    other_pos.compare_into(distances, half_radius_threshold, chunk)
                 };
-                len += new_elements;
+                unsafe { writer.advance(new_elements) };
             }
         }
-        unsafe { results.set_len(len) };
+        writer.finish();
     }
 }
