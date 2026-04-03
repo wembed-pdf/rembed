@@ -12,8 +12,21 @@ impl<const D: usize, const W: usize, F: Scalar, I: IdStorage> ATree<D, W, F, I>
 where
     LaneCount<W>: SupportedLaneCount,
 {
-    /// Query all points within `radius` of `pos`.
-    /// Appends matching node IDs to `results`.
+    /// Find all points within Euclidean `radius` of `pos`.
+    ///
+    /// Results are appended to `results`, which is not cleared first. The output
+    /// type `O` is determined by the [`QueryOutput`] trait — use `u32`/`usize`
+    /// for indices only, or `(u32, f32)` / `(usize, f32)` for (index, squared distance) pairs.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use atree::ATree;
+    /// let tree = ATree::new(&[[0.0f32, 0.0], [1.0, 0.0], [10.0, 10.0]]);
+    /// let mut ids: Vec<u32> = Vec::new();
+    /// tree.query_radius(&[0.5, 0.0], 1.0, &mut ids);
+    /// assert_eq!(ids.len(), 2);
+    /// ```
     pub fn query_radius<O>(&self, pos: &[F; D], radius: F, results: &mut Vec<O>)
     where
         O: QueryOutput<I, F>,

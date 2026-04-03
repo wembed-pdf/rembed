@@ -58,6 +58,30 @@ impl<const D: usize, F: Scalar> Positions<F> for [[F; D]] {
 
 // ── ATree ────────────────────────────────────────────────────────────
 
+/// A spatial index for exact radius queries in D-dimensional Euclidean space.
+///
+/// Positions are recursively partitioned along cycling axes (like a KD-tree),
+/// with leaf nodes using lookup tables for fast range narrowing and SIMD-vectorized
+/// distance computations for the final scan.
+///
+/// # Type Parameters
+///
+/// - `D` — Dimensionality (inferred from position arrays).
+/// - `W` — SIMD lane width (default 8). Supported: 1, 2, 4, 8, 16.
+/// - `F` — Float type (default `f32`). Supports `f32` and `f64`.
+/// - `I` — ID storage type (default `u32`). Use `u64` for > 4 billion points.
+///
+/// # Example
+///
+/// ```
+/// use atree::ATree;
+///
+/// let positions = vec![[1.0f32, 2.0], [3.0, 4.0], [5.0, 6.0]];
+/// let tree = ATree::new(&positions);
+///
+/// let mut neighbors: Vec<u32> = Vec::new();
+/// tree.query_radius(&[2.0, 3.0], 3.0, &mut neighbors);
+/// ```
 #[derive(Clone)]
 pub struct ATree<const D: usize, const W: usize = 8, F: Scalar = f32, I: IdStorage = u32>
 where

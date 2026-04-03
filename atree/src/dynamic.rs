@@ -316,8 +316,15 @@ where
         &self.positions[start..start + self.dim]
     }
 
-    /// Query all points within `radius` of `pos`.
-    /// Appends matching node IDs to `results`.
+    /// Find all points within Euclidean `radius` of `pos`.
+    ///
+    /// Results are appended to `results`, which is not cleared first. The output
+    /// type `O` is determined by the [`QueryOutput`] trait — use `usize` for
+    /// indices only, or `(usize, f32)` for (index, squared distance) pairs.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pos.len() != self.dim()`.
     pub fn query_radius<O>(&self, pos: &[F], radius: F, results: &mut Vec<O>)
     where
         O: QueryOutput<I, F>,
@@ -349,7 +356,14 @@ where
         });
     }
 
-    /// Query all points within `radius` of `pos`, returning (ID, squared_distance) pairs.
+    /// Find all points within Euclidean `radius` of `pos`, returning `(index, squared_distance)` pairs.
+    ///
+    /// Convenience wrapper around [`query_radius`](Self::query_radius) that computes
+    /// exact squared distances for each match.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pos.len() != self.dim()`.
     pub fn query_radius_with_distances(&self, pos: &[F], radius: F) -> Vec<(usize, F)> {
         assert_eq!(pos.len(), self.dim);
         let mut ids = Vec::new();
