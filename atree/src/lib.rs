@@ -34,4 +34,5 @@ mod tree;
 mod vec_writer;
 
 pub use dynamic::DynATree;
+pub use output::IdDist;
 pub use tree::ATree;
