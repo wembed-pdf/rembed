@@ -23,6 +23,7 @@ pub struct DistributionBenchConfig {
     pub expected_queries: Option<usize>,
     pub only_center_nodes: bool,
     pub parallel: bool,
+    pub all_to_all: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -200,7 +201,7 @@ impl DistributionBenchRunner {
                         benchmarkset
                     );
                     let node_count = fs::read_to_string(path.clone())?.lines().count();
-                    let dimension = fs::read_to_string(path)?
+                    let dimension = fs::read_to_string(path.clone())?
                         .lines()
                         .next()
                         .unwrap()
@@ -223,6 +224,23 @@ impl DistributionBenchRunner {
                         );
                         Some(
                             fs::read_to_string(query_path)?
+                                .lines()
+                                .map(|line| {
+                                    line.split(',')
+                                        .map(|s| {
+                                            s.trim().parse().expect("Failed to parse query point")
+                                        })
+                                        .collect::<Vec<f32>>()
+                                })
+                                .collect::<Vec<Vec<f32>>>(),
+                        )
+                    } else if self.config.all_to_all {
+                        eprintln!(
+                            "Running All-To-All benchmark for benchmarkset: {}",
+                            benchmarkset
+                        );
+                        Some(
+                            fs::read_to_string(path)?
                                 .lines()
                                 .map(|line| {
                                     line.split(',')

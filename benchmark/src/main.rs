@@ -252,6 +252,10 @@ enum Commands {
         /// Execute all dimension/node count combinations in parallel using rayon (only recommended if dimensions * node_counts << num_cpus)
         #[arg(long, default_value_t = false)]
         parallel: bool,
+
+        /// Execute All-To-All benchmarks for the input benchmarksets
+        #[arg(long, default_value_t = false)]
+        all_to_all: bool,
     },
 }
 
@@ -582,6 +586,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             expected_queries,
             only_center_nodes,
             parallel,
+            all_to_all,
         } => {
             use benchmark::benchmark::distribution_bench::{
                 DistributionBenchConfig, DistributionBenchRunner,
@@ -609,6 +614,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 expected_queries,
                 only_center_nodes,
                 parallel,
+                all_to_all,
             };
 
             if dimensions.is_some() && node_counts.is_some() {
