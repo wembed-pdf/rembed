@@ -207,6 +207,10 @@ impl DistributionBenchRunner {
                         .unwrap()
                         .split(',')
                         .count();
+                    assert!(
+                        self.config.querysets.is_none() || !self.config.all_to_all,
+                        "querysets and all_to_all options are mutually exclusive"
+                    );
                     let queryset = if self.config.querysets.is_some() {
                         assert!(
                             benchmarksets.len() == self.config.querysets.as_ref().unwrap().len(),
