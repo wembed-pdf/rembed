@@ -131,6 +131,7 @@ dependencies = [
 name = "atree"
 version = "0.1.0"
 dependencies = [
+ "atree",
  "dyn-stack 0.13.2",
  "faer-core",
  "faer-svd",

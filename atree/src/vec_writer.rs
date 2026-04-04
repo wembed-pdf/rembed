@@ -9,14 +9,14 @@ use std::mem::MaybeUninit;
 ///
 /// The written elements are committed when [`finish`](Self::finish) is called,
 /// or automatically on drop as a safety net.
-pub struct VecWriter<'a, T> {
+pub(crate) struct VecWriter<'a, T> {
     vec: &'a mut Vec<T>,
     len: usize,
 }
 
 impl<'a, T> VecWriter<'a, T> {
     #[inline(always)]
-    pub fn new(vec: &'a mut Vec<T>) -> Self {
+    pub(crate) fn new(vec: &'a mut Vec<T>) -> Self {
         let len = vec.len();
         Self { vec, len }
     }
@@ -24,7 +24,7 @@ impl<'a, T> VecWriter<'a, T> {
     /// Ensure there is room for at least `additional` more elements
     /// beyond the current cursor position.
     #[inline(always)]
-    pub fn ensure_capacity(&mut self, additional: usize) {
+    pub(crate) fn ensure_capacity(&mut self, additional: usize) {
         let required = self.len + additional;
         if required > self.vec.capacity() {
             self.vec.reserve(required - self.vec.len());
@@ -38,7 +38,7 @@ impl<'a, T> VecWriter<'a, T> {
     /// The caller must have previously called [`ensure_capacity`](Self::ensure_capacity)
     /// with enough room so that `self.len + W <= self.vec.capacity()`.
     #[inline(always)]
-    pub unsafe fn next_chunk_unchecked<const W: usize>(&mut self) -> &mut [MaybeUninit<T>; W] {
+    pub(crate) unsafe fn next_chunk_unchecked<const W: usize>(&mut self) -> &mut [MaybeUninit<T>; W] {
         debug_assert!(
             self.len + W <= self.vec.capacity(),
             "VecWriter: cursor {} + chunk {} exceeds capacity {}",
@@ -60,7 +60,7 @@ impl<'a, T> VecWriter<'a, T> {
     /// The caller must ensure that `n` elements starting at the current
     /// cursor position have been initialized (e.g. via [`next_chunk_unchecked`](Self::next_chunk_unchecked)).
     #[inline(always)]
-    pub unsafe fn advance(&mut self, n: usize) {
+    pub(crate) unsafe fn advance(&mut self, n: usize) {
         debug_assert!(
             self.len + n <= self.vec.capacity(),
             "VecWriter: advance would exceed capacity"
@@ -70,7 +70,7 @@ impl<'a, T> VecWriter<'a, T> {
 
     /// Commit the final length to the underlying `Vec` and return it.
     #[inline(always)]
-    pub fn finish(self) -> usize {
+    pub(crate) fn finish(self) -> usize {
         let written = self.len;
         // SAFETY: all elements in vec[old_len..self.len] were initialized
         // by the caller via next_chunk_unchecked + MaybeUninit::write.

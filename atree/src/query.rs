@@ -17,7 +17,8 @@ where
     ///
     /// Results are appended to `results`, which is not cleared first. The output
     /// type `O` is determined by the [`QueryOutput`] trait — use `u32`/`usize`
-    /// for indices only, or `(u32, f32)` / `(usize, f32)` for (index, squared distance) pairs.
+    /// for indices only, or [`IdDist<u32, f32>`](crate::IdDist) / [`IdDist<usize, f32>`](crate::IdDist)
+    /// for (index, squared distance) pairs.
     ///
     /// # Example
     ///

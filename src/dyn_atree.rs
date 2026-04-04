@@ -86,27 +86,4 @@ impl<'a, const D: usize> query::Embedder<'a, D> for DynATree<'a, D> {
     fn new(embedding: &crate::Embedding<'a, D>) -> Self {
         Self::new(embedding)
     }
-
-    fn repelling_nodes(&self, index: usize, result: &mut Vec<NodeId>) {
-        use crate::{query::Graph, query::Position};
-        let pos = self.position(index);
-        let weight = self.graph.weight(index);
-        let radius = weight.powi(2) as f32;
-
-        let pairs = self
-            .tree
-            .query_radius_with_distances(&pos.components, radius);
-        result.extend(
-            pairs
-                .into_iter()
-                .filter(|&(other_id, dist)| {
-                    let other_weight = self.graph.weight(other_id);
-                    other_id != index
-                        && (weight > other_weight || (weight == other_weight && index > other_id))
-                        && dist < (weight * other_weight).powi(2) as f32
-                        && !self.is_connected(index, other_id)
-                })
-                .map(|(id, _)| id),
-        );
-    }
 }

@@ -5,9 +5,9 @@ A high-performance spatial index for radius queries in D-dimensional Euclidean s
 ## Key Ideas
 
 - **LUT-accelerated leaves**: Each leaf node sorts its points along one axis and builds a histogram lookup table. A radius query resolves the relevant point range with two LUT accesses instead of scanning all leaf contents.
-- **SIMD batch processing**: Positions within leaves are stored in Structure-of-Arrays layout (`PDVec`), processing W points (default 8) per SIMD iteration. Result filtering uses AVX-512 compress instructions when available, with fallbacks to the `wide` crate or scalar code.
+- **SIMD batch processing**: Positions within leaves are stored in Structure-of-Arrays layout, processing W points (default 8) per SIMD iteration. Result filtering uses AVX-512 compress instructions when available, with fallbacks to the `wide` crate or scalar code.
 - **SVD dimensionality reduction**: For D > 16, the tree is built in SVD-projected space for better axis-aligned splits, while final distance checks use the original coordinates.
-- **Parallel construction**: Tree building is parallelized with .
+- **Parallel construction**: Tree building is parallelized with Rayon.
 - **Allocation reuse**: The `update()` method rebuilds the tree with new positions while reusing existing allocations.
 
 ## Usage
@@ -30,8 +30,12 @@ tree.query_radius(&[0.5, 0.5], 1.5, &mut results);
 // results contains indices 0, 1, 2
 
 // Get (index, squared_distance) pairs instead
-let mut pairs: Vec<(u32, f32)> = Vec::new();
+use atree::IdDist;
+let mut pairs: Vec<IdDist<u32, f32>> = Vec::new();
 tree.query_radius(&[0.5, 0.5], 1.5, &mut pairs);
+for p in &pairs {
+    println!("index {}, squared distance {}", p.id, p.dist);
+}
 
 // Update positions in place (reuses allocations)
 let new_positions: Vec<[f32; 2]> = positions.iter().map(|p| [p[0] + 1.0, p[1]]).collect();
@@ -48,7 +52,7 @@ let iter = tree.query_radius_streaming::<u32>(&[0.5, 0.5], 1.5);
 let count = iter.count();
 ```
 
-Though this sometimes can lead to worse codegen so please check which api is faster for your application.
+Note: the streaming API can sometimes produce worse codegen than `query_radius` — benchmark both for your use case.
 
 ### Dynamic Dimensionality
 
@@ -80,7 +84,7 @@ tree.query_radius(&[0.5, 0.5, 0.5], 2.0, &mut results);
 The `QueryOutput` trait controls what `query_radius` appends to the results vector. Built-in implementations:
 
 - `u32`, `u64`, `usize` — point index only
-- `(u32, f32)`, `(usize, f32)`, `(u64, f64)`, etc. — index + squared distance
+- `IdDist<u32, f32>`, `IdDist<usize, f32>`, `IdDist<u64, f64>`, etc. — index + squared distance
 
 ## Features
 
@@ -89,6 +93,7 @@ The `QueryOutput` trait controls what `query_radius` appends to the results vect
 | `simd-compress` | yes | SIMD-accelerated result filtering via `wide` + `simd-lookup` |
 | `svd` | yes | SVD-based dimensionality reduction for D > 16 via `faer` |
 | `parallel` | yes | Parallel tree construction via `rayon` |
+| `internals` | no | Exposes internal modules (`simd`, `scalar`, `svd`, `dynamic`) for advanced use |
 
 Disable defaults for a minimal build:
 

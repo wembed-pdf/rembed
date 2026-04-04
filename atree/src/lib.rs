@@ -18,15 +18,44 @@
 //! assert_eq!(results.len(), 3); // indices 0, 1, 2
 //! ```
 //!
-//! The output type is controlled by the [`QueryOutput`](output::QueryOutput) trait.
-//! Use integer types (`u32`, `usize`) for index-only results, or tuple types
-//! (`(u32, f32)`, `(usize, f32)`) to also get squared distances.
+//! # Output Types
+//!
+//! The output type is controlled by the [`QueryOutput`] trait.
+//! Use integer types (`u32`, `usize`) for index-only results, or [`IdDist`] for
+//! (index, squared distance) pairs:
+//!
+//! ```
+//! use atree::{ATree, IdDist};
+//!
+//! let tree: ATree<2> = ATree::new(&[[0.0f32, 0.0], [1.0, 0.0]]);
+//! let mut pairs: Vec<IdDist<u32, f32>> = Vec::new();
+//! tree.query_radius(&[0.0, 0.0], 2.0, &mut pairs);
+//! for p in &pairs {
+//!     println!("index {}, squared distance {}", p.id, p.dist);
+//! }
+//! ```
 
+#[cfg(feature = "internals")]
 pub mod dynamic;
+#[cfg(not(feature = "internals"))]
+pub(crate) mod dynamic;
+
 pub mod output;
+
+#[cfg(feature = "internals")]
 pub mod scalar;
+#[cfg(not(feature = "internals"))]
+pub(crate) mod scalar;
+
+#[cfg(feature = "internals")]
 pub mod simd;
+#[cfg(not(feature = "internals"))]
+pub(crate) mod simd;
+
+#[cfg(feature = "internals")]
 pub mod svd;
+#[cfg(not(feature = "internals"))]
+pub(crate) mod svd;
 
 mod iter;
 mod query;
@@ -34,5 +63,6 @@ mod tree;
 mod vec_writer;
 
 pub use dynamic::DynATree;
-pub use output::IdDist;
+pub use output::{IdDist, QueryOutput};
+pub use scalar::{IdStorage, Scalar};
 pub use tree::ATree;

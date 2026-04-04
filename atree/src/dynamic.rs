@@ -318,7 +318,7 @@ where
     ///
     /// Results are appended to `results`, which is not cleared first. The output
     /// type `O` is determined by the [`QueryOutput`] trait — use `usize` for
-    /// indices only, or `(usize, f32)` for (index, squared distance) pairs.
+    /// indices only, or [`IdDist<usize, f32>`](crate::IdDist) for (index, squared distance) pairs.
     ///
     /// # Panics
     ///
@@ -352,32 +352,6 @@ where
 
             scratch.set(ranges);
         });
-    }
-
-    /// Find all points within Euclidean `radius` of `pos`, returning `(index, squared_distance)` pairs.
-    ///
-    /// Convenience wrapper around [`query_radius`](Self::query_radius) that computes
-    /// exact squared distances for each match.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `pos.len() != self.dim()`.
-    pub fn query_radius_with_distances(&self, pos: &[F], radius: F) -> Vec<(usize, F)> {
-        assert_eq!(pos.len(), self.dim);
-        let mut ids = Vec::new();
-        self.query_radius(pos, radius, &mut ids);
-        ids.iter()
-            .map(|&id| {
-                let other = self.position(id);
-                let dist_sq: F = (0..self.dim)
-                    .map(|j| {
-                        let d = pos[j] - other[j];
-                        d * d
-                    })
-                    .sum();
-                (id, dist_sq)
-            })
-            .collect()
     }
 
     fn collect_ranges(
