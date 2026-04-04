@@ -24,7 +24,7 @@ pub mod nabo;
 pub mod nanoflann;
 pub mod neighbourhood;
 pub mod parsing;
-#[cfg(feature = "py_snn")]
+#[cfg(feature = "py-snn")]
 pub mod py_snn;
 pub mod quadtree;
 pub mod query;
@@ -111,7 +111,7 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(sklearn::SklearnBallTree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
     ]);
 
-    #[cfg(feature = "py_snn")]
+    #[cfg(feature = "py-snn")]
     let iter = iter.chain(Some(
         Box::new(py_snn::PySnn::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>
     ));

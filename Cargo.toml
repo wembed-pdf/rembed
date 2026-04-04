@@ -49,7 +49,7 @@ boost-rtree = ["dep:boost-rtree"]
 cgal = ["dep:cgal"]
 wembed-snn = ["dep:wembed-snn"]
 sklearn = ["dep:sklearn"]
-py_snn = ["dep:py-snn"]
+py-snn = ["dep:py-snn"]
 default = []
 
 [profile.release]
