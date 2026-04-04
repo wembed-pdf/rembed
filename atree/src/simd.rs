@@ -129,6 +129,37 @@ where
     }
 
     #[inline(always)]
+    pub fn dist_half_squared_unrolled(&self, pos: [F; D], squared_half: F) -> [F; W] {
+        const UNROLL: usize = 8;
+        let mut accs: [_; UNROLL] = std::array::from_fn(|i| {
+            if i == 0 {
+                self.squared_half
+            } else if i == 1 {
+                [squared_half; W]
+            } else {
+                [F::ZERO; W]
+            }
+        });
+
+        let (chunks, remainder) = self.lanes.as_chunks::<UNROLL>();
+        let (pos_chunks, pos_remainder) = pos.as_chunks::<UNROLL>();
+        for (chunk, pos_slice) in chunks.iter().zip(pos_chunks) {
+            for ((acc, slice), &p) in accs.iter_mut().zip(chunk.iter()).zip(pos_slice.iter()) {
+                *acc = from_fn(|i| Float::mul_add(slice[i], -p, acc[i]));
+            }
+        }
+        let mut acc: [F; W] = accs[0];
+        for (slice, &p) in remainder.iter().zip(pos_remainder.iter()) {
+            acc = from_fn(|i| Float::mul_add(slice[i], -p, acc[i]));
+        }
+        for j in 1..UNROLL {
+            acc = from_fn(|i| acc[i] + accs[j][i]);
+        }
+
+        acc
+    }
+
+    #[inline(always)]
     pub fn dist_half_squared_single_acc(&self, pos: [F; D], squared_half: F) -> [F; W] {
         let mut acc: [F; W] = from_fn(|i| self.squared_half[i] + squared_half);
 
