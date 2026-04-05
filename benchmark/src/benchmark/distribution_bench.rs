@@ -25,6 +25,7 @@ pub struct DistributionBenchConfig {
     pub only_center_nodes: bool,
     pub parallel: bool,
     pub all_to_all: bool,
+    pub max_query_points: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -397,28 +398,46 @@ impl DistributionBenchRunner {
         let mut results = Vec::new();
         // let mut c = Criterion::default().without_plots();
         let mut c = Criterion::default();
-        let mut group = c.benchmark_group(format!("dist_bench_d{}_n{}", D, node_count));
+        let mut group = c.benchmark_group(format!(
+            "dist_bench_{}_d{}_n{}",
+            distribution.name(),
+            D,
+            node_count
+        ));
 
         let query_pos_list = if queryset.is_some() {
-            Some(
-                queryset
-                    .unwrap()
-                    .iter()
-                    .map(|q| {
-                        assert_eq!(
-                            q.len(),
-                            D,
-                            "Query point dimension does not match embedding dimension"
-                        );
-                        rembed::dvec::DVec::<D> {
-                            components: q
-                                .clone()
-                                .try_into()
-                                .expect("Failed to convert query point"),
-                        }
-                    })
-                    .collect(),
-            )
+            let all_points: Vec<rembed::dvec::DVec<D>> = queryset
+                .unwrap()
+                .iter()
+                .map(|q| {
+                    assert_eq!(
+                        q.len(),
+                        D,
+                        "Query point dimension does not match embedding dimension"
+                    );
+                    rembed::dvec::DVec::<D> {
+                        components: q
+                            .clone()
+                            .try_into()
+                            .expect("Failed to convert query point"),
+                    }
+                })
+                .collect();
+            let sampled = if let Some(max) = self.config.max_query_points {
+                if all_points.len() > max {
+                    let step = all_points.len() / max;
+                    eprintln!(
+                        "Sampling {} of {} query points (every {}th)",
+                        max, all_points.len(), step
+                    );
+                    all_points.into_iter().step_by(step).take(max).collect()
+                } else {
+                    all_points
+                }
+            } else {
+                all_points
+            };
+            Some(sampled)
         } else {
             None
         };

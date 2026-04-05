@@ -256,6 +256,10 @@ enum Commands {
         /// Execute All-To-All benchmarks for the input benchmarksets
         #[arg(long, default_value_t = false)]
         all_to_all: bool,
+
+        /// Maximum number of query points to use. If the queryset exceeds this, every k-th point is selected to reach this count.
+        #[arg(long)]
+        max_query_points: Option<usize>,
     },
 }
 
@@ -587,6 +591,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             only_center_nodes,
             parallel,
             all_to_all,
+            max_query_points,
         } => {
             use benchmark::benchmark::distribution_bench::{
                 DistributionBenchConfig, DistributionBenchRunner,
@@ -615,6 +620,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 only_center_nodes,
                 parallel,
                 all_to_all,
+                max_query_points,
             };
 
             if dimensions.is_some() && node_counts.is_some() {

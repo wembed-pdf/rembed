@@ -73,34 +73,34 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(dyn_atree::DynATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         // Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
-            as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
+        // as Box<dyn IndexClone<D> + 'a>,
         // Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(quadtree::Quadtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(quadtree::Quadtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         // Box::new(grid::Grid::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter();
 
-    #[cfg(feature = "nanoflann")]
-    let iter = iter.chain(Some(
-        Box::new(nanoflann::NanoflannIndexWrapper::<D>::new(embedding))
-            as Box<dyn IndexClone<D> + 'a>,
-    ));
+    // #[cfg(feature = "nanoflann")]
+    // let iter = iter.chain(Some(
+    //     Box::new(nanoflann::NanoflannIndexWrapper::<D>::new(embedding))
+    //         as Box<dyn IndexClone<D> + 'a>,
+    // ));
 
-    #[cfg(feature = "boost-rtree")]
-    let iter = iter.chain(Some(
-        Box::new(boost_rtree::BoostRTreeWrapper::<D>::new(embedding))
-            as Box<dyn IndexClone<D> + 'a>,
-    ));
+    // #[cfg(feature = "boost-rtree")]
+    // let iter = iter.chain(Some(
+    //     Box::new(boost_rtree::BoostRTreeWrapper::<D>::new(embedding))
+    //         as Box<dyn IndexClone<D> + 'a>,
+    // ));
 
-    #[cfg(feature = "cgal")]
-    let iter = iter.chain(Some(
-        Box::new(cgal_kdtree::CgalKdTreeWrapper::<D>::new(embedding))
-            as Box<dyn IndexClone<D> + 'a>,
-    ));
+    // #[cfg(feature = "cgal")]
+    // let iter = iter.chain(Some(
+    //     Box::new(cgal_kdtree::CgalKdTreeWrapper::<D>::new(embedding))
+    //         as Box<dyn IndexClone<D> + 'a>,
+    // ));
 
     #[cfg(feature = "wembed-snn")]
     let iter = iter.chain(Some(

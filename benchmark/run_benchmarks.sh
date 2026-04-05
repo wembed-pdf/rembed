@@ -16,6 +16,9 @@ POI_STRUCTURES="atree,dyn_atree,brute-force,kiddo,py_snn,wembed_snn,quadtree"
 # Toggle --fast mode (set to "" to disable)
 FAST="--fast"
 
+# Maximum query points per benchmark (set to "" to disable sampling)
+MAX_QUERY_POINTS="--max-query-points 1000"
+
 # Output directory for results
 OUTDIR="output"
 
@@ -40,7 +43,7 @@ run_nn() {
         --querysets "$query" \
         --radiuses "$radii" \
         --structures "$NN_STRUCTURES" \
-        $FAST \
+        $FAST $MAX_QUERY_POINTS \
         -o "$OUTDIR/nn_${name}.csv"
 }
 
@@ -53,7 +56,7 @@ run_clustering() {
         --all-to-all \
         --radiuses "$eps" \
         --structures "$CLUSTERING_STRUCTURES" \
-        $FAST \
+        $FAST $MAX_QUERY_POINTS \
         -o "$OUTDIR/clustering_${name}.csv"
 }
 
@@ -66,7 +69,7 @@ run_poi() {
         --querysets "$queryset" \
         --radiuses "$radii" \
         --structures "$POI_STRUCTURES" \
-        $FAST \
+        $FAST $MAX_QUERY_POINTS \
         -o "$OUTDIR/poi_${name}.csv"
 }
 
