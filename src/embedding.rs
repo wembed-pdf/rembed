@@ -57,6 +57,17 @@ impl<const D: usize> Query<D> for Embedding<'_, D> {
             }
         }
     }
+
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
+        let radius_squared = radius.powi(2);
+
+        for (i, position) in self.positions.iter().enumerate() {
+            let distance = pos.distance_squared(position);
+            if (distance as f64) <= radius_squared {
+                results.push(i);
+            }
+        }
+    }
 }
 impl<const D: usize> SpatialIndex<D> for Embedding<'_, D> {
     fn name(&self) -> String {
