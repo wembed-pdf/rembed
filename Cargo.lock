@@ -178,6 +178,7 @@ dependencies = [
  "futures",
  "gethostname",
  "indicatif",
+ "memmap2 0.9.9",
  "perf-event2",
  "rand 0.9.2",
  "rand_distr",

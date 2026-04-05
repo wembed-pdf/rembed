@@ -1,6 +1,7 @@
 use crate::benchmark::runner;
 use crate::synthetic_data::{self, PointDistribution};
 use criterion::Criterion;
+use memmap2::Mmap;
 use rand_distr::Distribution;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rembed::{Embedding, NodeId};
@@ -191,22 +192,13 @@ impl DistributionBenchRunner {
                         benchmarkset
                     );
                     eprintln!("Running benchmarkset: {} at {}", benchmarkset, path);
+                    let parsed = parse_point_file(&path)?;
                     let distribution = PointDistribution::Benchmarkset {
-                        path,
+                        points: parsed.points.clone(),
                         name: benchmarkset.clone(),
                     };
-                    let path = format!(
-                        "{}/{}",
-                        self.config.path_to_benchmarksets.as_ref().unwrap(),
-                        benchmarkset
-                    );
-                    let node_count = fs::read_to_string(path.clone())?.lines().count();
-                    let dimension = fs::read_to_string(path.clone())?
-                        .lines()
-                        .next()
-                        .unwrap()
-                        .split(',')
-                        .count();
+                    let node_count = parsed.node_count;
+                    let dimension = parsed.dimension;
                     assert!(
                         self.config.querysets.is_none() || !self.config.all_to_all,
                         "querysets and all_to_all options are mutually exclusive"
@@ -226,35 +218,13 @@ impl DistributionBenchRunner {
                             self.config.path_to_benchmarksets.as_ref().unwrap(),
                             queryset
                         );
-                        Some(
-                            fs::read_to_string(query_path)?
-                                .lines()
-                                .map(|line| {
-                                    line.split(',')
-                                        .map(|s| {
-                                            s.trim().parse().expect("Failed to parse query point")
-                                        })
-                                        .collect::<Vec<f32>>()
-                                })
-                                .collect::<Vec<Vec<f32>>>(),
-                        )
+                        Some(parse_point_file(&query_path)?.points)
                     } else if self.config.all_to_all {
                         eprintln!(
                             "Running All-To-All benchmark for benchmarkset: {}",
                             benchmarkset
                         );
-                        Some(
-                            fs::read_to_string(path)?
-                                .lines()
-                                .map(|line| {
-                                    line.split(',')
-                                        .map(|s| {
-                                            s.trim().parse().expect("Failed to parse query point")
-                                        })
-                                        .collect::<Vec<f32>>()
-                                })
-                                .collect::<Vec<Vec<f32>>>(),
-                        )
+                        Some(parsed.points)
                     } else {
                         None
                     };
@@ -283,7 +253,7 @@ impl DistributionBenchRunner {
         dim: usize,
         node_count: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(if let Some(expected) = self.config.expected_queries {
+        if let Some(expected) = self.config.expected_queries {
             // Adjust radius to achieve expected number of queries
             let radius =
                 (expected as f64 / node_count as f64 / hypersphere_volume_factor_recursive(dim))
@@ -337,7 +307,8 @@ impl DistributionBenchRunner {
                     all_results.extend(results);
                 }
             }
-        })
+        };
+        Ok(())
     }
 
     fn run_benchmark_for_config<const D: usize>(
@@ -721,7 +692,49 @@ impl DistributionBenchRunner {
                 queryset,
                 fast,
             )?),
+            34 => Ok(self.run_benchmark_for_config::<34>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            96 => Ok(self.run_benchmark_for_config::<96>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            100 => Ok(self.run_benchmark_for_config::<100>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
             128 => Ok(self.run_benchmark_for_config::<128>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            256 => Ok(self.run_benchmark_for_config::<256>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            784 => Ok(self.run_benchmark_for_config::<784>(
+                node_count,
+                radius,
+                distribution,
+                queryset,
+                fast,
+            )?),
+            960 => Ok(self.run_benchmark_for_config::<960>(
                 node_count,
                 radius,
                 distribution,
@@ -734,6 +747,46 @@ impl DistributionBenchRunner {
             }
         }
     }
+}
+
+/// Parsed contents of a CSV point file (benchmarkset or queryset).
+pub struct ParsedPointFile {
+    pub dimension: usize,
+    pub node_count: usize,
+    pub points: Vec<Vec<f32>>,
+}
+
+/// Read and parse a CSV point file using mmap + rayon for performance.
+///
+/// The file is memory-mapped to avoid copying into a String, and lines
+/// are parsed in parallel via rayon.
+pub fn parse_point_file(path: &str) -> Result<ParsedPointFile, Box<dyn std::error::Error>> {
+    let file = fs::File::open(path)?;
+    let mmap = unsafe { Mmap::map(&file)? };
+    let content = std::str::from_utf8(&mmap)?;
+
+    // Determine dimension from the first line
+    let first_line = content.lines().next().ok_or("Empty point file")?;
+    let dimension = first_line.split(',').count();
+
+    // Collect line byte-slices first, then parse in parallel
+    let lines: Vec<&str> = content.lines().collect();
+    let node_count = lines.len();
+
+    let points: Vec<Vec<f32>> = lines
+        .par_iter()
+        .map(|line| {
+            line.split(',')
+                .map(|s| s.trim().parse::<f32>().expect("Failed to parse point coordinate"))
+                .collect()
+        })
+        .collect();
+
+    Ok(ParsedPointFile {
+        dimension,
+        node_count,
+        points,
+    })
 }
 
 pub fn hypersphere_volume_factor_recursive(d: usize) -> f64 {

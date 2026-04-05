@@ -4,13 +4,12 @@ use rand_distr::{Distribution, StandardNormal, Uniform};
 use rembed::dvec::DVec;
 use rembed::graph::{Graph, Node};
 use std::collections::HashSet;
-use std::fs;
 
 #[derive(Debug, Clone)]
 pub enum PointDistribution {
     Normal { mean: f32, std_dev: f32 },
     Uniform { min: f32, max: f32 },
-    Benchmarkset { path: String, name: String },
+    Benchmarkset { points: Vec<Vec<f32>>, name: String },
 }
 
 impl PointDistribution {
@@ -61,24 +60,17 @@ pub fn generate_points<const D: usize>(
                 points.push(DVec::new(components));
             }
         }
-        PointDistribution::Benchmarkset { path, .. } => {
-            // Read from benchmarkset file
-            println!("Reading benchmarkset from: {}", path);
-            let components = fs::read_to_string(path).expect("Failed to read benchmarkset file");
-            points = components
-                .lines()
-                .map(|line| {
-                    let nums: Vec<f32> = line
-                        .split(',')
-                        .map(|s| s.trim().parse().expect("Failed to parse number"))
-                        .collect();
+        PointDistribution::Benchmarkset { points: parsed, .. } => {
+            points = parsed
+                .iter()
+                .map(|nums| {
                     assert!(
                         nums.len() == D,
                         "Expected {} dimensions, got {}",
                         D,
                         nums.len()
                     );
-                    let array: [f32; D] = nums.try_into().expect("Failed to convert to array");
+                    let array: [f32; D] = nums.as_slice().try_into().expect("Failed to convert to array");
                     DVec::new(array)
                 })
                 .collect();
