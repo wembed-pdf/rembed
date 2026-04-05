@@ -13,3 +13,8 @@ benchmark/*.log
 
 # Samply
 profile.json.gz
+
+perf.data
+perf.data.old
+
+pos
