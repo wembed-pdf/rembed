@@ -69,9 +69,9 @@ pub fn data_structures<'a, const D: usize>(
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
         Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(naive_atree::NaiveATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(naive_atree::NaiveATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dyn_atree::DynATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
