@@ -80,7 +80,7 @@ pub fn data_structures<'a, const D: usize>(
         // Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(quadtree::Quadtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(grid::Grid::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(grid::Grid::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter();
 

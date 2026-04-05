@@ -11,7 +11,7 @@ set -euo pipefail
 # Data structure selections per benchmark type (comma-separated)
 NN_STRUCTURES="atree,dyn_atree,sklearn_balltree,brute-force,kiddo,py_snn,wembed_snn"
 CLUSTERING_STRUCTURES="atree,dyn_atree,sklearn_balltree,brute-force,kiddo,py_snn,wembed_snn"
-POI_STRUCTURES="atree,dyn_atree,brute-force,kiddo,py_snn,wembed_snn,quadtree,grid"
+POI_STRUCTURES="atree,dyn_atree,brute-force,kiddo,py_snn,wembed_snn,quadtree"
 
 # Toggle --fast mode (set to "" to disable)
 FAST="--fast"
