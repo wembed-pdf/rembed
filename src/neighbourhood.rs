@@ -86,17 +86,12 @@ impl<'a, const D: usize> Update<D> for Neihbourhood<'a, D> {
 }
 
 impl<'a, const D: usize> Query<D> for Neihbourhood<'a, D> {
-    fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<NodeId>) {
-        let own_position = self.positions[index];
-        let scaled_radius_squared = (radius * self.weight(index).powi(2)) as f32;
-
+    fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         self.tree
-            .neighbourhood(&own_position.components, scaled_radius_squared)
+            .neighbourhood(&pos.components, radius as f32)
             .into_iter()
             .for_each(|nn| {
-                if let Some(&node_id) = self.map.get(&core::array::from_fn(|i| nn[i].to_bits()))
-                    && node_id != index
-                {
+                if let Some(&node_id) = self.map.get(&core::array::from_fn(|i| nn[i].to_bits())) {
                     results.push(node_id);
                 }
             });
