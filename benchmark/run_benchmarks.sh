@@ -77,8 +77,8 @@ run_poi() {
 # Radii from snn_nn.tex
 
 run_nn fmnist    fmn_train.csv   fmn_query.csv   "800,900,1000,1100,1200"
-run_nn sift10k   siftsmall_base_train.csv siftsmall_base_test.csv "210,230,250,270,290"
-run_nn sift1m    sift_train.csv  sift_query.csv  "210,230,250,270,290"
+run_nn sift10k   sift_train.csv sift_test.csv "210,230,250,270,290"
+run_nn sift1m    sift_train_large.csv  sift_query_large.csv  "210,230,250,270,290"
 run_nn gist      gist_train.csv  gist_query.csv  "0.8,0.85,0.9,0.95,1.0"
 run_nn glove100  glo_train.csv   glo_query.csv   "0.94,0.97,1.01,1.04,1.07"
 run_nn deep1b    deep_train.csv  deep_query.csv  "0.69,0.75,0.82,0.88,0.94"
