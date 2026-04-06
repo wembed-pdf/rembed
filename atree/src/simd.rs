@@ -29,13 +29,13 @@ pub trait CompressDispatch<const W: usize, F: Scalar, I: IdStorage> {
 // ── PDVec ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy)]
-#[repr(Rust, align(64))]
+#[repr(C, align(64))]
 pub struct PDVec<const D: usize, const W: usize, F: Scalar = f32, I: IdStorage = u32>
 where
     LaneCount<W>: SupportedLaneCount,
 {
-    lanes: [[F; W]; D],
     squared_half: [F; W],
+    lanes: [[F; W]; D],
     ids: [I; W],
 }
 
