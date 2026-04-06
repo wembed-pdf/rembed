@@ -41,6 +41,10 @@ using Eigen::seqN;
 using Eigen::all;
 using RawVec = Eigen::Map<Eigen::VectorXd>;
 
+/// Maximum number of rows fed into the SVD solver.
+/// Above this limit we use strided sampling.
+static constexpr size_t SVD_SAMPLE_LIMIT = 100'000;
+
 void argsort(const Vector& input, std::vector<int>& output) {
     std::iota(output.begin(), output.end(), 0);
     std::sort(output.begin(), output.end(),
@@ -117,8 +121,21 @@ SnnModel::SnnModel(double *data, int r, int c): rows(r), cols(c) {
     }
 
     // singular value decomposition, obtain the sort_values
-    if (cols > 1) { 
-        svd_eigen_sovler(tempNormData, vt);
+    if (cols > 1) {
+        // Use strided sampling for large datasets to reduce SVD cost
+        size_t n = static_cast<size_t>(rows);
+        size_t stride = (n > SVD_SAMPLE_LIMIT) ? (n / SVD_SAMPLE_LIMIT) : 1;
+        size_t sample_n = (n + stride - 1) / stride;
+
+        if (stride > 1) {
+            Matrix sampled(sample_n, cols);
+            for (size_t si = 0; si < sample_n; ++si) {
+                sampled(si, all) = tempNormData(si * stride, all);
+            }
+            svd_eigen_sovler(sampled, vt);
+        } else {
+            svd_eigen_sovler(tempNormData, vt);
+        }
         principal_axis = vt(0, all);
 
         // TODO: zero would be bad?!
