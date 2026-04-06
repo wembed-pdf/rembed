@@ -128,8 +128,10 @@ where
 
                 let distances = if D < 6 {
                     pdvec.dist_squared(self.pos.pos)
-                } else {
+                } else if D < 32 {
                     pdvec.dist_half_squared(self.pos.pos, self.pos.squared_half)
+                } else {
+                    pdvec.dist_half_squared_4_acc(self.pos.pos, self.pos.squared_half)
                 };
                 let count =
                     pdvec.compare_into_initialized(distances, self.radius_sq, &mut self.buf);

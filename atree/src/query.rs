@@ -164,8 +164,11 @@ where
                 let new_elements = if D < 6 {
                     let distances = other_pos.dist_squared(pos.pos);
                     other_pos.compare_into(distances, radius_sq, chunk)
-                } else {
+                } else if D < 32 {
                     let distances = other_pos.dist_half_squared(pos.pos, pos.squared_half);
+                    other_pos.compare_into(distances, half_radius_threshold, chunk)
+                } else {
+                    let distances = other_pos.dist_half_squared_4_acc(pos.pos, pos.squared_half);
                     other_pos.compare_into(distances, half_radius_threshold, chunk)
                 };
                 unsafe { writer.advance(new_elements) };
