@@ -7,7 +7,7 @@ use crate::{
 const LEAFSIZE: usize = 150;
 
 #[derive(Clone)]
-pub struct NaiveATree<'a, const D: usize> {
+pub struct NaiveSprk<'a, const D: usize> {
     pub positions: Vec<DVec<D>>,
     pub positions_sorted: Vec<DVec<D>>,
     pub node_ids: Vec<usize>,
@@ -16,7 +16,7 @@ pub struct NaiveATree<'a, const D: usize> {
     layers: Vec<Layer>,
 }
 
-impl<const D: usize> crate::query::Graph for NaiveATree<'_, D> {
+impl<const D: usize> crate::query::Graph for NaiveSprk<'_, D> {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
         self.graph.is_connected(first, second)
     }
@@ -30,7 +30,7 @@ impl<const D: usize> crate::query::Graph for NaiveATree<'_, D> {
     }
 }
 
-impl<const D: usize> query::Position<D> for NaiveATree<'_, D> {
+impl<const D: usize> query::Position<D> for NaiveSprk<'_, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
@@ -39,7 +39,7 @@ impl<const D: usize> query::Position<D> for NaiveATree<'_, D> {
         self.positions.len()
     }
 }
-impl<const D: usize> query::Update<D> for NaiveATree<'_, D> {
+impl<const D: usize> query::Update<D> for NaiveSprk<'_, D> {
     fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
         if self.positions.len() != postions.len() {
             self.positions = postions.to_vec();
@@ -98,18 +98,18 @@ impl Layer {
         layers: &mut [Layer],
         depth: usize,
         layer_id: usize,
-        atree: &NaiveATree<D>,
+        sprk: &NaiveSprk<D>,
         offset: usize,
     ) {
         // For leaf nodes, we need full sorting for the lookup table
         if nodes.len() <= LEAFSIZE {
             nodes.sort_unstable_by_key(|i| {
-                i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
+                i32::from_ne_bytes(sprk.position(*i)[depth].to_ne_bytes())
             });
 
             for (d_pos, pos) in d_pos
                 .iter_mut()
-                .zip(nodes.iter().map(|id| atree.position(*id)))
+                .zip(nodes.iter().map(|id| sprk.position(*id)))
             {
                 *d_pos = pos[depth];
             }
@@ -138,17 +138,17 @@ impl Layer {
         // For internal nodes, use select_nth_unstable to partition around median
         let median_idx = nodes.len() / 2;
         nodes.select_nth_unstable_by_key(median_idx, |i| {
-            i32::from_ne_bytes(atree.position(*i)[depth].to_ne_bytes())
+            i32::from_ne_bytes(sprk.position(*i)[depth].to_ne_bytes())
         });
 
         // After select_nth_unstable, all elements left of median_idx have values <= pivot
         // We need to move elements equal to pivot to the right side for strict partitioning
-        let split = atree.position(nodes[median_idx])[depth];
+        let split = sprk.position(nodes[median_idx])[depth];
         let mut split_pos = median_idx;
 
         let mut i = 0;
         while i < split_pos {
-            if atree.position(nodes[i])[depth] == split {
+            if sprk.position(nodes[i])[depth] == split {
                 // Move equal value to the end of left half and shrink left half
                 split_pos -= 1;
                 nodes.swap(i, split_pos);
@@ -163,14 +163,14 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        Layer::init(a_ids, a_dpos, layers, (depth + 1) % D, a_id, atree, offset);
+        Layer::init(a_ids, a_dpos, layers, (depth + 1) % D, a_id, sprk, offset);
         Layer::init(
             b_ids,
             b_dpos,
             layers,
             (depth + 1) % D,
             b_id,
-            atree,
+            sprk,
             offset + split_pos,
         );
 
@@ -182,9 +182,9 @@ fn children(index: usize) -> (usize, usize) {
     (index * 2 + 1, index * 2 + 2)
 }
 
-impl<'a, const D: usize> NaiveATree<'a, D> {
+impl<'a, const D: usize> NaiveSprk<'a, D> {
     pub fn new(embedding: &Embedding<'a, D>) -> Self {
-        let mut line_lsh = NaiveATree {
+        let mut line_lsh = NaiveSprk {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
             positions_sorted: Vec::new(),
@@ -295,7 +295,7 @@ impl<'a, const D: usize> NaiveATree<'a, D> {
     }
 }
 
-impl<const D: usize> Query<D> for NaiveATree<'_, D> {
+impl<const D: usize> Query<D> for NaiveSprk<'_, D> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         self.light_nn(
             index,
@@ -308,16 +308,16 @@ impl<const D: usize> Query<D> for NaiveATree<'_, D> {
         self.query_radius(pos, radius, results);
     }
 }
-impl<const D: usize> SpatialIndex<D> for NaiveATree<'_, D> {
+impl<const D: usize> SpatialIndex<D> for NaiveSprk<'_, D> {
     fn name(&self) -> String {
         String::from("naive_atree")
     }
     fn implementation_string(&self) -> &'static str {
-        include_str!("naive_atree.rs")
+        include_str!("naive_sprk.rs")
     }
 }
 
-impl<'a, const D: usize> query::Embedder<'a, D> for NaiveATree<'a, D> {
+impl<'a, const D: usize> query::Embedder<'a, D> for NaiveSprk<'a, D> {
     fn new(embedding: &crate::Embedding<'a, D>) -> Self {
         Self::new(embedding)
     }

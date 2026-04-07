@@ -1,5 +1,5 @@
 use crate::{
-    ATree, NodeId,
+    Sprk, NodeId,
     dvec::DVec,
     query::{Embedder, Graph, Position, Query, SpatialIndex, Update},
     random_projection_lsh::RandomProjectionLsh,
@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 pub struct MeasuredLSH<'a, const D: usize> {
     pub lsh: RandomProjectionLsh<'a, D>,
-    pub ground_truth: ATree<'a, D>,
+    pub ground_truth: Sprk<'a, D>,
     recall_measurements: Mutex<Vec<f64>>,
 }
 
@@ -23,7 +23,7 @@ impl<'a, const D: usize> Clone for MeasuredLSH<'a, D> {
 }
 
 impl<'a, const D: usize> MeasuredLSH<'a, D> {
-    pub fn new(lsh: RandomProjectionLsh<'a, D>, ground_truth: ATree<'a, D>) -> Self {
+    pub fn new(lsh: RandomProjectionLsh<'a, D>, ground_truth: Sprk<'a, D>) -> Self {
         Self {
             lsh,
             ground_truth,

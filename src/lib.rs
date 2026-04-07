@@ -5,13 +5,13 @@ pub use std::io;
 use std::ops::Deref;
 
 pub mod agrid;
-pub mod atree;
+pub mod sprk;
 #[cfg(feature = "boost-rtree")]
 pub mod boost_rtree;
 #[cfg(feature = "cgal")]
 pub mod cgal_kdtree;
 pub mod dvec;
-pub mod dyn_atree;
+pub mod dyn_sprk;
 pub mod dynamic_queries;
 pub mod embedding;
 pub mod graph;
@@ -20,7 +20,7 @@ pub mod kiddo;
 pub mod lossy_queries;
 pub mod measured_lsh;
 pub mod nabo;
-pub mod naive_atree;
+pub mod naive_sprk;
 #[cfg(feature = "nanoflann")]
 pub mod nanoflann;
 pub mod neighbourhood;
@@ -37,7 +37,7 @@ pub mod vptree;
 #[cfg(feature = "wembed-snn")]
 pub mod wembed_snn;
 
-pub use atree::ATree;
+pub use sprk::Sprk;
 pub use dynamic_queries::DynamicQuery;
 pub use embedder::WEmbedder;
 pub use kiddo::Kiddo;
@@ -68,9 +68,9 @@ pub fn data_structures<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
-        Box::new(atree::ATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
-        // Box::new(naive_atree::NaiveATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(dyn_atree::DynATree::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(sprk::Sprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        // Box::new(naive_sprk::NaiveSprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(dyn_sprk::DynSprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         // Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         // Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,

@@ -128,21 +128,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atree"
-version = "0.1.0"
-dependencies = [
- "atree",
- "dyn-stack 0.13.2",
- "faer-core",
- "faer-svd",
- "num-traits",
- "rayon",
- "sharded-vec-writer",
- "simd-lookup",
- "wide",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2622,7 +2607,6 @@ name = "rembed"
 version = "0.1.0"
 dependencies = [
  "acap",
- "atree",
  "boost-rtree",
  "cgal",
  "criterion 0.5.1",
@@ -2641,6 +2625,7 @@ dependencies = [
  "sha2",
  "sif-kdtree",
  "sklearn",
+ "sprk",
  "vec-vp-tree",
  "wembed-snn",
 ]
@@ -2945,6 +2930,21 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "sprk"
+version = "0.1.0"
+dependencies = [
+ "dyn-stack 0.13.2",
+ "faer-core",
+ "faer-svd",
+ "num-traits",
+ "rayon",
+ "sharded-vec-writer",
+ "simd-lookup",
+ "sprk",
+ "wide",
 ]
 
 [[package]]

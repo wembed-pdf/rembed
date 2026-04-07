@@ -5,7 +5,7 @@ A graph embedding benchmark framework for comparing spatial indexing data struct
 ## What It Does
 
 1. **Embeds graphs** into D-dimensional space using a force-directed algorithm with Adam optimization
-2. **Indexes embeddings** with multiple spatial data structures (ATree, KD-tree, VP-tree, LSH, grid, quadtree, etc.)
+2. **Indexes embeddings** with multiple spatial data structures (✨ SPRK-tree, KD-tree, VP-tree, LSH, grid, quadtree, etc.)
 3. **Benchmarks** radius and nearest neighbor query performance across all structures
 4. **Measures correctness** via precision, recall, and F1 score against brute-force ground truth
 
@@ -27,7 +27,7 @@ cargo build --release --features cgal        # CGAL KD-tree
 
 | Structure | Module | Notes |
 |-----------|--------|-------|
-| ATree | `atree` | SIMD-vectorized axis-aligned tree with LUT leaves ([separate crate](atree/)) |
+| SPRK-tree | `sprk` | Sorted Projection Radius KD-tree: SIMD-vectorized with LUT leaves ([separate crate](sprk/)) |
 | Kiddo | `kiddo` | Immutable KD-tree via `kiddo` crate |
 | SIF KD-tree | `sif` | KD-tree via `sif-kdtree` crate |
 | VP-tree | `vptree` | Vantage point tree via `acap` crate |

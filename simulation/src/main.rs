@@ -47,10 +47,10 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
         max_iterations: 500,
         ..Default::default()
     };
-    // let mut embedder: embedder::WEmbedder<ATree<_>, D> =
+    // let mut embedder: embedder::WEmbedder<Sprk<_>, D> =
     //     embedder::WEmbedder::random(42, graph, options);
     let mut embedder =
-        embedder::WEmbedder::<DynamicQuery<_, ATree<_>>, D>::random(42, graph, options);
+        embedder::WEmbedder::<DynamicQuery<_, Sprk<_>>, D>::random(42, graph, options);
 
     embedder.embed_with_callback(|e| {
         let i = e.iteration();

@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use rembed::{embedder::EmbedderOptions, query::Embedder as _, *};
+use rembed::{Sprk, embedder::EmbedderOptions, query::Embedder as _, *};
 
 fn main() -> io::Result<()> {
     let graph_name = "rel8";
@@ -30,9 +30,9 @@ fn main() -> io::Result<()> {
         // max_iterations: 500,
         ..Default::default()
     };
-    let embedder: embedder::WEmbedder<ATree<_>, D> =
+    let embedder: embedder::WEmbedder<Sprk<_>, D> =
         embedder::WEmbedder::random(42, &graph, options.clone());
-    // let mut embedder: embedder::WEmbedder<DynamicQuery<_, ATree<_>>, D> =
+    // let mut embedder: embedder::WEmbedder<DynamicQuery<_, Sprk<_>>, D> =
     //     embedder::WEmbedder::random(42, &graph, options);
     let positions = embedder.positions().to_vec();
     let embedding = Embedding {
@@ -40,12 +40,12 @@ fn main() -> io::Result<()> {
         graph: &graph,
     };
 
-    // let lossy_queries = ATree::new(&embedding);
+    // let lossy_queries = Sprk::new(&embedding);
     // let lossy_queries = Kiddo::new(embedding.clone());
     // let lossy_queries = embedding.clone();
     // let lossy_queries =
     //     RandomProjectionLsh::<_>::new_with_params(embedding.clone(), Some(1), Some(16));
-    let lossy_queries = DynamicQuery::<_, ATree<_>>::new(&embedding);
+    let lossy_queries = DynamicQuery::<_, Sprk<_>>::new(&embedding);
     let mut embedder = embedder::WEmbedder::new(lossy_queries, options);
 
     let start = Instant::now();
@@ -65,7 +65,7 @@ fn main() -> io::Result<()> {
     eprintln!("Embedding took {:.2}s", start.elapsed().as_secs_f32());
 
     let embedder = WEmbedder::new(
-        ATree::new(&Embedding {
+        Sprk::new(&Embedding {
             positions: embedder.positions().to_vec(),
             graph: &graph,
         }),

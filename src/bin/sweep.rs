@@ -1,5 +1,5 @@
 use rembed::{
-    ATree, Embedding, MeasuredLSH,
+    Sprk, Embedding, MeasuredLSH,
     embedder::{EmbedderOptions, WEmbedder},
     graph, io,
     lossy_queries::{LossyQuery, LossyStrategy},
@@ -103,9 +103,9 @@ fn main() -> io::Result<()> {
         ..Default::default()
     };
 
-    // Generate initial embedding with ATree
+    // Generate initial embedding with Sprk
     eprintln!("Generating initial embedding...");
-    let embedder: WEmbedder<ATree<_>, D> = WEmbedder::random(42, &graph, options.clone());
+    let embedder: WEmbedder<Sprk<_>, D> = WEmbedder::random(42, &graph, options.clone());
     let positions = embedder.positions().to_vec();
     let embedding = Embedding {
         positions,
@@ -138,7 +138,7 @@ fn main() -> io::Result<()> {
                         Some(num_tables),
                         Some(num_projections),
                     );
-                    let ground_truth = ATree::<D>::new(&embedding);
+                    let ground_truth = Sprk::<D>::new(&embedding);
                     let spatial_index = MeasuredLSH::new(lsh, ground_truth);
                     let mut embedder = WEmbedder::new(spatial_index, options.clone());
                     embedder.embed();
@@ -163,7 +163,7 @@ fn main() -> io::Result<()> {
                     0.0 // Not measured
                 };
 
-                // Always compute final F1 with ATree (non-approximate ground truth)
+                // Always compute final F1 with Sprk (non-approximate ground truth)
                 let lsh = RandomProjectionLsh::<D>::new_with_params(
                     embedding.clone(),
                     Some(num_tables),
@@ -172,13 +172,13 @@ fn main() -> io::Result<()> {
                 let mut embedder = WEmbedder::new(lsh, options.clone());
                 embedder.embed();
 
-                // Get final embedding positions and compute F1 with ATree
+                // Get final embedding positions and compute F1 with Sprk
                 let final_positions = embedder.positions().to_vec();
                 let final_embedding = Embedding {
                     positions: final_positions,
                     graph: &graph,
                 };
-                let ground_truth = ATree::<D>::new(&final_embedding);
+                let ground_truth = Sprk::<D>::new(&final_embedding);
                 let (precision, recall_final) = ground_truth.graph_statistics();
                 let f1 = 2. / (recall_final.recip() + precision.recip());
 
@@ -207,27 +207,27 @@ fn main() -> io::Result<()> {
     // ========================================================================
 
     if config.sweep_lossy {
-        eprintln!("\n=== Starting LossyQuery+ATree strategy sweep ===");
+        eprintln!("\n=== Starting LossyQuery+Sprk strategy sweep ===");
 
         for &strategy in &config.lossy_strategies {
             for &p_target in &config.lossy_p_values {
                 eprintln!("Testing strategy: {:?}, p={}", strategy, p_target);
 
                 // Run embedding with LossyQuery
-                let spatial_index = LossyQuery::<_, ATree<D>>::new(&embedding, p_target, strategy);
+                let spatial_index = LossyQuery::<_, Sprk<D>>::new(&embedding, p_target, strategy);
                 let mut embedder = WEmbedder::new(spatial_index, options.clone());
 
                 let start = Instant::now();
                 embedder.embed();
                 let time_ms = start.elapsed().as_millis() as f64;
 
-                // Get final embedding positions and compute F1 with fresh ATree
+                // Get final embedding positions and compute F1 with fresh Sprk
                 let final_positions = embedder.positions().to_vec();
                 let final_embedding = Embedding {
                     positions: final_positions,
                     graph: &graph,
                 };
-                let ground_truth = ATree::<D>::new(&final_embedding);
+                let ground_truth = Sprk::<D>::new(&final_embedding);
                 let (precision, recall) = ground_truth.graph_statistics();
                 let f1 = 2. / (recall.recip() + precision.recip());
 

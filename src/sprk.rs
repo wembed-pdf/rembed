@@ -4,14 +4,16 @@ use crate::{
     query::{self, SpatialIndex},
 };
 
+pub use sprk::simd;
+
 #[derive(Clone)]
-pub struct DynATree<'a, const D: usize> {
-    pub tree: atree::DynATree,
+pub struct Sprk<'a, const D: usize> {
+    pub tree: sprk::Sprk<D>,
     pub positions: Vec<DVec<D>>,
     pub graph: &'a crate::graph::Graph,
 }
 
-impl<const D: usize> crate::query::Graph for DynATree<'_, D> {
+impl<const D: usize> crate::query::Graph for Sprk<'_, D> {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
         self.graph.is_connected(first, second)
     }
@@ -25,7 +27,7 @@ impl<const D: usize> crate::query::Graph for DynATree<'_, D> {
     }
 }
 
-impl<const D: usize> query::Position<D> for DynATree<'_, D> {
+impl<const D: usize> query::Position<D> for Sprk<'_, D> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
@@ -35,7 +37,7 @@ impl<const D: usize> query::Position<D> for DynATree<'_, D> {
     }
 }
 
-impl<const D: usize> query::Update<D> for DynATree<'_, D> {
+impl<const D: usize> query::Update<D> for Sprk<'_, D> {
     fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
         if self.positions.len() != positions.len() {
             self.positions = positions.to_vec();
@@ -45,12 +47,12 @@ impl<const D: usize> query::Update<D> for DynATree<'_, D> {
             }
         }
 
-        let flat: Vec<f32> = positions.iter().flat_map(|p| p.components).collect();
-        self.tree.update(&flat);
+        let raw_positions: Vec<[f32; D]> = positions.iter().map(|p| p.components).collect();
+        self.tree.update(&raw_positions);
     }
 }
 
-impl<const D: usize> crate::Query<D> for DynATree<'_, D> {
+impl<const D: usize> crate::Query<D> for Sprk<'_, D> {
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         assert_eq!(self.positions.len(), self.tree.len());
         self.tree
@@ -58,31 +60,34 @@ impl<const D: usize> crate::Query<D> for DynATree<'_, D> {
     }
 }
 
-impl<const D: usize> SpatialIndex<D> for DynATree<'_, D> {
+impl<const D: usize> SpatialIndex<D> for Sprk<'_, D> {
     fn name(&self) -> String {
-        String::from("dyn_atree")
+        String::from("atree")
     }
     fn implementation_string(&self) -> &'static str {
-        include_str!("../atree/src/dynamic.rs")
+        concat!(
+            include_str!("../sprk/src/lib.rs"),
+            include_str!("../sprk/src/simd.rs"),
+            include_str!("../sprk/src/output.rs"),
+            include_str!("../sprk/src/tree.rs"),
+            include_str!("../sprk/src/query.rs")
+        )
     }
 }
 
-impl<'a, const D: usize> DynATree<'a, D> {
+impl<'a, const D: usize> Sprk<'a, D> {
     pub fn new(embedding: &Embedding<'a, D>) -> Self {
-        let flat: Vec<f32> = embedding
-            .positions
-            .iter()
-            .flat_map(|p| p.components)
-            .collect();
-        DynATree {
-            tree: atree::DynATree::new(D, &flat),
+        let raw_positions: Vec<[f32; D]> =
+            embedding.positions.iter().map(|p| p.components).collect();
+        Sprk {
+            tree: sprk::Sprk::new(&raw_positions),
             positions: embedding.positions.clone(),
             graph: embedding.graph,
         }
     }
 }
 
-impl<'a, const D: usize> query::Embedder<'a, D> for DynATree<'a, D> {
+impl<'a, const D: usize> query::Embedder<'a, D> for Sprk<'a, D> {
     fn new(embedding: &crate::Embedding<'a, D>) -> Self {
         Self::new(embedding)
     }

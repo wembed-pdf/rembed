@@ -1,4 +1,4 @@
-use atree::simd::PDVec;
+use sprk::simd::PDVec;
 use rand::random;
 use std::io;
 use std::time::{Duration, Instant};

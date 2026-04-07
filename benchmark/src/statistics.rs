@@ -1,5 +1,5 @@
 use rembed::Embedding;
-use rembed::atree::ATree;
+use rembed::sprk::Sprk;
 use rembed::graph::Graph;
 use rembed::parsing::Iterations;
 use rembed::parsing::parse_positions_file;
@@ -26,8 +26,8 @@ impl StatisticGenerator {
                 positions: iteration.positions.iter().cloned().collect(),
                 graph,
             };
-            let atree = ATree::new(&embedding);
-            stats.push(atree.graph_statistics());
+            let sprk = Sprk::new(&embedding);
+            stats.push(sprk.graph_statistics());
         }
         stats
     }

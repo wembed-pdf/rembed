@@ -156,8 +156,8 @@ fn compute_fscore<const D: usize>(
             positions: last_iteration.positions.iter().cloned().collect(),
             graph: &graph,
         };
-        let atree = rembed::ATree::new(&embedding);
-        let (percision, recall) = rembed::query::Embedder::graph_statistics(&atree);
+        let sprk = rembed::Sprk::new(&embedding);
+        let (percision, recall) = rembed::query::Embedder::graph_statistics(&sprk);
         vec![(
             last_iteration.number,
             recall,
@@ -173,8 +173,8 @@ fn compute_fscore<const D: usize>(
                     positions: iteration.positions.iter().cloned().collect(),
                     graph: &graph,
                 };
-                let atree = rembed::ATree::new(&embedding);
-                let (percision, recall) = rembed::query::Embedder::graph_statistics(&atree);
+                let sprk = rembed::Sprk::new(&embedding);
+                let (percision, recall) = rembed::query::Embedder::graph_statistics(&sprk);
                 (
                     iteration.number,
                     recall,

@@ -1,7 +1,7 @@
 [workspace]
 members = [
     ".",
-    "atree",
+    "sprk",
     "benchmark",
     "benchmark/poi",
     "simulation",
@@ -18,7 +18,7 @@ default-run = "rembed"
 
 [dependencies]
 acap = "0.4.0"
-atree = { path = "atree", features = ["internals"] }
+sprk = { path = "sprk", features = ["internals"] }
 crossbeam = "0.8.4"
 # kiddo = { version = "5.0.3", features = ["simd"] }
 kiddo = { version = "5.0.3" }
