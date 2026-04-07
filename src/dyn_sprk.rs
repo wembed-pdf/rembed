@@ -63,7 +63,7 @@ impl<const D: usize> SpatialIndex<D> for DynSprk<'_, D> {
         String::from("dyn_atree")
     }
     fn implementation_string(&self) -> &'static str {
-        include_str!("../sprk/src/dynamic.rs")
+        include_str!("dyn_sprk.rs")
     }
 }
 

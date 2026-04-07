@@ -2935,6 +2935,8 @@ dependencies = [
 [[package]]
 name = "sprk"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44ddc26717187cc84e805a72b32ddf773212c675401c0807471c46d16c769f32"
 dependencies = [
  "dyn-stack 0.13.2",
  "faer-core",
@@ -2943,7 +2945,6 @@ dependencies = [
  "rayon",
  "sharded-vec-writer",
  "simd-lookup",
- "sprk",
  "wide",
 ]
 

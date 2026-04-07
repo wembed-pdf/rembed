@@ -65,13 +65,7 @@ impl<const D: usize> SpatialIndex<D> for Sprk<'_, D> {
         String::from("atree")
     }
     fn implementation_string(&self) -> &'static str {
-        concat!(
-            include_str!("../sprk/src/lib.rs"),
-            include_str!("../sprk/src/simd.rs"),
-            include_str!("../sprk/src/output.rs"),
-            include_str!("../sprk/src/tree.rs"),
-            include_str!("../sprk/src/query.rs")
-        )
+        concat!(include_str!("sprk.rs"))
     }
 }
 

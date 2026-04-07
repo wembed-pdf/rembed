@@ -1,15 +1,9 @@
-use sprk::simd::PDVec;
 use rand::random;
+use sprk::simd::PDVec;
 use std::io;
 use std::time::{Duration, Instant};
 const W: usize = 8;
 fn main() -> io::Result<()> {
-    let query = std::hint::black_box([0.; 500]);
-    // bench_snn_single(query);
-    // bench_snn(query);
-    // bench_snn_4(query);
-    // return Ok(());
-    // CSV header with metadata columns
     let results = vec![
         bench_dim::<2>(),
         bench_dim::<3>(),
