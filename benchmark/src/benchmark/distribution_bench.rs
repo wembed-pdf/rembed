@@ -150,14 +150,15 @@ impl DistributionBenchRunner {
                         let mut rng = <rand::rngs::StdRng as rand::SeedableRng>::seed_from_u64(
                             self.config.seed,
                         );
+                        // If the radius goes above 0.5 the range becomes invalid
+                        let radius = radius.min(0.4);
                         let distribution_gen =
                             rand_distr::Uniform::new(radius as f32, 1.0 - radius as f32).unwrap();
                         let queryset = (0..self.config.num_queries)
                             .map(|_| {
-                                let components = (0..dim)
+                                (0..dim)
                                     .map(|_| distribution_gen.sample(&mut rng))
-                                    .collect::<Vec<f32>>();
-                                components
+                                    .collect::<Vec<f32>>()
                             })
                             .collect();
 
@@ -416,10 +417,7 @@ impl DistributionBenchRunner {
                         "Query point dimension does not match embedding dimension"
                     );
                     rembed::dvec::DVec::<D> {
-                        components: q
-                            .clone()
-                            .try_into()
-                            .expect("Failed to convert query point"),
+                        components: q.clone().try_into().expect("Failed to convert query point"),
                     }
                 })
                 .collect();
@@ -428,7 +426,9 @@ impl DistributionBenchRunner {
                     let step = all_points.len() / max;
                     eprintln!(
                         "Sampling {} of {} query points (every {}th)",
-                        max, all_points.len(), step
+                        max,
+                        all_points.len(),
+                        step
                     );
                     all_points.into_iter().step_by(step).take(max).collect()
                 } else {
@@ -796,7 +796,11 @@ pub fn parse_point_file(path: &str) -> Result<ParsedPointFile, Box<dyn std::erro
         .par_iter()
         .map(|line| {
             line.split(',')
-                .map(|s| s.trim().parse::<f32>().expect("Failed to parse point coordinate"))
+                .map(|s| {
+                    s.trim()
+                        .parse::<f32>()
+                        .expect("Failed to parse point coordinate")
+                })
                 .collect()
         })
         .collect();
