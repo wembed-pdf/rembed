@@ -102,4 +102,7 @@ run_poi restaurant_trainstation restaurant.csv trainstation.csv "$POI_RADII"
 run_poi pharmacy_hospital    pharmacy.csv    hospital.csv      "$POI_RADII"
 run_poi atm_supermarket      atm.csv         supermarket.csv   "$POI_RADII"
 
+
+cargo run -r bench-distributions --node-counts 10000,31623,100000,316228,1000000 --distributions uniform --structures grid,quadtree,atree,wembed_snn,brute-force,boost_rtree,kiddo,neighbourhood --output output/uniform.csv --expected-queries 40 --dimensions 2,4,6,8,10,12,14,16 --only-center-node
+
 echo "=== All benchmarks complete. Results in $OUTDIR/ ==="
