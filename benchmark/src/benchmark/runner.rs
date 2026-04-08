@@ -75,6 +75,7 @@ pub struct MeasurementResult {
     pub data_structure_name: String,
     pub sample_count: usize,
     pub measurement: PerfStatistics,
+    pub avg_returned_points: f64,
 }
 
 pub fn profile_datastructures<'a, const D: usize>(
@@ -115,6 +116,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     let mut warmup = Duration::from_secs(3);
     let mut measure = Duration::from_secs(20);
     if fast {
+        println!("Running in fast mode: reducing warmup and measurement times");
         warmup = Duration::from_secs(1);
         measure = Duration::from_secs(5);
     }
@@ -130,6 +132,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     } else {
         query_list.len()
     };
+    let mut result_counts = Vec::new();
     if let Some(query_pos_list) = query_pos_list {
         println!(
             "Running benchmark '{}' with {} queries",
@@ -141,6 +144,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                 // let data_structures: Vec<_> = (0..iters).map(|_| structure.clone_box()).collect();
                 let mut structure = structure.clone_box();
                 let mut results = Vec::with_capacity(structure.num_nodes());
+                let mut num_results = 0;
                 samples.start();
                 for _ in 0..iters {
                     // for mut structure in data_structures {
@@ -157,12 +161,14 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                                         as f64,
                                     &mut results,
                                 );
+                                num_results += results.len();
                                 std::hint::black_box(&results);
                             }
                         }
                     }
                 }
                 let sample_bench = samples.stop(iters) / queries as u32;
+                result_counts.push(num_results as f64 / (queries as u64 * iters) as f64);
                 sample_bench
             });
         });
@@ -196,6 +202,8 @@ pub fn profile_datastructure_query<'a, const D: usize>(
 
     let statistics = samples.get_statistics(queries, warmup);
 
+    let mean_results = result_counts.iter().sum::<f64>() / result_counts.len() as f64;
+
     eprintln!(
         "Perf Counter:\n\tInstructions: {} σ: {}",
         format_number(statistics.instructions_mean),
@@ -217,6 +225,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
         data_structure_name: structure.name(),
         sample_count: samples.num_samples(),
         measurement: statistics,
+        avg_returned_points: mean_results,
     }
 }
 

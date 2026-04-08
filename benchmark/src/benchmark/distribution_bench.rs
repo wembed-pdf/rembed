@@ -33,6 +33,7 @@ pub struct BenchmarkRecord {
     pub dimension: usize,
     pub node_count: usize,
     pub radius: f64,
+    pub avg_returned_points: f64,
     pub name: String,
     pub data_structure: String,
     pub wall_time_mean_ns: u64,
@@ -151,9 +152,12 @@ impl DistributionBenchRunner {
                             self.config.seed,
                         );
                         // If the radius goes above 0.5 the range becomes invalid
-                        let radius = radius.min(0.4);
-                        let distribution_gen =
-                            rand_distr::Uniform::new(radius as f32, 1.0 - radius as f32).unwrap();
+                        let sample_radius = radius.min(0.4);
+                        let distribution_gen = rand_distr::Uniform::new(
+                            sample_radius as f32,
+                            1.0 - sample_radius as f32,
+                        )
+                        .unwrap();
                         let queryset = (0..self.config.num_queries)
                             .map(|_| {
                                 (0..dim)
@@ -458,6 +462,7 @@ impl DistributionBenchRunner {
                 dimension: D,
                 node_count,
                 radius,
+                avg_returned_points: measurement.avg_returned_points,
                 name: distribution.name().to_string(),
                 data_structure: measurement.data_structure_name,
                 wall_time_mean_ns: measurement.measurement.wall_time_mean.as_nanos() as u64,
@@ -503,17 +508,18 @@ impl DistributionBenchRunner {
         // Write header
         writeln!(
             writer,
-            "dimension,node_count,radius,distribution,structure,wall_time_ns,wall_time_std_ns,instructions,instructions_std,cycles,cycles_std,samples"
+            "dimension,node_count,radius,avg_returned_points,distribution,structure,wall_time_ns,wall_time_std_ns,instructions,instructions_std,cycles,cycles_std,samples"
         )?;
 
         // Write data rows
         for record in results {
             writeln!(
                 writer,
-                "{},{},{},{},{},{},{},{:.0},{:.0},{:.0},{:.0},{}",
+                "{},{},{},{},{},{},{},{},{:.0},{:.0},{:.0},{:.0},{}",
                 record.dimension,
                 record.node_count,
                 record.radius,
+                record.avg_returned_points,
                 record.name,
                 record.data_structure,
                 record.wall_time_mean_ns,
