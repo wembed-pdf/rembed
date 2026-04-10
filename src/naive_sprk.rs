@@ -214,7 +214,7 @@ impl<'a, const D: usize> NaiveSprk<'a, D> {
             0,
             0,
             radius.powi(2) as f32,
-            radius,
+            radius.powi(2),
             DVec::zero(),
             results,
         );
