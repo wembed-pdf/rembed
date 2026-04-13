@@ -108,13 +108,13 @@ pub fn extract_pois(path: &Path) -> Result<Vec<Poi>, Box<dyn std::error::Error>>
 
     // Resolve way POI centroids
     for (way_id, category, name) in &raw.way_pois {
-        if let Some(node_ids) = raw.way_refs.get(way_id) {
-            if let Some((lat, lon)) = centroid(node_ids, &raw.node_coords) {
-                pois.push(Poi {
-                    category: *category, lat, lon, x: 0.0, y: 0.0,
-                    name: name.clone(), osm_id: *way_id,
-                });
-            }
+        if let Some(node_ids) = raw.way_refs.get(way_id)
+            && let Some((lat, lon)) = centroid(node_ids, &raw.node_coords)
+        {
+            pois.push(Poi {
+                category: *category, lat, lon, x: 0.0, y: 0.0,
+                name: name.clone(), osm_id: *way_id,
+            });
         }
     }
 

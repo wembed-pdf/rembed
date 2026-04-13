@@ -565,7 +565,7 @@ impl CorrectnessTestManager {
                         .position(extra)
                         .distance_squared(structure.position(node_id))
                         as f64
-                        / ((node_weight as f64) * (node_weight as f64)).powi(2);
+                        / (node_weight * node_weight).powi(2);
                     if approx_dist > 1.0 + 1e-6 {
                         avg_distance_pruning_error += approx_dist - 1.0;
                         distance_pruning_error_count += 1;

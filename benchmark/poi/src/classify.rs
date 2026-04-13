@@ -43,7 +43,7 @@ pub fn classify<'a>(tags: impl Iterator<Item = (&'a str, &'a str)>) -> Option<Ca
 
     // Amenity
     match amenity {
-        Some("atm") => return Some(Category::ATM),
+        Some("atm") => return Some(Category::Atm),
         Some("bank") => return Some(Category::Bank),
         Some("restaurant") => return Some(Category::Restaurant),
         Some("cafe") => return Some(Category::Cafe),

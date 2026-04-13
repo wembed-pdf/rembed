@@ -10,7 +10,7 @@ pub struct DynDynSprk<'a> {
     pub tree: sprk::DynSprk,
     pub positions: Vec<DynVec>,
     pub graph: &'a Graph,
-    dim: usize,
+    _dim: usize,
 }
 
 impl<'a> DynDynSprk<'a> {
@@ -24,7 +24,7 @@ impl<'a> DynDynSprk<'a> {
             tree: sprk::DynSprk::new(dim, &flat),
             positions: positions.to_vec(),
             graph,
-            dim,
+            _dim: dim,
         }
     }
 

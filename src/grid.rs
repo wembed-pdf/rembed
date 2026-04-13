@@ -68,7 +68,7 @@ impl<'a, const D: usize> Grid<'a, D> {
         let mut tree = Self {
             positions: embedding.positions.clone(),
             graph: embedding.graph,
-            grid: grid,
+            grid,
             grid_size,
             min_x: min_x as f64,
             min_y: min_y as f64,
@@ -150,7 +150,7 @@ impl<'a, const D: usize> Update<D> for Grid<'a, D> {
                 ((pos[1] - self.min_y as f32) / self.grid_size as f32).floor() as usize;
 
             if grid_x >= grid.len() {
-                if grid_x >= grid.len() + 1 {
+                if grid_x > grid.len() {
                     println!(
                         "Warning: Node {} with position {:?} is far out of grid bounds in x direction (grid_x: {}, grid width: {}). Clamping to grid boundary.",
                         i,
@@ -162,7 +162,7 @@ impl<'a, const D: usize> Update<D> for Grid<'a, D> {
                 grid_x = grid.len() - 1;
             }
             if grid_y >= grid[0].len() {
-                if grid_y >= grid[0].len() + 1 {
+                if grid_y > grid[0].len() {
                     println!(
                         "Warning: Node {} with position {:?} is far out of grid bounds in y direction (grid_y: {}, grid height: {}). Clamping to grid boundary.",
                         i,
@@ -204,7 +204,7 @@ impl<'a, const D: usize> Query<D> for Grid<'a, D> {
                 as i32,
         ) as usize;
         let max_grid_x = min(
-            self.grid.len() as usize - 1,
+            self.grid.len() - 1,
             ((own_position[0] - self.min_x as f32 + radius as f32) / self.grid_size as f32).floor()
                 as usize,
         );
@@ -214,16 +214,16 @@ impl<'a, const D: usize> Query<D> for Grid<'a, D> {
                 as usize,
         ) as usize;
         let max_grid_y = min(
-            self.grid[0].len() as usize - 1,
+            self.grid[0].len() - 1,
             ((own_position[1] - self.min_y as f32 + radius as f32) / self.grid_size as f32).floor()
                 as usize,
         ) as usize;
 
         // clamp grid coordinates to grid boundaries
         let min_grid_x = max(0, min_grid_x);
-        let max_grid_x = min(self.grid.len() as usize - 1, max_grid_x);
+        let max_grid_x = min(self.grid.len() - 1, max_grid_x);
         let min_grid_y = max(0, min_grid_y);
-        let max_grid_y = min(self.grid[0].len() as usize - 1, max_grid_y);
+        let max_grid_y = min(self.grid[0].len() - 1, max_grid_y);
 
         for x in min_grid_x..=max_grid_x {
             for y in min_grid_y..=max_grid_y {

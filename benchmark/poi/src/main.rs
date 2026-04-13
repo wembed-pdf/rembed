@@ -67,10 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (category, pois) in &by_category {
         let cat_name = format!("{category:?}").to_lowercase();
-        if let Some(ref filter) = filter {
-            if !filter.iter().any(|f| f.to_lowercase() == cat_name) {
-                continue;
-            }
+        if let Some(ref filter) = filter
+            && !filter.iter().any(|f| f.to_lowercase() == cat_name)
+        {
+            continue;
         }
 
         let path = cli.output.join(format!("{cat_name}.csv"));
@@ -91,7 +91,7 @@ fn write_csv(
     for poi in pois {
         let name = poi.name.as_deref().unwrap_or("");
         // Escape name for CSV (quote if it contains comma or quote)
-        let name_escaped = if name.contains(',') || name.contains('"') || name.contains('\n') {
+        let _name_escaped = if name.contains(',') || name.contains('"') || name.contains('\n') {
             format!("\"{}\"", name.replace('"', "\"\""))
         } else {
             name.to_string()

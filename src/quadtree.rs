@@ -133,7 +133,7 @@ impl QuadtreeTree {
     pub const fn new(bound: Rect, node_capacity: usize, max_depth: usize) -> Self {
         Self {
             root: Node {
-                bound: bound,
+                bound,
                 children: None,
                 only_ids: Vec::new(),
                 data: Vec::new(),
@@ -208,12 +208,12 @@ impl Node {
             let mut groups = group_by_quadrant(self.bound, items).into_iter();
             for c in children {
                 let items = groups.next().unwrap();
-                if items.len() > 0 {
+                if !items.is_empty() {
                     c.insert_many(items, capacity, depth + 1, max_depth, failed)
                 }
             }
             let cur_failed = groups.next().unwrap();
-            if cur_failed.len() > 0 {
+            if !cur_failed.is_empty() {
                 failed.extend(cur_failed.into_iter().map(|item| item.id));
             }
             return;
@@ -236,7 +236,13 @@ impl Node {
     }
 
     fn query_ref(&self, shape: &TreeQuery, results: &mut Vec<NodeId>) {
-        if self.children.is_none() {
+        if let Some(children) = &self.children {
+            for child in children {
+                if child.bound.intersects(&shape.aabb) {
+                    child.query_ref(shape, results);
+                }
+            }
+        } else {
             if shape.contains_rect(&self.bound) {
                 results.extend_from_slice(&self.only_ids);
                 return;
@@ -245,12 +251,6 @@ impl Node {
             for item in self.data.iter() {
                 if shape.contains_fast(item.point) {
                     results.push(item.id);
-                }
-            }
-        } else {
-            for child in self.children.as_ref().unwrap() {
-                if child.bound.intersects(&shape.aabb) {
-                    child.query_ref(shape, results);
                 }
             }
         }

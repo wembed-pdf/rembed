@@ -82,7 +82,7 @@ impl LoadData {
                 || alpha_range.1 > 0.0
             {
                 let mut conditions = vec![];
-                if dim_range.1 > 0 && !dim_selection.is_none() {
+                if dim_range.1 > 0 && dim_selection.is_some() {
                     return Err("Cannot specify both dim_range and dim_selection"
                         .to_string()
                         .into());
@@ -103,7 +103,7 @@ impl LoadData {
                         graph_dim_range.0, graph_dim_range.1
                     ));
                 }
-                if n_range.1 > 0 && !n_selection.is_none() {
+                if n_range.1 > 0 && n_selection.is_some() {
                     return Err("Cannot specify both n_range and n_selection"
                         .to_string()
                         .into());
@@ -131,7 +131,7 @@ impl LoadData {
                     ));
                 }
 
-                if ple_range.1 > 0. && !ple_selection.is_none() {
+                if ple_range.1 > 0. && ple_selection.is_some() {
                     return Err("Cannot specify both ple_range and ple_selection"
                         .to_string()
                         .into());

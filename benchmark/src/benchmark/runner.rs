@@ -102,6 +102,7 @@ pub fn profile_datastructures<'a, const D: usize>(
     results
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn profile_datastructure_query<'a, const D: usize>(
     embedding: &Embedding<'a, D>,
     c: &mut BenchmarkGroup<WallTime>,
@@ -127,8 +128,8 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     c.sample_size(sample_count);
     let benchmark_id = format!("{}/{}", benchmark_type.as_str(), structure.name());
 
-    let queries = if query_pos_list.is_some() {
-        query_pos_list.as_ref().unwrap().len()
+    let queries = if let Some(ref qpl) = query_pos_list {
+        qpl.len()
     } else {
         query_list.len()
     };
@@ -157,8 +158,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                                 results.clear();
                                 structure.query_radius(
                                     pos,
-                                    radius.expect("Radius must be provided for queryset benchmarks")
-                                        as f64,
+                                    radius.expect("Radius must be provided for queryset benchmarks"),
                                     &mut results,
                                 );
                                 num_results += results.len();
@@ -167,9 +167,8 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                         }
                     }
                 }
-                let sample_bench = samples.stop(iters) / queries as u32;
                 result_counts.push(num_results as f64 / (queries as u64 * iters) as f64);
-                sample_bench
+                samples.stop(iters) / queries as u32
             });
         });
     } else {
@@ -194,8 +193,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                         }
                     }
                 }
-                let sample_bench = samples.stop(iters) / queries as u32;
-                sample_bench
+                samples.stop(iters) / queries as u32
             });
         });
     }

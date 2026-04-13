@@ -623,14 +623,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 max_query_points,
             };
 
-            if dimensions.is_some() && node_counts.is_some() {
+            if let (Some(dimensions), Some(node_counts)) = (dimensions, node_counts) {
                 config.dims = dimensions
-                    .unwrap()
                     .split(',')
                     .map(|s| s.trim().parse::<usize>())
                     .collect::<Result<Vec<usize>, _>>()?;
                 config.counts = node_counts
-                    .unwrap()
                     .split(',')
                     .map(|s| s.trim().parse::<usize>())
                     .collect::<Result<Vec<usize>, _>>()?;
@@ -655,25 +653,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Parse distributions
-            if distributions.is_some() {
-                config.distributions = Some(parse_distributions(distributions.unwrap().as_str())?);
+            if let Some(distributions) = distributions {
+                config.distributions = Some(parse_distributions(distributions.as_str())?);
             }
 
             // Parse benchmarksets
-            if benchmarksets.is_some() {
+            if let Some(ref benchmarksets) = benchmarksets {
                 assert!(
                     benchmarksets_path.is_some(),
                     "Benchmarksets path must be provided when benchmarksets are specified"
                 );
-                config.benchmarksets = Some(parse_benchmarksets(benchmarksets.as_ref().unwrap())?);
+                config.benchmarksets = Some(parse_benchmarksets(benchmarksets)?);
             }
 
-            if querysets.is_some() {
+            if let Some(ref querysets) = querysets {
                 assert!(
                     benchmarksets.is_some(),
                     "Queryset is only relevant if benchmarksets are specified"
                 );
-                config.querysets = Some(parse_benchmarksets(querysets.as_ref().unwrap())?);
+                config.querysets = Some(parse_benchmarksets(querysets)?);
             }
 
             let runner = DistributionBenchRunner::new(config);

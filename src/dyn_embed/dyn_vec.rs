@@ -24,9 +24,9 @@ impl Vector for DynVec {
         }
     }
 
-    fn from_fn(dim: usize, mut f: impl FnMut(usize) -> f32) -> Self {
+    fn from_fn(dim: usize, f: impl FnMut(usize) -> f32) -> Self {
         Self {
-            components: (0..dim).map(|i| f(i)).collect(),
+            components: (0..dim).map(f).collect(),
         }
     }
 

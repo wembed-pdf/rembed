@@ -49,7 +49,7 @@ impl<const D: usize> Layer<D> {
 
         let element_split = Self::element_split(positions.clone(), dim, NUM_BUCKETS, depth);
 
-        let spatial_split = Self::spatial_split(positions, dim, RESOLUTION, depth);
+        let _spatial_split = Self::spatial_split(positions, dim, RESOLUTION, depth);
 
         element_split
         // spatial_split
@@ -143,7 +143,7 @@ pub struct QueryParams {
     use_radius_reduction: bool,
     use_snn: bool,
     best_snn_dim: bool,
-    approx_snn_dim: bool,
+    _approx_snn_dim: bool,
     use_snn_with_radius_reduction: bool,
 }
 
@@ -159,7 +159,7 @@ impl QueryParams {
             use_radius_reduction,
             use_snn,
             best_snn_dim,
-            approx_snn_dim,
+            _approx_snn_dim: approx_snn_dim,
             use_snn_with_radius_reduction,
         }
     }
@@ -183,7 +183,7 @@ impl<const D: usize> DimReduction<D> {
         &self,
         id: usize,
         radius: f32,
-        results: &mut Vec<usize>,
+        _results: &mut [usize],
         stats: &mut Statistics,
         params: &QueryParams,
     ) {
@@ -191,8 +191,6 @@ impl<const D: usize> DimReduction<D> {
             self.positions[id],
             radius,
             DVec::zero(),
-            results,
-            0,
             &self.root,
             stats,
             params,
@@ -204,8 +202,6 @@ impl<const D: usize> DimReduction<D> {
         pos: DVec<D>,
         radius: f32,
         spatial_offset: DVec<D>,
-        results: &mut Vec<usize>,
-        depth: usize,
         layer: &Layer<D>,
         statistics: &mut Statistics,
         params: &QueryParams,
@@ -261,9 +257,9 @@ impl<const D: usize> DimReduction<D> {
         {
             let p = pos[*dim];
             // dbg!(p);
-            for (i, ((start, end), child)) in bucket_starts.iter().zip(children.iter()).enumerate()
+            for ((start, end), child) in bucket_starts.iter().zip(children.iter())
             {
-                // dbg!(i, start, end);
+                // dbg!(start, end);
                 let mut new_spatial_offset = spatial_offset;
                 if *end <= p {
                     new_spatial_offset[*dim] = p - *end;
@@ -307,8 +303,6 @@ impl<const D: usize> DimReduction<D> {
                         pos,
                         radius,
                         new_spatial_offset,
-                        results,
-                        depth + 1,
                         child,
                         statistics,
                         params,

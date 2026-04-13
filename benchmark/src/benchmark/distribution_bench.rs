@@ -57,77 +57,75 @@ impl DistributionBenchRunner {
     pub fn run(&self) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         let mut all_results = Vec::new();
         let fast = self.config.fast;
-        if self.config.distributions.is_some() && self.config.expected_queries.is_none() {
+        if let Some(distributions) = &self.config.distributions
+            && self.config.expected_queries.is_none()
+        {
             eprintln!("Running distribution benchmarks:");
-            eprintln!("  Dimensions: {:?}", self.config.dims);
-            eprintln!("  Node counts: {:?}", self.config.counts);
-            eprintln!("  Radiuses: {:?}", self.config.radii);
-            eprintln!(
-                "  Distributions: {:?}",
-                self.config
-                    .distributions
-                    .clone()
-                    .unwrap()
-                    .iter()
-                    .map(|d| d.name())
-                    .collect::<Vec<_>>()
-            );
-            eprintln!();
-            let total = self.config.dims.len()
-                * self.config.counts.len()
-                * self.config.radii.len()
-                * self.config.distributions.as_ref().unwrap().len();
-            let mut current = 0;
+                eprintln!("  Dimensions: {:?}", self.config.dims);
+                eprintln!("  Node counts: {:?}", self.config.counts);
+                eprintln!("  Radiuses: {:?}", self.config.radii);
+                eprintln!(
+                    "  Distributions: {:?}",
+                    distributions
+                        .iter()
+                        .map(|d| d.name())
+                        .collect::<Vec<_>>()
+                );
+                eprintln!();
+                let total = self.config.dims.len()
+                    * self.config.counts.len()
+                    * self.config.radii.len()
+                    * distributions.len();
+                let mut current = 0;
 
-            if self.config.parallel {
-                return Ok(self
-                    .config
-                    .dims
-                    .par_iter()
-                    .flat_map(|&dim| {
-                        self.config.counts.par_iter().map(move |&node_count| {
-                            let mut temp_results = Vec::new();
-                            self.run_benchmarks_for_dimension_and_nodecount(
-                                &mut temp_results,
-                                fast,
-                                total,
-                                &mut 0,
-                                dim,
-                                node_count,
-                            )
-                            .unwrap();
-                            temp_results
+                if self.config.parallel {
+                    return Ok(self
+                        .config
+                        .dims
+                        .par_iter()
+                        .flat_map(|&dim| {
+                            self.config.counts.par_iter().map(move |&node_count| {
+                                let mut temp_results = Vec::new();
+                                self.run_benchmarks_for_dimension_and_nodecount(
+                                    &mut temp_results,
+                                    fast,
+                                    total,
+                                    &mut 0,
+                                    dim,
+                                    node_count,
+                                )
+                                .unwrap();
+                                temp_results
+                            })
                         })
-                    })
-                    .flatten()
-                    .collect());
-            }
-
-            for &dim in &self.config.dims {
-                for &node_count in &self.config.counts {
-                    self.run_benchmarks_for_dimension_and_nodecount(
-                        &mut all_results,
-                        fast,
-                        total,
-                        &mut current,
-                        dim,
-                        node_count,
-                    )?;
+                        .flatten()
+                        .collect());
                 }
-            }
+
+                for &dim in &self.config.dims {
+                    for &node_count in &self.config.counts {
+                        self.run_benchmarks_for_dimension_and_nodecount(
+                            &mut all_results,
+                            fast,
+                            total,
+                            &mut current,
+                            dim,
+                            node_count,
+                        )?;
+                    }
+                }
         }
 
-        if self.config.distributions.is_some() && self.config.expected_queries.is_some() {
+        if let (Some(distributions), Some(expected_queries)) =
+            (&self.config.distributions, self.config.expected_queries)
+        {
             eprintln!("Generating centered benchmarks for expected queries:");
             eprintln!("  Dimensions: {:?}", self.config.dims);
             eprintln!("  Node counts: {:?}", self.config.counts);
             eprintln!("  Expected queries: {:?}", self.config.expected_queries);
             eprintln!(
                 "  Distributions: {:?}",
-                self.config
-                    .distributions
-                    .clone()
-                    .unwrap()
+                distributions
                     .iter()
                     .map(|d| d.name())
                     .collect::<Vec<_>>()
@@ -135,14 +133,14 @@ impl DistributionBenchRunner {
             eprintln!();
             let total = self.config.dims.len()
                 * self.config.counts.len()
-                * self.config.distributions.as_ref().unwrap().len();
+                * distributions.len();
             let pb = indicatif::ProgressBar::new(total as u64);
 
-            for distribution in self.config.distributions.as_ref().unwrap() {
+            for distribution in distributions {
                 eprintln!("Running distribution: {}", distribution.name());
                 for &dim in &self.config.dims {
                     for &node_count in &self.config.counts {
-                        let radius = (self.config.expected_queries.unwrap() as f64
+                        let radius = (expected_queries as f64
                             / node_count as f64
                             / hypersphere_volume_factor_recursive(dim))
                         .powf(1.0 / dim as f64);
@@ -209,12 +207,12 @@ impl DistributionBenchRunner {
                         self.config.querysets.is_none() || !self.config.all_to_all,
                         "querysets and all_to_all options are mutually exclusive"
                     );
-                    let queryset = if self.config.querysets.is_some() {
+                    let queryset = if let Some(querysets) = &self.config.querysets {
                         assert!(
-                            benchmarksets.len() == self.config.querysets.as_ref().unwrap().len(),
+                            benchmarksets.len() == querysets.len(),
                             "Number of querysets must match number of benchmarksets"
                         );
-                        let queryset = &self.config.querysets.as_ref().unwrap()[i];
+                        let queryset = &querysets[i];
                         eprintln!(
                             "Using queryset: {} for benchmarkset: {}",
                             queryset, benchmarkset
@@ -264,7 +262,8 @@ impl DistributionBenchRunner {
             let radius =
                 (expected as f64 / node_count as f64 / hypersphere_volume_factor_recursive(dim))
                     .powf(1.0 / dim as f64);
-            for distribution in self.config.distributions.as_ref().unwrap() {
+            if let Some(distributions) = &self.config.distributions {
+            for distribution in distributions {
                 *current += 1;
                 eprintln!(
                     "[{}/{}] Running dim={}, n={}, r~{:.3}, dist={}",
@@ -287,9 +286,11 @@ impl DistributionBenchRunner {
 
                 all_results.extend(results);
             }
+            }
         } else {
             for &radius in &self.config.radii {
-                for distribution in self.config.distributions.as_ref().unwrap() {
+                if let Some(distributions) = &self.config.distributions {
+                for distribution in distributions {
                     *current += 1;
                     eprintln!(
                         "[{}/{}] Running dim={}, n={}, r={}, dist={}",
@@ -311,6 +312,7 @@ impl DistributionBenchRunner {
                     )?;
 
                     all_results.extend(results);
+                }
                 }
             }
         };
@@ -410,9 +412,8 @@ impl DistributionBenchRunner {
             node_count
         ));
 
-        let query_pos_list = if queryset.is_some() {
+        let query_pos_list = if let Some(queryset) = queryset {
             let all_points: Vec<rembed::dvec::DVec<D>> = queryset
-                .unwrap()
                 .iter()
                 .map(|q| {
                     assert_eq!(
@@ -452,7 +453,7 @@ impl DistributionBenchRunner {
                 &mut group,
                 &query_indices,
                 query_pos_list.clone(),
-                Some(radius as f64),
+                Some(radius),
                 runner::BenchmarkType::Radius(radius as f32, format!("radius_{}", radius)),
                 structure.as_ref(),
                 fast,

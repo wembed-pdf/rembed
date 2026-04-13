@@ -4,7 +4,7 @@
 //! This requires the snnpy repository to be cloned into the same directory as src e.g. py-snn/snn
 //! implementations using PyO3 and NumPy for minimal data transfer overhead.
 
-use std::{os::unix::thread, sync::Once};
+use std::sync::Once;
 
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
@@ -35,7 +35,7 @@ pub struct SnnIndex {
     tree: PyObject,
     num_points: usize,
     dimensions: usize,
-    threadpool_limits: PyObject,
+    _threadpool_limits: PyObject,
 }
 
 impl SnnIndex {
@@ -63,8 +63,7 @@ impl SnnIndex {
 
             // snn = build_snn_model(fmn_train)
             let build_snn_model = snn_lib.getattr("build_snn_model")?;
-            let points_f64: Vec<f32> = points.iter().map(|&x| x as f32).collect();
-            let points_array = PyArray1::from_slice(py, &points_f64);
+            let points_array = PyArray1::from_slice(py, points);
             let points_reshaped = points_array.reshape([num_points, dimensions])?;
             let snn = build_snn_model.call1((points_reshaped, leaf_size))?;
             let threadpool_limits = py.import("threadpoolctl")?.getattr("threadpool_limits")?;
@@ -74,7 +73,7 @@ impl SnnIndex {
 
             Ok(Self {
                 tree: snn.into(),
-                threadpool_limits: threadpool_limits.into(),
+                _threadpool_limits: threadpool_limits.into(),
                 num_points,
                 dimensions,
             })
@@ -92,12 +91,12 @@ impl SnnIndex {
     pub fn radius_search(&self, query_point: &[f32], radius: f64) -> PyResult<Vec<usize>> {
         Python::with_gil(|py| {
             let query_array: Bound<'_, numpy::PyArray<f32, numpy::ndarray::Dim<[usize; 1]>>> =
-                PyArray1::from_slice(py, &query_point);
+                PyArray1::from_slice(py, query_point);
 
             let tree = self.tree.bind(py);
             let result = tree.call_method1("query_radius", (query_array, radius + 1e-2))?;
 
-            Ok(result.extract::<Vec<usize>>()?)
+            result.extract::<Vec<usize>>()
         })
     }
 

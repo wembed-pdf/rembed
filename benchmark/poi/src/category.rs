@@ -14,7 +14,7 @@ pub enum Category {
     Parking,
 
     // Finance
-    ATM,
+    Atm,
     Bank,
 
     // Food & Drink
@@ -44,12 +44,13 @@ pub enum Category {
 
 impl Category {
     /// All known categories, for iteration.
+    #[allow(dead_code)]
     pub const ALL: &[Category] = &[
         Category::TrainStation,
         Category::BusStop,
         Category::TramStop,
         Category::Parking,
-        Category::ATM,
+        Category::Atm,
         Category::Bank,
         Category::Restaurant,
         Category::Cafe,
