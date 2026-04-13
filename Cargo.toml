@@ -4,6 +4,7 @@ members = [
     "benchmark",
     "benchmark/poi",
     "simulation",
+    "embedder-cli",
     # "nanoflann"
     # "sklearn"
 ]
@@ -53,3 +54,14 @@ default = []
 
 [profile.release]
 debug = true
+
+# Optimize spatial index code even in debug builds so `cargo run -p embedder-cli`
+# is fast without requiring --release.
+[profile.dev.package.rembed]
+opt-level = 3
+
+[profile.dev.package.sprk]
+opt-level = 3
+
+[profile.dev.package.embedder-cli]
+opt-level = 3

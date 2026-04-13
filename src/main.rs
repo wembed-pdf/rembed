@@ -6,14 +6,14 @@ fn main() -> io::Result<()> {
     let graph_name = "rel8";
     // let graph_name = "bio-grid-fruitfly";
 
-    const D: usize = 2;
+    const D: usize = 8;
     let dim_hint = D;
 
-    let _graph = &format!("data/{}/graph", graph_name);
+    let graph = &format!("data/{}/graph", graph_name);
     // let graph = "data/generated/graphs/1084_girg_n-1000_deg-25_dim-2_ple-2.5_alpha-inf_wseed-14_pseed-132_sseed-1402";
     // let graph = "data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
-    let graph = "data/generated/graphs/73_girg_n-10000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
+    // let graph = "data/generated/graphs/73_girg_n-10000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/609.gr";
     // let graph = "../praktikum-beating-the-worst-case-framework-rust-uwu/instances/graphs/72.gr";
@@ -30,12 +30,12 @@ fn main() -> io::Result<()> {
         // max_iterations: 500,
         ..Default::default()
     };
-    let embedder: embedder::WEmbedder<Sprk<_>, D> =
+    let embedder: embedder::WEmbedder<Sprk<_>> =
         embedder::WEmbedder::random(42, &graph, options.clone());
     // let mut embedder: embedder::WEmbedder<DynamicQuery<_, Sprk<_>>, D> =
     //     embedder::WEmbedder::random(42, &graph, options);
     let positions = embedder.positions().to_vec();
-    let embedding = Embedding {
+    let embedding: Embedding<'_, D> = Embedding {
         positions,
         graph: &graph,
     };
@@ -53,7 +53,7 @@ fn main() -> io::Result<()> {
     let mut last_time = Instant::now();
     embedder.embed_with_callback(|e| {
         let i = e.iteration();
-        if i % 10 == 0 && i > 0 {
+        if i % 100 == 0 && i > 0 {
             eprintln!(
                 "Iteration {i}, Δp{}, {:.1}s",
                 e.last_pos_delta().unwrap_or_default(),

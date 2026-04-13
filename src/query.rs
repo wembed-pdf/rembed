@@ -1,4 +1,5 @@
 use crate::{Embedding, NodeId, dvec::DVec};
+use rayon::prelude::*;
 
 pub trait Graph {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool;
@@ -23,7 +24,7 @@ impl<const D: usize, T: Clone + Sized + SpatialIndex<D> + Sync> IndexClone<D> fo
     }
 }
 
-pub trait SpatialIndex<const D: usize>: Query<D> + Update<D> + Graph + Position<D> {
+pub trait SpatialIndex<const D: usize>: Query<D> + Update<D> + Graph + Position<D> + Sync {
     fn name(&self) -> String;
 
     /// Returns the source code implementation as a string for checksum calculation.
@@ -62,18 +63,29 @@ pub trait Query<const D: usize>: Position<D> + Graph {
     }
 
     /// Runs a batch of nn queries and makes the result symmetric
-    fn nearest_neighbors_batched(&self, indices: &[usize]) -> Vec<Vec<usize>> {
-        let mut results = vec![vec![]; indices.len()];
-        for &index in indices {
-            for other_node_id in self.nearest_neighbors_owned(index, 1.) {
-                results[other_node_id].push(index);
-                results[index].push(other_node_id);
+    fn nearest_neighbors_batched(&self, indices: &[usize]) -> Vec<Vec<usize>>
+    where
+        Self: Sync,
+    {
+        let n = indices.len();
+        // Run all NN queries in parallel
+        let per_node: Vec<Vec<usize>> = indices
+            .par_iter()
+            .map(|&index| self.nearest_neighbors_owned(index, 1.))
+            .collect();
+
+        // Symmetrize: merge forward edges and reverse edges
+        let mut results = vec![vec![]; n];
+        for (index, neighbors) in per_node.into_iter().enumerate() {
+            for other in neighbors {
+                results[index].push(other);
+                results[other].push(index);
             }
         }
-        for vec in &mut results {
+        results.par_iter_mut().for_each(|vec| {
             vec.sort_unstable();
             vec.dedup();
-        }
+        });
         results
     }
 }
@@ -111,52 +123,57 @@ pub trait Embedder<'a, const D: usize>: Query<D> + Update<D> + Graph + Position<
         })
     }
 
-    fn graph_statistics(&self) -> (f64, f64) {
+    fn graph_statistics(&self) -> (f64, f64)
+    where
+        Self: Sync,
+    {
         let ids: Vec<_> = (0..(self.num_nodes())).collect();
         let results = self.nearest_neighbors_batched(&ids);
-        let mut found_edges = 0;
-        let mut found_non_edges = 0;
 
         // Count total edges in graph
-        let mut total_edges = 0;
-        for i in 0..self.num_nodes() {
-            total_edges += self.neighbors(i).len();
-        }
-        // dbg!(total_edges);
-        total_edges /= 2; // Each edge counted twice
+        let total_edges: usize =
+            (0..self.num_nodes()).map(|i| self.neighbors(i).len()).sum::<usize>() / 2;
 
-        // let total_sum: usize = results.iter().map(|x| x.len()).sum();
-        // dbg!(total_sum);
-        for (i, close_nodes) in results.iter().enumerate() {
-            for close_node in close_nodes {
-                if i == *close_node {
-                    continue;
-                }
-                let within_dist = (self
-                    .position(i)
-                    .distance_squared(self.position(*close_node))
-                    as f64)
-                    < (self.weight(*close_node) * self.weight(i)).powi(2);
+        // precision, recall
+        let (found_edges, found_non_edges) = results
+            .par_iter()
+            .enumerate()
+            .map(|(i, close_nodes)| {
+                let mut edges = 0usize;
+                let mut non_edges = 0usize;
+                for &close_node in close_nodes {
+                    if i == close_node {
+                        continue;
+                    }
+                    let within_dist = (self
+                        .position(i)
+                        .distance_squared(self.position(close_node))
+                        as f64)
+                        < (self.weight(close_node) * self.weight(i)).powi(2);
 
-                if self.is_connected(i, *close_node) && within_dist {
-                    found_edges += 1;
-                } else if within_dist {
-                    found_non_edges += 1;
+                    if self.is_connected(i, close_node) && within_dist {
+                        edges += 1;
+                    } else if within_dist {
+                        non_edges += 1;
+                    }
                 }
-            }
-        }
+                (edges, non_edges)
+            })
+            .reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
 
         // Adjust for double-counting (since results are symmetric)
-        found_edges /= 2;
-        found_non_edges /= 2;
+        let found_edges = found_edges / 2;
+        let found_non_edges = found_non_edges / 2;
 
         (
-            // precision, recall
             found_edges as f64 / (found_edges + found_non_edges).max(1) as f64,
             found_edges as f64 / total_edges as f64,
         )
     }
-    fn f1(&self) -> f64 {
+    fn f1(&self) -> f64
+    where
+        Self: Sync,
+    {
         let (precision, recall) = self.graph_statistics();
         2. / (recall.recip() + precision.recip())
     }

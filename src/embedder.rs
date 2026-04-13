@@ -2,9 +2,10 @@ use std::sync::Mutex;
 
 use crate::{
     NodeId,
-    dvec::DVec,
+    dvec::Vector,
+    dyn_embed::EmbedIndex,
     graph::Graph,
-    query::{Embedder, Graph as GraphTrait, Query},
+    query::Embedder,
 };
 use rand::{Rng, rngs::SmallRng};
 use rayon::prelude::*;
@@ -35,11 +36,12 @@ impl Default for EmbedderOptions {
     }
 }
 
-/// Adam optimizer for gradient descent
-pub struct AdamOptimizer<const D: usize> {
-    m: Vec<DVec<D>>, // First moment estimates
-    v: Vec<DVec<D>>, // Second moment estimates
-    t: usize,        // Time step
+/// Adam optimizer for gradient descent, generic over vector type.
+pub struct AdamOptimizer<V: Vector> {
+    m: Vec<V>,    // First moment estimates
+    v: Vec<V>,    // Second moment estimates
+    t: usize,     // Time step
+    dim: usize,
 
     learning_rate: f64,
     cooling_factor: f64,
@@ -48,12 +50,13 @@ pub struct AdamOptimizer<const D: usize> {
     epsilon: f64,
 }
 
-impl<const D: usize> AdamOptimizer<D> {
-    pub fn new(num_nodes: usize, learning_rate: f64, cooling_factor: f64) -> Self {
+impl<V: Vector> AdamOptimizer<V> {
+    pub fn new(num_nodes: usize, dim: usize, learning_rate: f64, cooling_factor: f64) -> Self {
         Self {
-            m: vec![DVec::zero(); num_nodes],
-            v: vec![DVec::zero(); num_nodes],
+            m: vec![V::zero(dim); num_nodes],
+            v: vec![V::zero(dim); num_nodes],
             t: 0,
+            dim,
             learning_rate,
             cooling_factor,
             beta1: 0.9,
@@ -62,22 +65,23 @@ impl<const D: usize> AdamOptimizer<D> {
         }
     }
 
-    pub fn update(&mut self, positions: &mut [DVec<D>], forces: &[DVec<D>]) {
+    pub fn update(&mut self, positions: &mut [V], forces: &[V]) {
         self.t += 1;
         let cooling = self.cooling_factor.powi(self.t as i32) as f32;
 
         for i in 0..positions.len() {
             // Update biased first moment estimate
-            self.m[i] = self.m[i] * (self.beta1 as f32) + forces[i] * ((1.0 - self.beta1) as f32);
+            self.m[i] =
+                self.m[i].clone() * (self.beta1 as f32) + forces[i].clone() * ((1.0 - self.beta1) as f32);
 
             // Update biased second moment estimate
             let force_squared = forces[i].map(|x| x * x);
             self.v[i] =
-                self.v[i] * (self.beta2 as f32) + force_squared * ((1.0 - self.beta2) as f32);
+                self.v[i].clone() * (self.beta2 as f32) + force_squared * ((1.0 - self.beta2) as f32);
 
             // Compute bias-corrected moments
-            let m_hat = self.m[i] / ((1.0 - self.beta1.powi(self.t as i32)) as f32);
-            let v_hat = self.v[i] / ((1.0 - self.beta2.powi(self.t as i32)) as f32);
+            let m_hat = self.m[i].clone() / ((1.0 - self.beta1.powi(self.t as i32)) as f32);
+            let v_hat = self.v[i].clone() / ((1.0 - self.beta2.powi(self.t as i32)) as f32);
 
             // Update parameters
             let update = m_hat * (cooling * self.learning_rate as f32)
@@ -89,22 +93,22 @@ impl<const D: usize> AdamOptimizer<D> {
     pub fn reset(&mut self) {
         self.t = 0;
         for i in 0..self.m.len() {
-            self.m[i] = DVec::zero();
-            self.v[i] = DVec::zero();
+            self.m[i] = V::zero(self.dim);
+            self.v[i] = V::zero(self.dim);
         }
     }
 }
 
-/// Main weighted embedder with generic spatial index
-pub struct WEmbedder<SI: Query<D>, const D: usize> {
+/// Main weighted embedder, generic over the spatial index via [`EmbedIndex`].
+pub struct WEmbedder<SI: EmbedIndex> {
     // Node data
-    positions: Vec<DVec<D>>,
+    positions: Vec<SI::Vec>,
     weights: Vec<f64>,
-    forces: Vec<DVec<D>>,
-    old_positions: Vec<DVec<D>>,
-    positions_log: Vec<(u64, Vec<DVec<D>>)>,
+    forces: Vec<SI::Vec>,
+    old_positions: Vec<SI::Vec>,
+    positions_log: Vec<(u64, Vec<SI::Vec>)>,
 
-    // Helpers for symmetricfication
+    // Helpers for symmetrification
     query_cache: Vec<Vec<NodeId>>,
     repulsion_mutexes: Vec<Mutex<Vec<usize>>>,
 
@@ -112,7 +116,9 @@ pub struct WEmbedder<SI: Query<D>, const D: usize> {
     pub spatial_index: SI,
 
     // Optimizer
-    optimizer: AdamOptimizer<D>,
+    optimizer: AdamOptimizer<SI::Vec>,
+
+    dim: usize,
 
     // Configuration
     options: EmbedderOptions,
@@ -121,8 +127,13 @@ pub struct WEmbedder<SI: Query<D>, const D: usize> {
     print_timings: bool,
 }
 
-impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
+/// Constructor for const-generic spatial indices that implement `Embedder<'a, D>`.
+impl<'a, SI, const D: usize> WEmbedder<SI>
+where
+    SI: Embedder<'a, D> + EmbedIndex<Vec = crate::dvec::DVec<D>>,
+{
     pub fn random(seed: u64, graph: &'a Graph, options: EmbedderOptions) -> Self {
+        use crate::dvec::DVec;
         let n = graph.nodes.len();
 
         // Initialize random positions
@@ -139,12 +150,22 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
         Self::new(spatial_index, options)
     }
+}
+
+impl<SI: EmbedIndex> WEmbedder<SI> {
     pub fn new(spatial_index: SI, options: EmbedderOptions) -> Self {
         let n = spatial_index.num_nodes();
         let learning_rate = options.learning_rate;
         let cooling_factor = options.cooling_factor;
+        let dim = if n > 0 {
+            spatial_index.position(0).dim()
+        } else {
+            0
+        };
 
-        let positions: Vec<_> = (0..n).map(|node| *spatial_index.position(node)).collect();
+        let positions: Vec<_> = (0..n)
+            .map(|node| spatial_index.position(node).clone())
+            .collect();
 
         // Extract weights from graph
         let weights: Vec<f64> = (0..n).map(|node| spatial_index.weight(node)).collect();
@@ -152,14 +173,15 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         Self {
             positions,
             weights,
-            forces: vec![DVec::zero(); n],
-            old_positions: vec![DVec::zero(); n],
+            forces: vec![SI::Vec::zero(dim); n],
+            old_positions: vec![SI::Vec::zero(dim); n],
             positions_log: Vec::new(),
             query_cache: vec![Vec::with_capacity(10); n],
             repulsion_mutexes: (0..n).map(|_| Mutex::new(Vec::with_capacity(10))).collect(),
             spatial_index,
-            optimizer: AdamOptimizer::new(n, learning_rate, cooling_factor),
+            optimizer: AdamOptimizer::new(n, dim, learning_rate, cooling_factor),
             print_timings: options.print_timings,
+            dim,
             options,
             iteration: 0,
             last_relative_change: None,
@@ -167,11 +189,11 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     }
 
     /// Run the embedding algorithm until convergence or max iterations
-    pub fn embed(&mut self) -> Vec<DVec<D>> {
+    pub fn embed(&mut self) -> Vec<SI::Vec> {
         self.embed_with_callback(|_| {})
     }
     /// Run the embedding algorithm until convergence or max iterations
-    pub fn embed_with_callback(&mut self, mut callback: impl FnMut(&Self)) -> Vec<DVec<D>> {
+    pub fn embed_with_callback(&mut self, mut callback: impl FnMut(&Self)) -> Vec<SI::Vec> {
         self.optimizer.reset();
 
         loop {
@@ -199,7 +221,9 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         }
 
         // Clear forces
-        self.forces.iter_mut().for_each(|f| *f = DVec::zero());
+        self.forces
+            .iter_mut()
+            .for_each(|f| *f = SI::Vec::zero(self.dim));
         let reset = update_start.elapsed();
 
         // Update spatial index
@@ -238,14 +262,15 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     }
 
     fn calculate_attraction_forces(&mut self) {
+        let dim = self.dim;
         // Calculate forces for each node in parallel using neighbor lists
-        let forces: Vec<DVec<D>> = (0..self.positions.len())
+        let forces: Vec<SI::Vec> = (0..self.positions.len())
             .into_par_iter()
             .map(|v| {
-                let mut force = DVec::zero();
+                let mut force = SI::Vec::zero(dim);
 
                 // Get neighbors from graph
-                let neighbors = GraphTrait::neighbors(&self.spatial_index, v);
+                let neighbors = self.spatial_index.neighbors(v);
 
                 // Calculate attraction force for each neighbor
                 for &u in neighbors {
@@ -261,9 +286,9 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         self.forces = forces;
     }
 
-    fn attraction_force(&self, u: NodeId, v: NodeId) -> DVec<D> {
-        let pos_u = self.positions[u];
-        let pos_v = self.positions[v];
+    fn attraction_force(&self, u: NodeId, v: NodeId) -> SI::Vec {
+        let pos_u = self.positions[u].clone();
+        let pos_v = self.positions[v].clone();
 
         let direction = pos_v - pos_u;
         let distance = direction.magnitude();
@@ -271,7 +296,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         if distance == 0.0 {
             // Random displacement if positions are identical
             let mut rng = rand::rng();
-            return DVec::from_fn(|_| rng.random_range(-0.01..0.01));
+            return SI::Vec::from_fn(self.dim, |_| rng.random_range(-0.01..0.01));
         }
 
         let weight_factor = self.weights[u] * self.weights[v];
@@ -279,14 +304,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
         if weighted_distance <= 1.0 {
             // Already close enough
-            DVec::zero()
-            // This can be used to give nodes a minimal distance
-            // if weighted_distance <= 0.6 {
-            //     -direction
-            //         * (self.options.attraction_scale / (distance as f64 * weight_factor)) as f32
-            // } else {
-            //     DVec::zero()
-            // }
+            SI::Vec::zero(self.dim)
         } else {
             // Attraction force
             direction * (self.options.attraction_scale / (distance as f64 * weight_factor)) as f32
@@ -313,11 +331,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
                 // Find nearby nodes that might repel
                 self.spatial_index.repelling_nodes(v, cache);
 
-                // cache.sort_unstable();
-                // cache.dedup();
-
                 for candidate in cache {
-                    // self.node_results_sender[*candidate].send(v).unwrap();
                     self.repulsion_mutexes[*candidate].lock().unwrap().push(v);
                 }
             });
@@ -327,18 +341,15 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
             .zip(self.query_cache.par_iter_mut())
             .for_each(|(candidates, cache)| {
                 cache.extend(candidates.lock().unwrap().drain(..));
-                // Since the queries are 100% symmetric using the id as a tie braker, we know that we can't have duplicates
-                // cache.sort_unstable();
-                // cache.dedup();
             });
 
         // Stage 2: Calculate repulsion forces in parallel
-        let new_forces: Vec<DVec<D>> = self
+        let new_forces: Vec<SI::Vec> = self
             .query_cache
             .par_iter()
             .enumerate()
             .map(|(v, results)| {
-                let mut force = self.forces[v]; // Start with existing attraction force
+                let mut force = self.forces[v].clone(); // Start with existing attraction force
 
                 // Add repulsion forces from all candidates
                 for &u in results {
@@ -354,9 +365,9 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         self.forces = new_forces;
     }
 
-    fn repulsion_force(&self, v: NodeId, u: NodeId) -> DVec<D> {
-        let pos_v = self.positions[v];
-        let pos_u = self.positions[u];
+    fn repulsion_force(&self, v: NodeId, u: NodeId) -> SI::Vec {
+        let pos_v = self.positions[v].clone();
+        let pos_u = self.positions[u].clone();
 
         let direction = pos_v - pos_u;
         let distance = direction.magnitude();
@@ -364,7 +375,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         if distance == 0.0 {
             // Random displacement if positions are identical
             let mut rng = rand::rng();
-            return DVec::from_fn(|_| rng.random_range(-0.01..0.01));
+            return SI::Vec::from_fn(self.dim, |_| rng.random_range(-0.01..0.01));
         }
 
         let weight_factor = self.weights[v] * self.weights[u];
@@ -372,7 +383,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
 
         if weighted_distance > 1.0 {
             // Far enough apart
-            DVec::zero()
+            SI::Vec::zero(self.dim)
         } else {
             // Repulsion force
             direction * (self.options.repulsion_scale / (distance as f64 * weight_factor)) as f32
@@ -385,7 +396,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
             .iter()
             .zip(&self.old_positions)
             .map(|(new_pos, old_pos)| {
-                let diff = *new_pos - *old_pos;
+                let diff = new_pos.clone() - old_pos.clone();
                 (old_pos.magnitude_squared(), diff.magnitude_squared())
             })
             .fold(
@@ -409,12 +420,12 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
     }
 
     /// Get the current positions
-    pub fn positions(&self) -> &[DVec<D>] {
+    pub fn positions(&self) -> &[SI::Vec] {
         &self.positions
     }
 
     /// Get the history of positions
-    pub fn history(&self) -> &[(u64, Vec<DVec<D>>)] {
+    pub fn history(&self) -> &[(u64, Vec<SI::Vec>)] {
         &self.positions_log
     }
 
@@ -428,7 +439,7 @@ impl<'a, SI: Embedder<'a, D> + Clone + Sync, const D: usize> WEmbedder<SI, D> {
         &self.query_cache
     }
 
-    // Get the current query_cache
+    // Get the last position delta
     pub fn last_pos_delta(&self) -> &Option<f64> {
         &self.last_relative_change
     }
@@ -596,7 +607,6 @@ mod tests {
                             from, to, nodes[*from].1, nodes[*to].1,
                         )
                     }
-                    // dbg!(&embedder.positions);
                     panic!();
                 }
                 break;

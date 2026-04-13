@@ -50,7 +50,7 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
     // let mut embedder: embedder::WEmbedder<Sprk<_>, D> =
     //     embedder::WEmbedder::random(42, graph, options);
     let mut embedder =
-        embedder::WEmbedder::<DynamicQuery<_, Sprk<_>>, D>::random(42, graph, options);
+        embedder::WEmbedder::<DynamicQuery<D, Sprk<D>>>::random(42, graph, options);
 
     embedder.embed_with_callback(|e| {
         let i = e.iteration();
@@ -58,7 +58,7 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
             // eprintln!("Iteration {i}");
         }
     });
-    let pos = embedder.positions();
+    let pos: &[rembed::dvec::DVec<D>] = embedder.positions();
 
     let analysis = simulation::radius_reduction::DimReduction::new(pos.to_vec());
 

@@ -147,7 +147,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for DynamicQuery<'a, D, I
         }
     }
 }
-impl<'a, const D: usize, ID: Embedder<'a, D>> SpatialIndex<D> for DynamicQuery<'a, D, ID> {
+impl<'a, const D: usize, ID: Embedder<'a, D> + Sync> SpatialIndex<D> for DynamicQuery<'a, D, ID> {
     fn name(&self) -> String {
         String::from("dynamic queries")
     }

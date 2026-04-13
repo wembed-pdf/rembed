@@ -105,7 +105,7 @@ fn main() -> io::Result<()> {
 
     // Generate initial embedding with Sprk
     eprintln!("Generating initial embedding...");
-    let embedder: WEmbedder<Sprk<_>, D> = WEmbedder::random(42, &graph, options.clone());
+    let embedder: WEmbedder<Sprk<_>> = WEmbedder::random(42, &graph, options.clone());
     let positions = embedder.positions().to_vec();
     let embedding = Embedding {
         positions,

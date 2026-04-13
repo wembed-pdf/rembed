@@ -73,7 +73,7 @@ impl<'a, const D: usize, ID: Embedder<'a, D>> Query<D> for LossyQuery<'a, D, ID>
         self.structure.nearest_neighbors(index, radius, results)
     }
 }
-impl<'a, const D: usize, ID: Embedder<'a, D>> SpatialIndex<D> for LossyQuery<'a, D, ID> {
+impl<'a, const D: usize, ID: Embedder<'a, D> + Sync> SpatialIndex<D> for LossyQuery<'a, D, ID> {
     fn name(&self) -> String {
         String::from("lossy queries")
     }

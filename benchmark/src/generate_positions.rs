@@ -167,14 +167,14 @@ fn run_embedding_dynamic(
         _ => unreachable!("not compiled for dim {dim}"),
     }
 }
-fn run_embedding<'a, const D: usize, SI: SpatialIndex<D> + Clone + Sync + Embedder<'a, D>>(
+fn run_embedding<'a, const D: usize, SI: SpatialIndex<D> + Clone + Sync + Embedder<'a, D> + rembed::dyn_embed::EmbedIndex<Vec = rembed::dvec::DVec<D>>>(
     seed: u64,
     graph: &'a rembed::graph::Graph,
     options: EmbedderOptions,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let max_iterations = options.max_iterations;
-    let mut embedder: WEmbedder<SI, D> = WEmbedder::random(seed, graph, options);
+    let mut embedder: WEmbedder<SI> = WEmbedder::random(seed, graph, options);
     let progress_bar = crate::create_progress_bar(max_iterations);
     embedder.embed_with_callback(|embedder| {
         progress_bar.inc(1);

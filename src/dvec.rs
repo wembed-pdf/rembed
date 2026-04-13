@@ -4,6 +4,66 @@ use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
 
+/// Trait abstracting over fixed-size `DVec<D>` and heap-allocated `DynVec`.
+///
+/// Enables the embedder and optimizer to be generic over the vector
+/// representation, so the same algorithm works with compile-time and
+/// runtime dimensionality.
+pub trait Vector:
+    Clone
+    + Send
+    + Sync
+    + Add<Output = Self>
+    + AddAssign
+    + Sub<Output = Self>
+    + Mul<f32, Output = Self>
+    + Div<f32, Output = Self>
+    + Div<Self, Output = Self>
+    + Mul<Self, Output = Self>
+    + Neg<Output = Self>
+    + fmt::Debug
+{
+    fn zero(dim: usize) -> Self;
+    fn from_fn(dim: usize, f: impl FnMut(usize) -> f32) -> Self;
+    fn magnitude(&self) -> f32;
+    fn magnitude_squared(&self) -> f32;
+    fn distance_squared(&self, other: &Self) -> f32;
+    fn map(&self, f: impl FnMut(f32) -> f32) -> Self;
+    fn dim(&self) -> usize;
+}
+
+impl<const D: usize> Vector for DVec<D> {
+    fn zero(dim: usize) -> Self {
+        debug_assert_eq!(dim, D);
+        Self::zero()
+    }
+
+    fn from_fn(dim: usize, f: impl FnMut(usize) -> f32) -> Self {
+        debug_assert_eq!(dim, D);
+        Self::from_fn(f)
+    }
+
+    fn magnitude(&self) -> f32 {
+        self.magnitude()
+    }
+
+    fn magnitude_squared(&self) -> f32 {
+        self.magnitude_squared()
+    }
+
+    fn distance_squared(&self, other: &Self) -> f32 {
+        self.distance_squared(other)
+    }
+
+    fn map(&self, f: impl FnMut(f32) -> f32) -> Self {
+        self.map(f)
+    }
+
+    fn dim(&self) -> usize {
+        D
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialOrd)]
 #[repr(transparent)]
 pub struct DVec<const D: usize> {
