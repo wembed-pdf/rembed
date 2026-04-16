@@ -149,11 +149,17 @@ BoostRTreeIndex* boost_rtree_create_index(
         case 2: return create_impl<2>(points, num_points, dimensions);
         case 3: return create_impl<3>(points, num_points, dimensions);
         case 4: return create_impl<4>(points, num_points, dimensions);
+        case 5: return create_impl<5>(points, num_points, dimensions);
         case 6: return create_impl<6>(points, num_points, dimensions);
+        case 7: return create_impl<7>(points, num_points, dimensions);
         case 8: return create_impl<8>(points, num_points, dimensions);
+        case 9: return create_impl<9>(points, num_points, dimensions);
         case 10: return create_impl<10>(points, num_points, dimensions);
+        case 11: return create_impl<11>(points, num_points, dimensions);
         case 12: return create_impl<12>(points, num_points, dimensions);
+        case 13: return create_impl<13>(points, num_points, dimensions);
         case 14: return create_impl<14>(points, num_points, dimensions);
+        case 15: return create_impl<15>(points, num_points, dimensions);
         case 16: return create_impl<16>(points, num_points, dimensions);
         default:
             // For unsupported dimensions, return nullptr
@@ -165,33 +171,21 @@ void boost_rtree_destroy_index(BoostRTreeIndex* index) {
     if (!index) return;
 
     switch (index->dimensions) {
-        case 2:
-            delete static_cast<BoostRTreeImpl<2>*>(index->impl);
-            break;
-        case 3:
-            delete static_cast<BoostRTreeImpl<3>*>(index->impl);
-            break;
-        case 4:
-            delete static_cast<BoostRTreeImpl<4>*>(index->impl);
-            break;
-        case 6:
-            delete static_cast<BoostRTreeImpl<6>*>(index->impl);
-            break;
-        case 8:
-            delete static_cast<BoostRTreeImpl<8>*>(index->impl);
-            break;
-        case 10:
-            delete static_cast<BoostRTreeImpl<10>*>(index->impl);
-            break;
-        case 12:
-            delete static_cast<BoostRTreeImpl<12>*>(index->impl);
-            break;
-        case 14:
-            delete static_cast<BoostRTreeImpl<14>*>(index->impl);
-            break;
-        case 16:
-            delete static_cast<BoostRTreeImpl<16>*>(index->impl);
-            break;
+        case 2:  delete static_cast<BoostRTreeImpl<2>*>(index->impl);  break;
+        case 3:  delete static_cast<BoostRTreeImpl<3>*>(index->impl);  break;
+        case 4:  delete static_cast<BoostRTreeImpl<4>*>(index->impl);  break;
+        case 5:  delete static_cast<BoostRTreeImpl<5>*>(index->impl);  break;
+        case 6:  delete static_cast<BoostRTreeImpl<6>*>(index->impl);  break;
+        case 7:  delete static_cast<BoostRTreeImpl<7>*>(index->impl);  break;
+        case 8:  delete static_cast<BoostRTreeImpl<8>*>(index->impl);  break;
+        case 9:  delete static_cast<BoostRTreeImpl<9>*>(index->impl);  break;
+        case 10: delete static_cast<BoostRTreeImpl<10>*>(index->impl); break;
+        case 11: delete static_cast<BoostRTreeImpl<11>*>(index->impl); break;
+        case 12: delete static_cast<BoostRTreeImpl<12>*>(index->impl); break;
+        case 13: delete static_cast<BoostRTreeImpl<13>*>(index->impl); break;
+        case 14: delete static_cast<BoostRTreeImpl<14>*>(index->impl); break;
+        case 15: delete static_cast<BoostRTreeImpl<15>*>(index->impl); break;
+        case 16: delete static_cast<BoostRTreeImpl<16>*>(index->impl); break;
     }
 
     delete index;
@@ -206,44 +200,22 @@ BoostRTreeResult boost_rtree_radius_search(
     if (!index) return result;
 
     switch (index->dimensions) {
-        case 2:
-            return static_cast<BoostRTreeImpl<2>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 3:
-            return static_cast<BoostRTreeImpl<3>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 4:
-            return static_cast<BoostRTreeImpl<4>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 6:
-            return static_cast<BoostRTreeImpl<6>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 8:
-            return static_cast<BoostRTreeImpl<8>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 10:
-            return static_cast<BoostRTreeImpl<10>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 12:
-            return static_cast<BoostRTreeImpl<12>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 14:
-            return static_cast<BoostRTreeImpl<14>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        case 16:
-            return static_cast<BoostRTreeImpl<16>*>(index->impl)->radius_search(
-                query_point, radius_squared
-            );
-        default:
-            return result;
+        case 2:  return static_cast<BoostRTreeImpl<2>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 3:  return static_cast<BoostRTreeImpl<3>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 4:  return static_cast<BoostRTreeImpl<4>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 5:  return static_cast<BoostRTreeImpl<5>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 6:  return static_cast<BoostRTreeImpl<6>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 7:  return static_cast<BoostRTreeImpl<7>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 8:  return static_cast<BoostRTreeImpl<8>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 9:  return static_cast<BoostRTreeImpl<9>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 10: return static_cast<BoostRTreeImpl<10>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 11: return static_cast<BoostRTreeImpl<11>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 12: return static_cast<BoostRTreeImpl<12>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 13: return static_cast<BoostRTreeImpl<13>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 14: return static_cast<BoostRTreeImpl<14>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 15: return static_cast<BoostRTreeImpl<15>*>(index->impl)->radius_search(query_point, radius_squared);
+        case 16: return static_cast<BoostRTreeImpl<16>*>(index->impl)->radius_search(query_point, radius_squared);
+        default: return result;
     }
 }
 
@@ -265,33 +237,21 @@ void boost_rtree_update_points(
     if (!index) return;
 
     switch (index->dimensions) {
-        case 2:
-            static_cast<BoostRTreeImpl<2>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 3:
-            static_cast<BoostRTreeImpl<3>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 4:
-            static_cast<BoostRTreeImpl<4>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 6:
-            static_cast<BoostRTreeImpl<6>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 8:
-            static_cast<BoostRTreeImpl<8>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 10:
-            static_cast<BoostRTreeImpl<10>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 12:
-            static_cast<BoostRTreeImpl<12>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 14:
-            static_cast<BoostRTreeImpl<14>*>(index->impl)->rebuild(points, num_points);
-            break;
-        case 16:
-            static_cast<BoostRTreeImpl<16>*>(index->impl)->rebuild(points, num_points);
-            break;
+        case 2:  static_cast<BoostRTreeImpl<2>*>(index->impl)->rebuild(points, num_points);  break;
+        case 3:  static_cast<BoostRTreeImpl<3>*>(index->impl)->rebuild(points, num_points);  break;
+        case 4:  static_cast<BoostRTreeImpl<4>*>(index->impl)->rebuild(points, num_points);  break;
+        case 5:  static_cast<BoostRTreeImpl<5>*>(index->impl)->rebuild(points, num_points);  break;
+        case 6:  static_cast<BoostRTreeImpl<6>*>(index->impl)->rebuild(points, num_points);  break;
+        case 7:  static_cast<BoostRTreeImpl<7>*>(index->impl)->rebuild(points, num_points);  break;
+        case 8:  static_cast<BoostRTreeImpl<8>*>(index->impl)->rebuild(points, num_points);  break;
+        case 9:  static_cast<BoostRTreeImpl<9>*>(index->impl)->rebuild(points, num_points);  break;
+        case 10: static_cast<BoostRTreeImpl<10>*>(index->impl)->rebuild(points, num_points); break;
+        case 11: static_cast<BoostRTreeImpl<11>*>(index->impl)->rebuild(points, num_points); break;
+        case 12: static_cast<BoostRTreeImpl<12>*>(index->impl)->rebuild(points, num_points); break;
+        case 13: static_cast<BoostRTreeImpl<13>*>(index->impl)->rebuild(points, num_points); break;
+        case 14: static_cast<BoostRTreeImpl<14>*>(index->impl)->rebuild(points, num_points); break;
+        case 15: static_cast<BoostRTreeImpl<15>*>(index->impl)->rebuild(points, num_points); break;
+        case 16: static_cast<BoostRTreeImpl<16>*>(index->impl)->rebuild(points, num_points); break;
     }
 }
 
@@ -299,26 +259,22 @@ size_t boost_rtree_point_count(const BoostRTreeIndex* index) {
     if (!index) return 0;
 
     switch (index->dimensions) {
-        case 2:
-            return static_cast<BoostRTreeImpl<2>*>(index->impl)->point_count();
-        case 3:
-            return static_cast<BoostRTreeImpl<3>*>(index->impl)->point_count();
-        case 4:
-            return static_cast<BoostRTreeImpl<4>*>(index->impl)->point_count();
-        case 6:
-            return static_cast<BoostRTreeImpl<6>*>(index->impl)->point_count();
-        case 8:
-            return static_cast<BoostRTreeImpl<8>*>(index->impl)->point_count();
-        case 10:
-            return static_cast<BoostRTreeImpl<10>*>(index->impl)->point_count();
-        case 12:
-            return static_cast<BoostRTreeImpl<12>*>(index->impl)->point_count();
-        case 14:
-            return static_cast<BoostRTreeImpl<14>*>(index->impl)->point_count();
-        case 16:
-            return static_cast<BoostRTreeImpl<16>*>(index->impl)->point_count();
-        default:
-            return 0;
+        case 2:  return static_cast<BoostRTreeImpl<2>*>(index->impl)->point_count();
+        case 3:  return static_cast<BoostRTreeImpl<3>*>(index->impl)->point_count();
+        case 4:  return static_cast<BoostRTreeImpl<4>*>(index->impl)->point_count();
+        case 5:  return static_cast<BoostRTreeImpl<5>*>(index->impl)->point_count();
+        case 6:  return static_cast<BoostRTreeImpl<6>*>(index->impl)->point_count();
+        case 7:  return static_cast<BoostRTreeImpl<7>*>(index->impl)->point_count();
+        case 8:  return static_cast<BoostRTreeImpl<8>*>(index->impl)->point_count();
+        case 9:  return static_cast<BoostRTreeImpl<9>*>(index->impl)->point_count();
+        case 10: return static_cast<BoostRTreeImpl<10>*>(index->impl)->point_count();
+        case 11: return static_cast<BoostRTreeImpl<11>*>(index->impl)->point_count();
+        case 12: return static_cast<BoostRTreeImpl<12>*>(index->impl)->point_count();
+        case 13: return static_cast<BoostRTreeImpl<13>*>(index->impl)->point_count();
+        case 14: return static_cast<BoostRTreeImpl<14>*>(index->impl)->point_count();
+        case 15: return static_cast<BoostRTreeImpl<15>*>(index->impl)->point_count();
+        case 16: return static_cast<BoostRTreeImpl<16>*>(index->impl)->point_count();
+        default: return 0;
     }
 }
 
