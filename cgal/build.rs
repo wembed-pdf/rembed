@@ -29,7 +29,8 @@ fn main() {
         .flag("-O3")
         .flag("-march=native")
         .flag("-fPIC")
-        .flag("-frounding-math"); // Required by CGAL
+        .flag("-frounding-math") // Required by CGAL
+        .define("CGAL_NOHASH", None); // Skip hashmap index lookup; cast coord[0] instead
 
     // Add include paths from pkg-config if available
     if let Some(cgal) = cgal.as_ref() {

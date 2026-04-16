@@ -139,6 +139,7 @@ impl<'a, const D: usize> Update<D> for CgalKdTreeWrapper<'a, D> {
 }
 
 impl<'a, const D: usize> Query<D> for CgalKdTreeWrapper<'a, D> {
+    /// WARNING!!!! Currently the query does by default not return correct results. this is done to get accurate performance characteristics since cgal does not return the indices of the points
     fn query_radius(&self, pos: DVec<D>, radius: f64, results: &mut Vec<NodeId>) {
         if !self.is_valid() {
             return;

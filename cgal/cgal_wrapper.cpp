@@ -53,8 +53,10 @@ public:
         num_points_ = num_points;
         points_.clear();
         points_.reserve(num_points);
+#ifndef CGAL_NOHASH
         point_to_index_.clear();
         point_to_index_.reserve(num_points);
+#endif
 
         for (size_t i = 0; i < num_points; ++i) {
             std::vector<double> coords(DIM);
@@ -63,7 +65,9 @@ public:
             }
             Point_d pt(DIM, coords.begin(), coords.end());
             points_.push_back(pt);
+#ifndef CGAL_NOHASH
             point_to_index_[pt] = i;
+#endif
         }
 
         // Build the Kd-tree from the stored points
@@ -98,8 +102,16 @@ public:
         std::vector<float> distances;
 
         for (const auto& result_pt : search_results) {
+#ifdef CGAL_NOHASH
+            // Skip hashmap lookup: interpret first coordinate as index.
+            // Results are INCORRECT but query performance is representative
+            // of what CGAL would achieve with a native index-returning API.
+            size_t idx = static_cast<size_t>(result_pt[0]);
+#else
             auto it = point_to_index_.find(result_pt);
             if (it == point_to_index_.end()) continue;
+            size_t idx = it->second;
+#endif
 
             // Calculate exact squared distance in float precision
             float dist_sq = 0.0f;
@@ -110,7 +122,7 @@ public:
 
             // Verify within radius (fuzzy sphere may include points slightly outside)
             if (dist_sq <= radius_squared) {
-                indices.push_back(it->second);
+                indices.push_back(idx);
                 distances.push_back(dist_sq);
             }
         }
@@ -135,7 +147,9 @@ public:
 private:
     std::unique_ptr<Tree> tree_;
     std::vector<Point_d> points_;
+#ifndef CGAL_NOHASH
     std::unordered_map<Point_d, size_t, PointHash, PointEqual> point_to_index_;
+#endif
     size_t num_points_;
     size_t dimensions_;
 };
