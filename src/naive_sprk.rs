@@ -113,6 +113,9 @@ impl Layer {
             {
                 *d_pos = pos[depth];
             }
+            if d_pos.is_empty() {
+                return;
+            }
             let mut lut = vec![];
             let min = d_pos[0].floor();
             let max = d_pos.last().unwrap().ceil();
@@ -252,6 +255,8 @@ impl<'a, const D: usize, const P: bool> NaiveSprk<'a, D, P> {
                 let mut reduced_radius = dim_radius_squared;
                 let dist = own_pos - node.split;
                 if P {
+                    // let d_2 = dist - distances[depth];
+                    // let x = 2. * distances[depth] * d_2 + d_2.powi(2);
                     reduced_radius -= dist.powi(2) + distances[depth].powi(2);
                 } else {
                     reduced_radius = original_radius_squared as f32 - distances.magnitude_squared();
