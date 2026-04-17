@@ -71,7 +71,8 @@ pub fn data_structures<'a, const D: usize>(
 ) -> impl ExactSizeIterator<Item = Box<dyn IndexClone<D> + 'a>> {
     let iter = [
         Box::new(sprk::Sprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
-        Box::new(naive_sprk::NaiveSprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(naive_sprk::NaiveSprk::<D, true>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(naive_sprk::NaiveSprk::<D, false>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(dyn_sprk::DynSprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         // Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,

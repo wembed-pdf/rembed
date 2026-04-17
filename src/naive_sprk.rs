@@ -7,7 +7,7 @@ use crate::{
 const LEAFSIZE: usize = 150;
 
 #[derive(Clone)]
-pub struct NaiveSprk<'a, const D: usize> {
+pub struct NaiveSprk<'a, const D: usize, const P: bool> {
     pub positions: Vec<DVec<D>>,
     pub positions_sorted: Vec<DVec<D>>,
     pub node_ids: Vec<usize>,
@@ -16,7 +16,7 @@ pub struct NaiveSprk<'a, const D: usize> {
     layers: Vec<Layer>,
 }
 
-impl<const D: usize> crate::query::Graph for NaiveSprk<'_, D> {
+impl<const D: usize, const P: bool> crate::query::Graph for NaiveSprk<'_, D, P> {
     fn is_connected(&self, first: NodeId, second: NodeId) -> bool {
         self.graph.is_connected(first, second)
     }
@@ -30,7 +30,7 @@ impl<const D: usize> crate::query::Graph for NaiveSprk<'_, D> {
     }
 }
 
-impl<const D: usize> query::Position<D> for NaiveSprk<'_, D> {
+impl<const D: usize, const P: bool> query::Position<D> for NaiveSprk<'_, D, P> {
     fn position(&self, index: NodeId) -> &DVec<D> {
         &self.positions[index]
     }
@@ -39,7 +39,7 @@ impl<const D: usize> query::Position<D> for NaiveSprk<'_, D> {
         self.positions.len()
     }
 }
-impl<const D: usize> query::Update<D> for NaiveSprk<'_, D> {
+impl<const D: usize, const P: bool> query::Update<D> for NaiveSprk<'_, D, P> {
     fn update_positions(&mut self, postions: &[DVec<D>], _: Option<f64>) {
         if self.positions.len() != postions.len() {
             self.positions = postions.to_vec();
@@ -55,7 +55,7 @@ impl<const D: usize> query::Update<D> for NaiveSprk<'_, D> {
         if layers.len() < node_ids.len() {
             layers = vec![Layer::Leaf(Snn::default()); node_ids.len()];
         }
-        Layer::init(
+        Layer::init::<_, P>(
             node_ids.as_mut_slice(),
             d_pos.as_mut_slice(),
             &mut layers,
@@ -92,13 +92,13 @@ enum Layer {
 }
 
 impl Layer {
-    fn init<const D: usize>(
+    fn init<const D: usize, const P: bool>(
         nodes: &mut [NodeId],
         d_pos: &mut [f32],
         layers: &mut [Layer],
         depth: usize,
         layer_id: usize,
-        sprk: &NaiveSprk<D>,
+        sprk: &NaiveSprk<D, P>,
         offset: usize,
     ) {
         // For leaf nodes, we need full sorting for the lookup table
@@ -163,8 +163,8 @@ impl Layer {
 
         let (a_id, b_id) = children(layer_id);
 
-        Layer::init(a_ids, a_dpos, layers, (depth + 1) % D, a_id, sprk, offset);
-        Layer::init(
+        Layer::init::<_, P>(a_ids, a_dpos, layers, (depth + 1) % D, a_id, sprk, offset);
+        Layer::init::<_, P>(
             b_ids,
             b_dpos,
             layers,
@@ -182,7 +182,7 @@ fn children(index: usize) -> (usize, usize) {
     (index * 2 + 1, index * 2 + 2)
 }
 
-impl<'a, const D: usize> NaiveSprk<'a, D> {
+impl<'a, const D: usize, const P: bool> NaiveSprk<'a, D, P> {
     pub fn new(embedding: &Embedding<'a, D>) -> Self {
         let mut line_lsh = NaiveSprk {
             positions: embedding.positions.clone(),
@@ -251,10 +251,12 @@ impl<'a, const D: usize> NaiveSprk<'a, D> {
                 );
                 let mut reduced_radius = dim_radius_squared;
                 let dist = own_pos - node.split;
-                let d_2 = dist - distances[depth];
-                let x = 2. * distances[depth] * d_2 + d_2.powi(2);
+                if P {
+                    reduced_radius -= dist.powi(2) + distances[depth].powi(2);
+                } else {
+                    reduced_radius = original_radius_squared as f32 - distances.magnitude_squared();
+                }
                 distances[depth] = dist;
-                reduced_radius -= x;
                 if reduced_radius <= 0. {
                     return;
                 }
@@ -295,7 +297,7 @@ impl<'a, const D: usize> NaiveSprk<'a, D> {
     }
 }
 
-impl<const D: usize> Query<D> for NaiveSprk<'_, D> {
+impl<const D: usize, const P: bool> Query<D> for NaiveSprk<'_, D, P> {
     fn nearest_neighbors(&self, index: usize, radius: f64, results: &mut Vec<usize>) {
         self.light_nn(
             index,
@@ -308,16 +310,20 @@ impl<const D: usize> Query<D> for NaiveSprk<'_, D> {
         self.query_radius(pos, radius, results);
     }
 }
-impl<const D: usize> SpatialIndex<D> for NaiveSprk<'_, D> {
+impl<const D: usize, const P: bool> SpatialIndex<D> for NaiveSprk<'_, D, P> {
     fn name(&self) -> String {
-        String::from("naive_atree")
+        if P {
+            String::from("naive_atree")
+        } else {
+            String::from("naive_atree_non_progressive")
+        }
     }
     fn implementation_string(&self) -> &'static str {
         include_str!("naive_sprk.rs")
     }
 }
 
-impl<'a, const D: usize> query::Embedder<'a, D> for NaiveSprk<'a, D> {
+impl<'a, const D: usize, const P: bool> query::Embedder<'a, D> for NaiveSprk<'a, D, P> {
     fn new(embedding: &crate::Embedding<'a, D>) -> Self {
         Self::new(embedding)
     }
