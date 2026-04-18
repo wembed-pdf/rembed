@@ -518,6 +518,13 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
 
         let mut run_benchmark_with_query_list =
             async |query_list: Vec<_>, benchmark_type: &BenchmarkType| {
+                let radius_hint = match benchmark_type {
+                    BenchmarkType::Radius(r, _) => *r as f64,
+                    _ => 1.0,
+                };
+                for structure in &mut data_structures {
+                    structure.set_radius_hint(radius_hint);
+                }
                 for structure in &data_structures {
                     if load_data.store
                         && let Some((_, skiplist)) = code_states.get(&structure.name())

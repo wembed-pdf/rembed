@@ -27,6 +27,10 @@ impl<const D: usize, T: Clone + Sized + SpatialIndex<D> + Sync> IndexClone<D> fo
 pub trait SpatialIndex<const D: usize>: Query<D> + Update<D> + Graph + Position<D> + Sync {
     fn name(&self) -> String;
 
+    /// Hint the expected query radius so the data structure can tune itself.
+    /// The default implementation is a no-op.
+    fn set_radius_hint(&mut self, _radius: f64) {}
+
     /// Returns the source code implementation as a string for checksum calculation.
     /// This should include all files that affect the performance of this data structure.
     fn implementation_string(&self) -> &'static str;

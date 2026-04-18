@@ -21,36 +21,14 @@ struct GridCellInner {
 
 impl<'a, const D: usize> Grid<'a, D> {
     pub fn new(embedding: Embedding<'a, D>) -> Self {
-        let mut min = [f32::MAX; D];
-        let mut max = [f32::MIN; D];
-        for pos in &embedding.positions {
-            for d in 0..D {
-                min[d] = min[d].min(pos[d]);
-                max[d] = max[d].max(pos[d]);
-            }
-        }
-
-        let grid_size = 1.0;
-        let mut extents = [0usize; D];
-        for d in 0..D {
-            extents[d] = ((max[d] - min[d]) / grid_size as f32).ceil() as usize;
-            if extents[d] == 0 {
-                extents[d] = 1;
-            }
-        }
-
-        let total_cells: usize = extents.iter().product();
-        let cells = vec![GridCellInner { ids: Vec::new() }; total_cells];
-        let cell_positions = vec![Vec::new(); total_cells];
-
         let mut tree = Self {
-            positions: embedding.positions.clone(),
+            positions: Vec::new(),
             graph: embedding.graph,
-            cells,
-            cell_positions,
-            grid_size,
-            min,
-            extents,
+            cells: Vec::new(),
+            cell_positions: Vec::new(),
+            grid_size: 1.0,
+            min: [0.0; D],
+            extents: [1; D],
         };
         tree.update_positions(&embedding.positions, None);
         tree
@@ -144,6 +122,20 @@ impl<'a, const D: usize> Position<D> for Grid<'a, D> {
 
 impl<'a, const D: usize> Update<D> for Grid<'a, D> {
     fn update_positions(&mut self, positions: &[DVec<D>], _: Option<f64>) {
+        // Recompute bounding box and extents
+        let mut min = [f32::MAX; D];
+        let mut max = [f32::MIN; D];
+        for pos in positions {
+            for d in 0..D {
+                min[d] = min[d].min(pos[d]);
+                max[d] = max[d].max(pos[d]);
+            }
+        }
+        self.min = min;
+        for d in 0..D {
+            self.extents[d] = ((max[d] - min[d]) / self.grid_size as f32).ceil().max(1.0) as usize;
+        }
+
         let total_cells: usize = self.extents.iter().product();
         let mut cells = vec![GridCellInner { ids: Vec::new() }; total_cells];
         let mut cell_positions: Vec<Vec<DVec<D>>> = vec![Vec::new(); total_cells];
@@ -231,6 +223,12 @@ impl<'a, const D: usize> Query<D> for Grid<'a, D> {
 impl<'a, const D: usize> SpatialIndex<D> for Grid<'a, D> {
     fn name(&self) -> String {
         "grid".to_string()
+    }
+
+    fn set_radius_hint(&mut self, radius: f64) {
+        self.grid_size = radius;
+        let positions = std::mem::take(&mut self.positions);
+        self.update_positions(&positions, None);
     }
 
     fn implementation_string(&self) -> &'static str {
