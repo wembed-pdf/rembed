@@ -33,6 +33,7 @@ pub mod random_projection_lsh;
 pub mod sif;
 #[cfg(feature = "sklearn")]
 pub mod sklearn;
+pub mod snn;
 pub mod sprk;
 pub mod vptree;
 #[cfg(feature = "wembed-snn")]
@@ -76,15 +77,16 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(dyn_sprk::DynSprk::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         // Box::new(agrid::AGrid::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
         Box::new(kiddo::Kiddo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
-        // Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(nabo::Nabo::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(embedding.clone()) as Box<dyn IndexClone<D> + 'a>,
-        // Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
-        // as Box<dyn IndexClone<D> + 'a>,
-        // Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(neighbourhood::Neihbourhood::<D>::new(embedding.clone()))
+            as Box<dyn IndexClone<D> + 'a>,
+        Box::new(sif::SIF::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(vptree::VPTree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(quadtree::Quadtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(orthtree::Orthtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(grid::Grid::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(snn::Snn::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter();
 
