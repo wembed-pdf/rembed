@@ -19,6 +19,7 @@ pub mod kiddo;
 pub mod lossy_queries;
 pub mod measured_lsh;
 pub mod nabo;
+pub mod naive_snn;
 pub mod naive_sprk;
 #[cfg(feature = "nanoflann")]
 pub mod nanoflann;
@@ -87,6 +88,7 @@ pub fn data_structures<'a, const D: usize>(
         Box::new(orthtree::Orthtree::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(grid::Grid::<D>::new(embedding.clone())) as Box<dyn IndexClone<D> + 'a>,
         Box::new(snn::Snn::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
+        Box::new(naive_snn::NaiveSnn::<D>::new(embedding)) as Box<dyn IndexClone<D> + 'a>,
     ]
     .into_iter();
 
