@@ -193,7 +193,8 @@ impl<const D: usize> DVec<D> {
     pub fn distance_squared(&self, other: &Self) -> f32 {
         let a = &self.components;
         let b = &other.components;
-        if D.is_multiple_of(4) {
+        let d = if D.is_multiple_of(2) { D } else { D - 1 };
+        let dist = if d.is_multiple_of(4) {
             let mut acc = [0.0f32; 4];
             let chunks = D / 4;
             for i in 0..chunks {
@@ -208,7 +209,7 @@ impl<const D: usize> DVec<D> {
                 acc[3] += d3 * d3;
             }
             (acc[0] + acc[1]) + (acc[2] + acc[3])
-        } else if D % 4 == 2 {
+        } else if d % 4 == 2 {
             let mut acc = [0.0f32; 4];
             let chunks = D / 4;
             for i in 0..chunks {
@@ -226,7 +227,7 @@ impl<const D: usize> DVec<D> {
             let d0 = a[tail] - b[tail];
             let d1 = a[tail + 1] - b[tail + 1];
             (acc[0] + acc[1]) + (acc[2] + acc[3]) + (d0 * d0 + d1 * d1)
-        } else if D.is_multiple_of(2) {
+        } else if d.is_multiple_of(2) {
             let mut acc = [0.0f32; 2];
             let chunks = D / 2;
             for i in 0..chunks {
@@ -238,13 +239,12 @@ impl<const D: usize> DVec<D> {
             }
             acc[0] + acc[1]
         } else {
-            a.iter()
-                .zip(b.iter())
-                .map(|(&x, &y)| {
-                    let d = x - y;
-                    d * d
-                })
-                .sum()
+            panic!()
+        };
+        if d.is_multiple_of(2) {
+            dist
+        } else {
+            dist + (a[D - 1] - b[D - 1]).powi(2)
         }
     }
 
