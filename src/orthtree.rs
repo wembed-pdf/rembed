@@ -245,27 +245,6 @@ impl<const D: usize> OrthtreeArena<D> {
                     continue;
                 }
                 self.query_node(ci, center, radius_sq, query_aabb, positions, results);
-                // if self.bounds[ci].contained_in_sphere(center, radius_sq) {
-                //     self.collect_all(ci, results);
-                // } else {
-                //     self.query_node(ci, center, radius_sq, query_aabb, positions, results);
-                // }
-            }
-        }
-    }
-
-    fn collect_all(&self, idx: usize, results: &mut Vec<NodeId>) {
-        if self.first_child[idx] == SENTINEL {
-            let s = self.leaf_start[idx] as usize;
-            let e = s + self.leaf_len[idx] as usize;
-            for &id in &self.ids[s..e] {
-                results.push(id as usize);
-            }
-        } else {
-            let fc = self.first_child[idx] as usize;
-            let num_children = 1 << D;
-            for i in 0..num_children {
-                self.collect_all(fc + i, results);
             }
         }
     }
