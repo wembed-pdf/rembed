@@ -175,7 +175,11 @@ impl<const D: usize> crate::Query<D> for Snn<'_, D> {
         let q_squared_half: f32 = pos.components.iter().map(|&x| x * x).sum::<f32>() * 0.5;
 
         for pdvec in &self.pdvecs[left..right] {
-            let distances = pdvec.dist_half_squared(pos.components, q_squared_half);
+            let distances = if D <= 32 {
+                pdvec.dist_half_squared(pos.components, q_squared_half)
+            } else {
+                pdvec.dist_half_squared_4_acc(pos.components, q_squared_half)
+            };
             let (count, ids, _) = pdvec.compress(distances, radius_sq_half);
             for i in 0..count {
                 results.push(ids[i] as usize);
