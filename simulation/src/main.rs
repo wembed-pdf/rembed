@@ -7,13 +7,13 @@ fn main() -> io::Result<()> {
 
     // let graph = "../data/generated/graphs/19_girg_n-1000_deg-15_dim-4_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "../data/generated/graphs/55_girg_n-10000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
-    // let graph = "../data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
+    let graph = "../data/generated/graphs/109_girg_n-100000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     // let graph = "../data/generated/graphs/1217_girg_n-1000000_deg-15_dim-4_ple-2.5_alpha-inf_wseed-12_pseed-130_sseed-1400";
-    let graph = "../data/generated/graphs/2263_girg_n-1000000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
+    // let graph = "../data/generated/graphs/2263_girg_n-1000000_deg-15_dim-2_ple-2.2_alpha-inf_wseed-12_pseed-130_sseed-1400";
     let graph = graph::Graph::parse_from_edge_list_file(graph, dim, dim_hint)?;
 
     println!(
-        "D, normal, reduction_radius, reduction_snn, reduction_both, snn_best, both_best, snn_with_radius_reduction, snn_with_radius_reduction_best_dim"
+        "D, normal, reduction_radius, reduction_snn, reduction_both, snn_best, both_best, snn_with_radius_reduction, snn_with_radius_reduction_best_dim, pruned_subtrees"
     );
     embedd_and_calc_stats::<2>(&graph);
     // embedd_and_calc_stats::<3>(&graph);
@@ -49,8 +49,7 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
     };
     // let mut embedder: embedder::WEmbedder<Sprk<_>, D> =
     //     embedder::WEmbedder::random(42, graph, options);
-    let mut embedder =
-        embedder::WEmbedder::<DynamicQuery<D, Sprk<D>>>::random(42, graph, options);
+    let mut embedder = embedder::WEmbedder::<DynamicQuery<D, Sprk<D>>>::random(42, graph, options);
 
     embedder.embed_with_callback(|e| {
         let i = e.iteration();
@@ -103,7 +102,7 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
         );
     }
     println!(
-        "{D}, {normal}, {reduction_radius}, {reduction_snn}, {reduction_both}, {snn_best}, {both_best}, {snn_with_radius_reduction}, {snn_with_radius_reduction_best_dim}",
+        "{D}, {normal}, {reduction_radius}, {reduction_snn}, {reduction_both}, {snn_best}, {both_best}, {snn_with_radius_reduction}, {snn_with_radius_reduction_best_dim}, {pruned_trees}",
         D = D,
         normal = stats_normal.num_comparionsons,
         reduction_radius = stats_reduced_radius.num_comparionsons,
@@ -114,5 +113,6 @@ fn embedd_and_calc_stats<const D: usize>(graph: &graph::Graph) {
         snn_with_radius_reduction = stats_snn_with_radius_reduction.num_comparionsons,
         snn_with_radius_reduction_best_dim =
             stats_snn_with_radius_reduction_best_dim.num_comparionsons,
+        pruned_trees = stats_normal.pruned_trees,
     );
 }

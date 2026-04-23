@@ -170,6 +170,7 @@ pub struct Statistics {
     pub num_comparionsons: usize,
     pub num_splits: usize,
     pub num_reductions: usize,
+    pub pruned_trees: usize,
     pub ground_truth_comparisons: usize,
 }
 
@@ -257,8 +258,7 @@ impl<const D: usize> DimReduction<D> {
         {
             let p = pos[*dim];
             // dbg!(p);
-            for ((start, end), child) in bucket_starts.iter().zip(children.iter())
-            {
+            for ((start, end), child) in bucket_starts.iter().zip(children.iter()) {
                 // dbg!(start, end);
                 let mut new_spatial_offset = spatial_offset;
                 if *end <= p {
@@ -284,6 +284,9 @@ impl<const D: usize> DimReduction<D> {
                     || (p + radius >= *end && p - radius <= *end)
                     || (p >= *start && p <= *end);
                 let should_recurse_red = new_spatial_offset.magnitude_squared() < radius.powi(2);
+                if should_recurse_red != should_recurse {
+                    statistics.pruned_trees += 1;
+                }
                 if should_recurse_red && !should_recurse {
                     // println!("skipped check at depth {depth}");
                     dbg!(
@@ -299,14 +302,7 @@ impl<const D: usize> DimReduction<D> {
                     || should_recurse && !params.use_radius_reduction
                 {
                     // if should_recurse {
-                    self.query_impl(
-                        pos,
-                        radius,
-                        new_spatial_offset,
-                        child,
-                        statistics,
-                        params,
-                    );
+                    self.query_impl(pos, radius, new_spatial_offset, child, statistics, params);
                 }
             }
         }
