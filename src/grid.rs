@@ -137,7 +137,13 @@ impl<'a, const D: usize> Update<D> for Grid<'a, D> {
         }
 
         let total_cells: usize = self.extents.iter().product();
-        let mut cells = vec![GridCellInner { ids: Vec::new() }; total_cells];
+        let mut cells = Vec::new();
+        let Ok(_) = cells.try_reserve(total_cells) else {
+            return;
+        };
+        for _ in 0..total_cells {
+            cells.push(GridCellInner { ids: Vec::new() })
+        }
         let mut cell_positions: Vec<Vec<DVec<D>>> = vec![Vec::new(); total_cells];
 
         for (i, pos) in positions.iter().enumerate() {

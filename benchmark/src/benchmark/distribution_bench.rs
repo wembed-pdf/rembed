@@ -61,59 +61,56 @@ impl DistributionBenchRunner {
             && self.config.expected_queries.is_none()
         {
             eprintln!("Running distribution benchmarks:");
-                eprintln!("  Dimensions: {:?}", self.config.dims);
-                eprintln!("  Node counts: {:?}", self.config.counts);
-                eprintln!("  Radiuses: {:?}", self.config.radii);
-                eprintln!(
-                    "  Distributions: {:?}",
-                    distributions
-                        .iter()
-                        .map(|d| d.name())
-                        .collect::<Vec<_>>()
-                );
-                eprintln!();
-                let total = self.config.dims.len()
-                    * self.config.counts.len()
-                    * self.config.radii.len()
-                    * distributions.len();
-                let mut current = 0;
+            eprintln!("  Dimensions: {:?}", self.config.dims);
+            eprintln!("  Node counts: {:?}", self.config.counts);
+            eprintln!("  Radiuses: {:?}", self.config.radii);
+            eprintln!(
+                "  Distributions: {:?}",
+                distributions.iter().map(|d| d.name()).collect::<Vec<_>>()
+            );
+            eprintln!();
+            let total = self.config.dims.len()
+                * self.config.counts.len()
+                * self.config.radii.len()
+                * distributions.len();
+            let mut current = 0;
 
-                if self.config.parallel {
-                    return Ok(self
-                        .config
-                        .dims
-                        .par_iter()
-                        .flat_map(|&dim| {
-                            self.config.counts.par_iter().map(move |&node_count| {
-                                let mut temp_results = Vec::new();
-                                self.run_benchmarks_for_dimension_and_nodecount(
-                                    &mut temp_results,
-                                    fast,
-                                    total,
-                                    &mut 0,
-                                    dim,
-                                    node_count,
-                                )
-                                .unwrap();
-                                temp_results
-                            })
+            if self.config.parallel {
+                return Ok(self
+                    .config
+                    .dims
+                    .par_iter()
+                    .flat_map(|&dim| {
+                        self.config.counts.par_iter().map(move |&node_count| {
+                            let mut temp_results = Vec::new();
+                            self.run_benchmarks_for_dimension_and_nodecount(
+                                &mut temp_results,
+                                fast,
+                                total,
+                                &mut 0,
+                                dim,
+                                node_count,
+                            )
+                            .unwrap();
+                            temp_results
                         })
-                        .flatten()
-                        .collect());
-                }
+                    })
+                    .flatten()
+                    .collect());
+            }
 
-                for &dim in &self.config.dims {
-                    for &node_count in &self.config.counts {
-                        self.run_benchmarks_for_dimension_and_nodecount(
-                            &mut all_results,
-                            fast,
-                            total,
-                            &mut current,
-                            dim,
-                            node_count,
-                        )?;
-                    }
+            for &dim in &self.config.dims {
+                for &node_count in &self.config.counts {
+                    self.run_benchmarks_for_dimension_and_nodecount(
+                        &mut all_results,
+                        fast,
+                        total,
+                        &mut current,
+                        dim,
+                        node_count,
+                    )?;
                 }
+            }
         }
 
         if let (Some(distributions), Some(expected_queries)) =
@@ -125,15 +122,10 @@ impl DistributionBenchRunner {
             eprintln!("  Expected queries: {:?}", self.config.expected_queries);
             eprintln!(
                 "  Distributions: {:?}",
-                distributions
-                    .iter()
-                    .map(|d| d.name())
-                    .collect::<Vec<_>>()
+                distributions.iter().map(|d| d.name()).collect::<Vec<_>>()
             );
             eprintln!();
-            let total = self.config.dims.len()
-                * self.config.counts.len()
-                * distributions.len();
+            let total = self.config.dims.len() * self.config.counts.len() * distributions.len();
             let pb = indicatif::ProgressBar::new(total as u64);
 
             for distribution in distributions {
@@ -263,37 +255,10 @@ impl DistributionBenchRunner {
                 (expected as f64 / node_count as f64 / hypersphere_volume_factor_recursive(dim))
                     .powf(1.0 / dim as f64);
             if let Some(distributions) = &self.config.distributions {
-            for distribution in distributions {
-                *current += 1;
-                eprintln!(
-                    "[{}/{}] Running dim={}, n={}, r~{:.3}, dist={}",
-                    current,
-                    total,
-                    dim,
-                    node_count,
-                    radius,
-                    distribution.name()
-                );
-
-                let results = self.run_benchmarks_for_dimension(
-                    dim,
-                    node_count,
-                    radius,
-                    distribution,
-                    None,
-                    fast,
-                )?;
-
-                all_results.extend(results);
-            }
-            }
-        } else {
-            for &radius in &self.config.radii {
-                if let Some(distributions) = &self.config.distributions {
                 for distribution in distributions {
                     *current += 1;
                     eprintln!(
-                        "[{}/{}] Running dim={}, n={}, r={}, dist={}",
+                        "[{}/{}] Running dim={}, n={}, r~{:.3}, dist={}",
                         current,
                         total,
                         dim,
@@ -313,6 +278,33 @@ impl DistributionBenchRunner {
 
                     all_results.extend(results);
                 }
+            }
+        } else {
+            for &radius in &self.config.radii {
+                if let Some(distributions) = &self.config.distributions {
+                    for distribution in distributions {
+                        *current += 1;
+                        eprintln!(
+                            "[{}/{}] Running dim={}, n={}, r={}, dist={}",
+                            current,
+                            total,
+                            dim,
+                            node_count,
+                            radius,
+                            distribution.name()
+                        );
+
+                        let results = self.run_benchmarks_for_dimension(
+                            dim,
+                            node_count,
+                            radius,
+                            distribution,
+                            None,
+                            fast,
+                        )?;
+
+                        all_results.extend(results);
+                    }
                 }
             }
         };
@@ -348,6 +340,9 @@ impl DistributionBenchRunner {
         } else {
             rembed::data_structures(&embedding).collect()
         };
+        for structure in &mut data_structures {
+            structure.set_radius_hint(radius);
+        }
 
         // Update positions for all structures
         for structure in &mut data_structures {
