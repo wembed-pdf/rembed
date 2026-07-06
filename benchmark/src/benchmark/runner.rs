@@ -94,6 +94,7 @@ pub fn profile_datastructures<'a, const D: usize>(
             query_list,
             None,
             None,
+            None,
             benchmark_type.clone(),
             structure.as_ref(),
             fast,
@@ -109,6 +110,7 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     query_list: &[usize],
     query_pos_list: Option<Vec<rembed::dvec::DVec<D>>>,
     radius: Option<f64>,
+    query_radii: Option<Vec<f64>>,
     benchmark_type: BenchmarkType,
     structure: &(dyn IndexClone<D> + 'a),
     fast: bool,
@@ -135,6 +137,13 @@ pub fn profile_datastructure_query<'a, const D: usize>(
     };
     let mut result_counts = Vec::new();
     if let Some(query_pos_list) = query_pos_list {
+        if let Some(ref radii) = query_radii {
+            assert_eq!(
+                radii.len(),
+                query_pos_list.len(),
+                "query_radii length must match the number of query points"
+            );
+        }
         println!(
             "Running benchmark '{}' with {} queries",
             benchmark_id,
@@ -154,13 +163,15 @@ pub fn profile_datastructure_query<'a, const D: usize>(
                             structure.update_positions(&embedding.positions, None);
                         }
                         _ => {
-                            for &pos in &query_pos_list {
+                            for (i, &pos) in query_pos_list.iter().enumerate() {
+                                let query_radius = match query_radii {
+                                    Some(ref radii) => radii[i],
+                                    None => radius.expect(
+                                        "Radius must be provided for queryset benchmarks",
+                                    ),
+                                };
                                 results.clear();
-                                structure.query_radius(
-                                    pos,
-                                    radius.expect("Radius must be provided for queryset benchmarks"),
-                                    &mut results,
-                                );
+                                structure.query_radius(pos, query_radius, &mut results);
                                 num_results += results.len();
                                 std::hint::black_box(&results);
                             }
