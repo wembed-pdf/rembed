@@ -97,6 +97,9 @@ enum Commands {
         /// Set benchmark to fast mode with shorter warmup and measurement times (for quick local testing)
         #[arg(long, default_value_t = false)]
         fast: bool,
+        /// Export datasets instead of running the benchmarks
+        #[arg(long, default_value_t = false)]
+        export_only: bool,
     },
     /// Generate graphs using GIRGs
     GenerateGraphs,
@@ -217,6 +220,11 @@ enum Commands {
         #[arg(long)]
         querysets: Option<String>,
 
+        /// Per-query radius file names, parallel to querysets (one radius per line).
+        /// When specified, these replace --radiuses for the corresponding benchmarkset.
+        #[arg(long)]
+        query_radii: Option<String>,
+
         /// Path to benchmarksets (optional)
         #[arg(long)]
         benchmarksets_path: Option<String>,
@@ -303,6 +311,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             skip_tests,
             dynamic_download,
             fast,
+            export_only,
         } => {
             let database_url = env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://localhost/rembed".to_string());
@@ -394,6 +403,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     structures,
                     dynamic_download,
                     fast,
+                    export_only,
                 )
                 .await?;
         }
@@ -582,6 +592,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             benchmarksets,
             benchmarksets_path,
             querysets,
+            query_radii,
             structures,
             num_queries,
             seed,
@@ -614,6 +625,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 seed,
                 benchmarksets: None,
                 querysets: None,
+                query_radii_sets: None,
                 path_to_benchmarksets: benchmarksets_path.clone(),
                 fast,
                 expected_queries,
@@ -638,12 +650,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     radiuses.is_none(),
                     "expected_queries is mutually exclusive with radiuses"
                 );
+                assert!(
+                    query_radii.is_none(),
+                    "expected_queries is mutually exclusive with query_radii"
+                );
                 // If expected_queries is provided, calculate the radius for each node count to achieve that many expected queries
                 config.expected_queries = Some(expected);
+            } else if query_radii.is_some() {
+                assert!(
+                    radiuses.is_none(),
+                    "query_radii is mutually exclusive with radiuses"
+                );
             } else {
                 assert!(
                     radiuses.is_some(),
-                    "Either expected_queries or radiuses must be provided"
+                    "Either expected_queries, radiuses, or query_radii must be provided"
                 );
                 config.radii = radiuses
                     .unwrap()
@@ -672,6 +693,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "Queryset is only relevant if benchmarksets are specified"
                 );
                 config.querysets = Some(parse_benchmarksets(querysets)?);
+            }
+
+            if let Some(ref query_radii) = query_radii {
+                assert!(
+                    benchmarksets.is_some(),
+                    "query_radii is only relevant if benchmarksets are specified"
+                );
+                config.query_radii_sets = Some(parse_benchmarksets(query_radii)?);
             }
 
             let runner = DistributionBenchRunner::new(config);

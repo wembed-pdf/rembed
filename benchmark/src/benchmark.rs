@@ -5,7 +5,7 @@ use std::{
 };
 
 use criterion::Criterion;
-use rembed::{Embedding, NodeId, graph::Graph, parsing::Iterations};
+use rembed::{Embedding, NodeId, dvec::DVec, graph::Graph, parsing::Iterations};
 use sqlx::{Pool, Postgres, Row};
 
 pub mod perf_measurement;
@@ -64,6 +64,7 @@ impl LoadData {
         structures: Option<Vec<String>>,
         dynamic_download: bool,
         fast: bool,
+        export_only: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
 
@@ -265,6 +266,7 @@ impl LoadData {
                                 &data_directory,
                                 result,
                                 fast,
+                                export_only,
                             )
                             .await
                         {
@@ -284,6 +286,7 @@ impl LoadData {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn bench_embedding(
         &self,
         only_last_iteration: bool,
@@ -292,6 +295,7 @@ impl LoadData {
         data_directory: &str,
         result: sqlx::postgres::PgRow,
         fast: bool,
+        export_only: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut c = Criterion::default().with_output_color(true).without_plots();
         let pos_path: String = result.get::<String, _>("pos_path");
@@ -318,6 +322,7 @@ impl LoadData {
                 structures,
                 load_data: self,
                 fast,
+                export_only,
             },
             &mut c,
         )
@@ -417,6 +422,7 @@ struct BenchmarkArgs<'a> {
     structures: &'a Option<Vec<String>>,
     load_data: &'a LoadData,
     fast: bool,
+    export_only: bool,
 }
 
 macro_rules! dispatch_dim {
@@ -444,6 +450,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         structures,
         load_data,
         fast,
+        export_only,
     } = args;
     let iterations: Iterations<D> = rembed::parsing::parse_positions_file(embedding_path).unwrap();
 
@@ -474,12 +481,15 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         println!("Empty embedding, skipping");
         return;
     }
+
     let mut data_structures = if let Some(structures) = structures {
         rembed::data_structures(&embeddings[0].1)
             .filter(|s| structures.contains(&s.name()) || structures.is_empty())
             .collect()
-    } else {
+    } else if !export_only {
         rembed::data_structures(&embeddings[0].1).collect::<Vec<_>>()
+    } else {
+        vec![]
     };
 
     let mut code_states = HashMap::new();
@@ -505,7 +515,8 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
         for structure in &mut data_structures {
             structure.update_positions(&embedding.positions, None);
         }
-        let mut group = c.benchmark_group(format!("result_{result_id}@{iteration}_dim-{D}"));
+        let identifier = format!("result_{result_id}@{iteration}_dim-{D}");
+        let mut group = c.benchmark_group(&identifier);
 
         let process_results = |m: MeasurementResult, ty: &BenchmarkType| BenchmarkResult {
             benchmark_type: ty.clone(),
@@ -542,6 +553,7 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
                             &query_list,
                             None,
                             None,
+                            None,
                             benchmark_type.clone(),
                             structure.as_ref(),
                             fast,
@@ -565,7 +577,37 @@ async fn load_and_run<const D: usize>(args: BenchmarkArgs<'_>, c: &mut Criterion
             .unwrap_or(BenchmarkType::all());
         for benchmark in benchmarks {
             let query_list = query_list_for_type(benchmark.clone(), embedding);
-            run_benchmark_with_query_list(query_list, benchmark).await;
+            if export_only {
+                use std::io::Write;
+                std::fs::create_dir_all("embedding_export").unwrap();
+                let Ok(mut file) = std::fs::File::create_new(format!(
+                    "embedding_export/embedding_{identifier}_train.csv"
+                )) else {
+                    continue;
+                };
+                let format_dvec = |x: DVec<_>| x.components.map(|c| c.to_string()).join(",");
+                for &pos in embedding.positions.iter() {
+                    writeln!(file, "{}", format_dvec(pos)).unwrap();
+                }
+                let mut file = std::fs::File::create_new(format!(
+                    "embedding_export/embedding_{identifier}_query_points.csv"
+                ))
+                .unwrap();
+                for &query in query_list.iter() {
+                    let pos = embedding.positions[query];
+                    writeln!(file, "{}", format_dvec(pos)).unwrap();
+                }
+                let mut file = std::fs::File::create_new(format!(
+                    "embedding_export/embedding_{identifier}_query_radii.csv"
+                ))
+                .unwrap();
+                for &query in query_list.iter() {
+                    let radius = embedding.graph.nodes[query].weight.powi(2);
+                    writeln!(file, "{radius}").unwrap();
+                }
+            } else {
+                run_benchmark_with_query_list(query_list, benchmark).await;
+            }
         }
     }
 }

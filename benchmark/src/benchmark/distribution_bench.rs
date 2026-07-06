@@ -16,6 +16,9 @@ pub struct DistributionBenchConfig {
     pub distributions: Option<Vec<PointDistribution>>,
     pub benchmarksets: Option<Vec<String>>,
     pub querysets: Option<Vec<String>>,
+    /// Optional per-query radius files, parallel to `querysets`. Each file holds
+    /// one radius per line, matching the corresponding queryset's query points.
+    pub query_radii_sets: Option<Vec<String>>,
     pub path_to_benchmarksets: Option<String>,
     pub structures: Vec<String>,
     pub num_queries: usize,
@@ -162,6 +165,7 @@ impl DistributionBenchRunner {
                             radius,
                             distribution,
                             Some(queryset),
+                            None,
                             fast,
                         )?;
                         all_results.extend(results);
@@ -177,62 +181,96 @@ impl DistributionBenchRunner {
                 if self.config.expected_queries.is_some() {
                     todo!("Implement expected_queries for benchmarksets");
                 }
-                for &radius in &self.config.radii {
+                assert!(
+                    self.config.path_to_benchmarksets.is_some(),
+                    "path_to_benchmarksets must be specified when using benchmarksets"
+                );
+                let path = format!(
+                    "{}/{}",
+                    self.config.path_to_benchmarksets.as_ref().unwrap(),
+                    benchmarkset
+                );
+                eprintln!("Running benchmarkset: {} at {}", benchmarkset, path);
+                let parsed = parse_point_file(&path)?;
+                let distribution = PointDistribution::Benchmarkset {
+                    points: parsed.points.clone(),
+                    name: benchmarkset.clone(),
+                };
+                let node_count = parsed.node_count;
+                let dimension = parsed.dimension;
+                assert!(
+                    self.config.querysets.is_none() || !self.config.all_to_all,
+                    "querysets and all_to_all options are mutually exclusive"
+                );
+                let queryset = if let Some(querysets) = &self.config.querysets {
                     assert!(
-                        self.config.path_to_benchmarksets.is_some(),
-                        "path_to_benchmarksets must be specified when using benchmarksets"
+                        benchmarksets.len() == querysets.len(),
+                        "Number of querysets must match number of benchmarksets"
                     );
-                    let path = format!(
+                    let queryset = &querysets[i];
+                    eprintln!(
+                        "Using queryset: {} for benchmarkset: {}",
+                        queryset, benchmarkset
+                    );
+                    let query_path = format!(
                         "{}/{}",
                         self.config.path_to_benchmarksets.as_ref().unwrap(),
+                        queryset
+                    );
+                    Some(parse_point_file(&query_path)?.points)
+                } else if self.config.all_to_all {
+                    eprintln!(
+                        "Running All-To-All benchmark for benchmarkset: {}",
                         benchmarkset
                     );
-                    eprintln!("Running benchmarkset: {} at {}", benchmarkset, path);
-                    let parsed = parse_point_file(&path)?;
-                    let distribution = PointDistribution::Benchmarkset {
-                        points: parsed.points.clone(),
-                        name: benchmarkset.clone(),
-                    };
-                    let node_count = parsed.node_count;
-                    let dimension = parsed.dimension;
+                    Some(parsed.points)
+                } else {
+                    None
+                };
+
+                let query_radii = if let Some(radii_sets) = &self.config.query_radii_sets {
                     assert!(
-                        self.config.querysets.is_none() || !self.config.all_to_all,
-                        "querysets and all_to_all options are mutually exclusive"
+                        benchmarksets.len() == radii_sets.len(),
+                        "Number of query radii files must match number of benchmarksets"
                     );
-                    let queryset = if let Some(querysets) = &self.config.querysets {
-                        assert!(
-                            benchmarksets.len() == querysets.len(),
-                            "Number of querysets must match number of benchmarksets"
-                        );
-                        let queryset = &querysets[i];
-                        eprintln!(
-                            "Using queryset: {} for benchmarkset: {}",
-                            queryset, benchmarkset
-                        );
-                        let query_path = format!(
-                            "{}/{}",
-                            self.config.path_to_benchmarksets.as_ref().unwrap(),
-                            queryset
-                        );
-                        Some(parse_point_file(&query_path)?.points)
-                    } else if self.config.all_to_all {
-                        eprintln!(
-                            "Running All-To-All benchmark for benchmarkset: {}",
-                            benchmarkset
-                        );
-                        Some(parsed.points)
-                    } else {
-                        None
-                    };
+                    let radii_path = format!(
+                        "{}/{}",
+                        self.config.path_to_benchmarksets.as_ref().unwrap(),
+                        radii_sets[i]
+                    );
+                    eprintln!(
+                        "Using query radii: {} for benchmarkset: {}",
+                        radii_sets[i], benchmarkset
+                    );
+                    Some(parse_radius_file(&radii_path)?)
+                } else {
+                    None
+                };
+
+                if let Some(query_radii) = query_radii {
                     let results = self.run_benchmarks_for_dimension(
                         dimension,
                         node_count,
-                        radius,
+                        query_radii.iter().copied().sum::<f64>() / query_radii.len() as f64,
                         &distribution,
                         queryset,
+                        Some(query_radii),
                         fast,
                     )?;
                     all_results.extend(results);
+                } else {
+                    for &radius in &self.config.radii {
+                        let results = self.run_benchmarks_for_dimension(
+                            dimension,
+                            node_count,
+                            radius,
+                            &distribution,
+                            queryset.clone(),
+                            None,
+                            fast,
+                        )?;
+                        all_results.extend(results);
+                    }
                 }
             }
         }
@@ -273,6 +311,7 @@ impl DistributionBenchRunner {
                         radius,
                         distribution,
                         None,
+                        None,
                         fast,
                     )?;
 
@@ -300,6 +339,7 @@ impl DistributionBenchRunner {
                             radius,
                             distribution,
                             None,
+                            None,
                             fast,
                         )?;
 
@@ -311,12 +351,14 @@ impl DistributionBenchRunner {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_benchmark_for_config<const D: usize>(
         &self,
         node_count: usize,
         radius: f64,
         distribution: &PointDistribution,
         queryset: Option<Vec<Vec<f32>>>,
+        query_radii: Option<Vec<f64>>,
         fast: bool,
     ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         // Generate synthetic points
@@ -421,25 +463,35 @@ impl DistributionBenchRunner {
                     }
                 })
                 .collect();
-            let sampled = if let Some(max) = self.config.max_query_points {
-                if all_points.len() > max {
-                    let step = all_points.len() / max;
-                    eprintln!(
-                        "Sampling {} of {} query points (every {}th)",
-                        max,
-                        all_points.len(),
-                        step
-                    );
-                    all_points.into_iter().step_by(step).take(max).collect()
-                } else {
-                    all_points
-                }
-            } else {
-                all_points
-            };
-            Some(sampled)
+            Some(all_points)
         } else {
             None
+        };
+
+        if let (Some(points), Some(radii)) = (&query_pos_list, &query_radii) {
+            assert_eq!(
+                points.len(),
+                radii.len(),
+                "Number of query radii must match number of query points"
+            );
+        }
+
+        let (query_pos_list, query_radii) = match (query_pos_list, self.config.max_query_points) {
+            (Some(points), Some(max)) if points.len() > max => {
+                let step = points.len() / max;
+                eprintln!(
+                    "Sampling {} of {} query points (every {}th)",
+                    max,
+                    points.len(),
+                    step
+                );
+                let sampled_points = points.iter().copied().step_by(step).take(max).collect();
+                let sampled_radii = query_radii.map(|radii| {
+                    radii.into_iter().step_by(step).take(max).collect::<Vec<_>>()
+                });
+                (Some(sampled_points), sampled_radii)
+            }
+            (points, _) => (points, query_radii),
         };
 
         for structure in &data_structures {
@@ -449,6 +501,7 @@ impl DistributionBenchRunner {
                 &query_indices,
                 query_pos_list.clone(),
                 Some(radius),
+                query_radii.clone(),
                 runner::BenchmarkType::Radius(radius as f32, format!("radius_{}", radius)),
                 structure.as_ref(),
                 fast,
@@ -591,6 +644,7 @@ impl DistributionBenchRunner {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_benchmarks_for_dimension(
         &self,
         dim: usize,
@@ -598,6 +652,7 @@ impl DistributionBenchRunner {
         radius: f64,
         distribution: &PointDistribution,
         queryset: Option<Vec<Vec<f32>>>,
+        query_radii: Option<Vec<f64>>,
         fast: bool,
     ) -> Result<Vec<BenchmarkRecord>, Box<dyn std::error::Error>> {
         match dim {
@@ -606,6 +661,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             3 => Ok(self.run_benchmark_for_config::<3>(
@@ -613,6 +669,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             4 => Ok(self.run_benchmark_for_config::<4>(
@@ -620,6 +677,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             5 => Ok(self.run_benchmark_for_config::<5>(
@@ -627,6 +685,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             6 => Ok(self.run_benchmark_for_config::<6>(
@@ -634,6 +693,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             7 => Ok(self.run_benchmark_for_config::<7>(
@@ -641,6 +701,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             8 => Ok(self.run_benchmark_for_config::<8>(
@@ -648,6 +709,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             9 => Ok(self.run_benchmark_for_config::<9>(
@@ -655,6 +717,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             10 => Ok(self.run_benchmark_for_config::<10>(
@@ -662,6 +725,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             11 => Ok(self.run_benchmark_for_config::<11>(
@@ -669,6 +733,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             12 => Ok(self.run_benchmark_for_config::<12>(
@@ -676,6 +741,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             13 => Ok(self.run_benchmark_for_config::<13>(
@@ -683,6 +749,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             14 => Ok(self.run_benchmark_for_config::<14>(
@@ -690,6 +757,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             15 => Ok(self.run_benchmark_for_config::<15>(
@@ -697,6 +765,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             16 => Ok(self.run_benchmark_for_config::<16>(
@@ -704,6 +773,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             32 => Ok(self.run_benchmark_for_config::<32>(
@@ -711,6 +781,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             34 => Ok(self.run_benchmark_for_config::<34>(
@@ -718,6 +789,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             96 => Ok(self.run_benchmark_for_config::<96>(
@@ -725,6 +797,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             100 => Ok(self.run_benchmark_for_config::<100>(
@@ -732,6 +805,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             128 => Ok(self.run_benchmark_for_config::<128>(
@@ -739,6 +813,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             256 => Ok(self.run_benchmark_for_config::<256>(
@@ -746,6 +821,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             784 => Ok(self.run_benchmark_for_config::<784>(
@@ -753,6 +829,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             960 => Ok(self.run_benchmark_for_config::<960>(
@@ -760,6 +837,7 @@ impl DistributionBenchRunner {
                 radius,
                 distribution,
                 queryset,
+                query_radii,
                 fast,
             )?),
             _ => {
@@ -812,6 +890,17 @@ pub fn parse_point_file(path: &str) -> Result<ParsedPointFile, Box<dyn std::erro
         node_count,
         points,
     })
+}
+
+pub fn parse_radius_file(path: &str) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
+    fs::read_to_string(path)?
+        .lines()
+        .map(|line| {
+            line.trim()
+                .parse::<f64>()
+                .map_err(|e| format!("Failed to parse radius '{}': {}", line.trim(), e).into())
+        })
+        .collect()
 }
 
 pub fn hypersphere_volume_factor_recursive(d: usize) -> f64 {
