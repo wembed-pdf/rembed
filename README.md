@@ -2,6 +2,13 @@
 
 A graph embedding benchmark framework for comparing spatial indexing data structures on nearest neighbor queries in high-dimensional embeddings.
 
+## SPRK-tree
+
+This repository was developed in conjunction with the paper "Benchmarking and Engineering Data Structures for Spherical Range Queries". The [SPRK-tree](https://github.com/wembed-pdf/sprk) is a SIMD-vectorized KD-tree with LUT leaves that was developed as part of this work. The SPRK-tree is implemented in a separate crate and is used as one of the spatial index implementations in this repository.
+
+> **Looking to reproduce the results from the paper?** \
+If you are mainly interested in reproducing the results from the paper, you can use the [reproducibility-cli](https://github.com/wembed-pdf/rembed/tree/reproducability/reproducibility-cli).
+
 ## What It Does
 
 1. **Embeds graphs** into D-dimensional space using a force-directed algorithm with Adam optimization
@@ -27,7 +34,7 @@ cargo build --release --features cgal        # CGAL KD-tree
 
 | Structure | Module | Notes |
 |-----------|--------|-------|
-| SPRK-tree | `sprk` | Sorted Projection Radius KD-tree: SIMD-vectorized with LUT leaves ([separate crate](sprk/)) |
+| SPRK-tree | `sprk` | Sorted Projection Radius KD-tree: SIMD-vectorized with LUT leaves ([separate crate](https://github.com/wembed-pdf/sprk)) |
 | Kiddo | `kiddo` | Immutable KD-tree via `kiddo` crate |
 | SIF KD-tree | `sif` | KD-tree via `sif-kdtree` crate |
 | VP-tree | `vptree` | Vantage point tree via `acap` crate |

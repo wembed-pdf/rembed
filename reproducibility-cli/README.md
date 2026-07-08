@@ -1,7 +1,7 @@
 Reproducibility CLI
 -----------
 
-This is a command line interface (CLI) to help reproduce figures and tables from the paper "Benchmarking and Engineering Data Structures for Spherical Range Queries" by the authors of this repository.
+This is a command line interface (CLI) to help reproduce figures and tables from the paper "Benchmarking and Engineering Data Structures for Spherical Range Queries"
 
 How to Use
 -----------
