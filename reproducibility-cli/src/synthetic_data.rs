@@ -9,7 +9,7 @@ use std::collections::HashSet;
 pub enum PointDistribution {
     Normal { mean: f32, std_dev: f32 },
     Uniform { min: f32, max: f32 },
-    Benchmarkset { points: Vec<Vec<f32>> },
+    Benchmarkset { points: Vec<Vec<f32>>, name: String },
 }
 
 impl PointDistribution {
@@ -17,7 +17,7 @@ impl PointDistribution {
         match self {
             PointDistribution::Normal { .. } => "normal".to_string(),
             PointDistribution::Uniform { .. } => "uniform".to_string(),
-            PointDistribution::Benchmarkset { .. } => "benchmarkset".to_string(),
+            PointDistribution::Benchmarkset { name, .. } => name.clone(),
         }
     }
 
