@@ -38,6 +38,8 @@
           ggthemes
           scales
           ggforce
+          svglite
+          ggpattern
           
           # Database connectivity
           DBI
@@ -56,10 +58,20 @@
           tidyr
           stringr
           lubridate
-
+          # fast csv read
+          data_table
+          #fast ggsave
+          ragg
           # Session
           jsonlite
           languageserver
+
+          showtext
+
+          cowplot
+          patchwork
+
+          tikzDevice
         ];
         
         # R with required packages
@@ -72,6 +84,7 @@
           numpy
           scikit-learn
           snnpy
+          pandas
         ]);
 
         # Common development tools
@@ -79,6 +92,9 @@
           R-with-packages
           python-with-sklearn
           git
+          
+          lmodern
+          gyre-fonts
         ];
         
         # Common shell hook
@@ -89,6 +105,14 @@
           
           # Ensure plots directory exists
           mkdir -p plots
+
+          # Set R library path to use Nix packages
+          export R_LIBS_USER=""
+          export R_PROFILE_USER=".Rprofile"
+
+          # Create a font path for showtext to use the lmodern fonts from Nix
+          export R_SHOWTEXT_FONTPATH="${pkgs.lmodern}/share/fonts/opentype/public/lm"
+          export R_SHOWTEXT_HELVETICA_PATH="${pkgs.gyre-fonts}/share/fonts/truetype"
         '';
       in
       {
