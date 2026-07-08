@@ -11,13 +11,19 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct DistributionBenchConfig {
     pub train_path: PathBuf,
-    pub query_path: PathBuf,
+    pub query_path: Option<PathBuf>,
     pub radii_path: PathBuf,
+    pub radius: Option<f64>,
     pub structures: Vec<String>,
     pub fast: bool,
+    pub name: String,
+    pub category: String,
     // embedding related parameters
     pub node_count_override: Option<usize>,
     pub graph_generation_seed: Option<u64>,
+    // Filters
+    pub dimension_filter: Option<Vec<usize>>,
+    pub node_count_filter: Option<Vec<usize>>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +34,7 @@ pub struct BenchmarkRecord {
     pub graph_generation_seed: Option<u64>,
     pub avg_returned_points: f64,
     pub name: String,
+    pub category: String,
     pub data_structure: String,
     pub wall_time_mean_ns: u64,
     pub wall_time_stddev_ns: u64,
@@ -51,20 +58,60 @@ impl DistributionBenchRunner {
         let mut all_results = Vec::new();
         let trainset = parse_point_file(&self.config.train_path.to_string_lossy())?;
         let distribution = PointDistribution::Benchmarkset {
-            points: trainset.points.clone()
+            points: trainset.points.clone(),
+            name: self.config.name.clone(),
         };
         let node_count = trainset.node_count;
+        if let Some(filter) = &self.config.node_count_filter {
+            let real_node_count = if let Some(n_override) = self.config.node_count_override {
+                n_override
+            } else {
+                node_count
+            };
+            if !filter.contains(&real_node_count) {
+                println!("Skipping node count {} due to filter", node_count);
+                return Ok(all_results);
+            }
+        }
+        if let Some(filter) = &self.config.dimension_filter {
+            if !filter.contains(&trainset.dimension) {
+                println!("Skipping dimension {} due to filter", trainset.dimension);
+                return Ok(all_results);
+            }
+        }
         let dimension = trainset.dimension;
-        let queryset = parse_point_file(&self.config.query_path.to_string_lossy())?.points;
-        let query_radii = parse_radius_file(&self.config.radii_path.to_string_lossy())?;
+        // let queryset = self.config.query_path.as_ref().map(|p| parse_point_file(p.to_string_lossy()).unwrap().points).unwrap_or_else(Vec::new);
+        let queryset = {
+            if let Some(query_path) = &self.config.query_path {
+                Some(parse_point_file(&query_path.to_string_lossy())?.points)
+            } else {
+                Some(trainset.points.clone())
+            }
+        };
+        
+        let query_radii = if self.config.radii_path.exists() {
+            Some(parse_radius_file(&self.config.radii_path.to_string_lossy())?)
+        } else {
+            None
+        };
+        
+        let global_radius = if let Some(radius) = self.config.radius {
+            radius
+        } else if let Some(radii) = &query_radii {
+            // Use the average of the provided query radii as the global radius for benchmarking
+            let avg_radius = radii.iter().sum::<f64>() / radii.len() as f64;
+            avg_radius
+        } else {
+            panic!("No radius specified and no query radii provided");
+        };
 
         let results = self.run_benchmarks_for_dimension(
             dimension,
             node_count,
-            query_radii.iter().copied().sum::<f64>() / query_radii.len() as f64,
+            global_radius,
             &distribution,
-            Some(queryset),
-            Some(query_radii),
+            queryset,
+            query_radii,
             self.config.fast,
         )?;
         all_results.extend(results);
@@ -110,6 +157,9 @@ impl DistributionBenchRunner {
         for structure in &mut data_structures {
             structure.set_radius_hint(radius);
         }
+
+        println!("Structures to benchmark: {:?}", data_structures.iter().map(|s| s.name()).collect::<Vec<_>>());
+        println!("Available structures: {:?}", rembed::data_structures(&embedding).map(|s| s.name()).collect::<Vec<_>>());
 
         // Update positions for all structures
         for structure in &mut data_structures {
@@ -173,6 +223,7 @@ impl DistributionBenchRunner {
                 graph_generation_seed: self.config.graph_generation_seed,
                 avg_returned_points: measurement.avg_returned_points,
                 name: distribution.name().to_string(),
+                category: self.config.category.clone(),
                 data_structure: measurement.data_structure_name,
                 wall_time_mean_ns: measurement.measurement.wall_time_mean.as_nanos() as u64,
                 wall_time_stddev_ns: measurement.measurement.wall_time_stddev.as_nanos() as u64,
@@ -217,7 +268,7 @@ impl DistributionBenchRunner {
         // Write header
         writeln!(
             writer,
-            "dimension,node_count,radius,avg_returned_points,distribution,structure,wall_time_ns,wall_time_std_ns,instructions,instructions_std,cycles,cycles_std,samples"
+            "dimension,node_count,radius,avg_returned_points,distribution,category,structure,wall_time_ns,wall_time_std_ns,instructions,instructions_std,cycles,cycles_std,samples"
         )?;
 
         // Write data rows
@@ -559,7 +610,8 @@ pub fn parse_point_file(path: &str) -> Result<ParsedPointFile, Box<dyn std::erro
 }
 
 pub fn parse_radius_file(path: &str) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
-    fs::read_to_string(path)?
+    fs::read_to_string(path)
+        .expect(format!("Failed to read radius file: {}", path).as_str())
         .lines()
         .map(|line| {
             line.trim()
