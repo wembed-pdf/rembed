@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         bar.inc(1);
                         continue;
                     }
-                    benchmark_config.structures = structures.clone().unwrap_or(benchmark_config.structures);
+                    benchmark_config.structures = map_structure_alias(&structures.clone().unwrap_or(benchmark_config.structures));
                     benchmark_config.dimension_filter = dimensions.clone();
                     benchmark_config.node_count_filter = node_counts.clone();
                     let runner = DistributionBenchRunner::new(benchmark_config);
@@ -350,4 +350,12 @@ fn validate_output_dialog(output: &String) -> Result<Option<File>, Box<dyn std::
     let mut file = std::fs::File::create(output_path).expect("Failed to create output file");
     writeln!(file, "dimension,node_count,radius,graph_gen_seed,avg_returned_points,name,category,data_structure,wall_time_mean_ns,wall_time_stddev_ns,instructions_mean,instructions_stddev,cycles_mean,cycles_stddev,sample_count")?;
     Ok(Some(file))
+}
+
+fn map_structure_alias(structures: &Vec<String>) -> Vec<String> {
+    structures.iter().map(|s| match s.as_str() {
+        "sprk" => "atree".to_string(),
+        "spark" => "atree".to_string(),
+        _ => s.clone(),
+    }).collect()
 }
