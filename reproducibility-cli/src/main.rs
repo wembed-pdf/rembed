@@ -346,9 +346,9 @@ fn validate_output_dialog(output: &String) -> Result<Option<File>, Box<dyn std::
             println!("Do you want to overwrite the existing file? [Y]es, [N]o, [S]kip benchmark and use existing results for plotting, [A]ppend to existing file (duplicate rows can lead to incorrect plots)");
             let mut input = String::new();
             std::io::stdin().read_line(&mut input).expect("Failed to read input");
-            match input.trim() {
+            match input.trim().to_uppercase().as_str() {
                 "Y" => {}
-                "N" => panic!("Aborted by user"),
+                "N" => return Err("Aborted by user".into()),
                 "S" => {
                     println!("Skipping benchmark and using existing file for plotting.");
                     return Ok(None);
@@ -357,7 +357,10 @@ fn validate_output_dialog(output: &String) -> Result<Option<File>, Box<dyn std::
                     println!("Appending to existing file.");
                     return Ok(Some(std::fs::OpenOptions::new().append(true).open(output_path).expect("Failed to open existing file for appending")));
                 }
-                _ => panic!("Invalid input"),
+                _ => {
+                    println!("Invalid input, expected Y, N, S or A");
+                    return validate_output_dialog(output);
+                }
             }
         }
     }
@@ -373,7 +376,7 @@ fn download_dialog(input_path: &PathBuf, download_script: &str) -> Result<(), Bo
         println!("Do you want to run the download script now? [Y]es, [N]o");
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read input");
-        match input.trim() {
+        match input.trim().to_uppercase().as_str() {
             "Y" => {
                 std::process::Command::new("bash")
                     .arg(download_script)
@@ -382,8 +385,11 @@ fn download_dialog(input_path: &PathBuf, download_script: &str) -> Result<(), Bo
                     .status()
                     .expect(&format!("Failed to execute download script: {}", download_script));
             }
-            "N" => panic!("Aborted by user"),
-            _ => panic!("Invalid input"),
+            "N" => return Err("Aborted by user".into()),
+            _ => {
+                println!("\n Invalid input, expected Y or N");
+                return download_dialog(input_path, download_script);
+            }
         }
     }
     Ok(())
