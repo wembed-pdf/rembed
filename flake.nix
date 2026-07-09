@@ -205,6 +205,9 @@
             gawk
             findutils
             which
+            unzip                    # zenodo embedding/distributions/poi .zip archives
+            gnutar                   # download_nn.sh unpacks SIFT .tar.gz
+            gzip                     # gnutar's decompression backend
             cacert
             pkgs.dockerTools.binSh   # provides /bin/sh
           ]);
