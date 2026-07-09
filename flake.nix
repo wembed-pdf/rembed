@@ -68,10 +68,7 @@
 
           showtext
 
-          cowplot
           patchwork
-
-          tikzDevice
         ];
         
         # R with required packages
@@ -85,6 +82,7 @@
           scikit-learn
           snnpy
           pandas
+          h5py
         ]);
 
         # Common development tools
@@ -92,6 +90,7 @@
           R-with-packages
           python-with-sklearn
           git
+          wget
           
           lmodern
           gyre-fonts
