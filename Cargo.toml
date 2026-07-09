@@ -5,6 +5,7 @@ members = [
     "benchmark/poi",
     "simulation",
     "embedder-cli",
+    "reproducibility-cli",
     # "nanoflann"
     # "sklearn"
 ]
