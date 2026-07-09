@@ -37,7 +37,7 @@ enum Commands {
         #[arg(long, short)]
         output: Option<String>,
         /// Run the benchmark in fast mode (may skip some computations for speed)
-        #[arg(long, short, default_value_t = false)]
+        #[arg(long, default_value_t = false)]
         fast: bool,
         /// Filter to only run benchmarks for specified dimensions (e.g. "2 3 ...") default is to run all dimensions
         #[arg(long, num_args = 1..)]
