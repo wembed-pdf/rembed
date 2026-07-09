@@ -19,7 +19,7 @@ fi
 
 echo "=== Downloading compressed embedding datasets to ${DOWNLOAD_CACHE}... ==="
 
-wget https://zenodo.org/records/TODO/files/embedding_data.zip?download=1 -O $DOWNLOAD_CACHE/embedding_data.zip
+wget https://zenodo.org/records/21243483/files/embedding_data.zip?download=1 -O $DOWNLOAD_CACHE/embedding_data.zip
 unzip $DOWNLOAD_CACHE/embedding_data.zip -d $EMBEDDING_DATA_DIR
 mv $EMBEDDING_DATA_DIR/metadata.csv $EMBEDDING_DATA_DIR/../embedding_metadata.csv
 
