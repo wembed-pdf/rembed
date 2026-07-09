@@ -142,16 +142,28 @@
 
         # Env that the C++ feature builds (cgal / boost-rtree / wembed-snn /
         # nanoflann) need. In `nix develop` these are set implicitly by mkShell's
-        # setup hooks from buildInputs; the Docker image has no such hooks, so we
-        # compute the equivalents explicitly from the SAME nativeLibs list.
-        #   - PKG_CONFIG_PATH  -> build.rs pkg_config probes for CGAL/eigen3/boost
-        #   - NIX_CFLAGS_COMPILE -> the -isystem include flags cc/clang/bindgen read
-        # .pc files and headers live in the `dev` output, hence makeSearchPathOutput.
+        # setup hooks (which route through Nix's cc-wrapper). The Docker image
+        # invokes a bare `c++`/`clang` that does NOT read NIX_CFLAGS_COMPILE, so we
+        # feed the include paths through channels the plain compiler + cc-rs honor.
+        # Computed from the SAME nativeLibs list so it can't drift from the shell.
+        #
+        # Gotchas this handles, each verified against nixpkgs:
+        #   - eigen ships eigen3.pc in share/pkgconfig, boost in lib/pkgconfig, and
+        #     CGAL ships no .pc at all -> cover both dirs AND pass -isystem directly.
+        #   - headers live in the `dev` output (lib.getDev), e.g. <eigen3/Eigen/Dense>.
+        cppIncludeFlags = builtins.concatStringsSep " "
+          (map (p: "-isystem ${pkgs.lib.getDev p}/include") nativeLibs);
         cppBuildEnv = {
-          PKG_CONFIG_PATH =
-            pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" nativeLibs;
-          NIX_CFLAGS_COMPILE = builtins.concatStringsSep " "
-            (map (p: "-isystem ${pkgs.lib.getDev p}/include") nativeLibs);
+          PKG_CONFIG_PATH = builtins.concatStringsSep ":" (
+            (map (p: "${pkgs.lib.getDev p}/lib/pkgconfig") nativeLibs) ++
+            (map (p: "${pkgs.lib.getDev p}/share/pkgconfig") nativeLibs)
+          );
+          # cc-rs appends CXXFLAGS/CFLAGS to its compiler command, and a bare
+          # compiler reads them -> this is what actually gets the includes in.
+          CXXFLAGS = cppIncludeFlags;
+          CFLAGS = cppIncludeFlags;
+          # bindgen's libclang reads this for header discovery.
+          BINDGEN_EXTRA_CLANG_ARGS = cppIncludeFlags;
         };
 
         # Common shell hook
