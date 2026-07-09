@@ -9,7 +9,7 @@ How to Use
 0. Check whether the figure/table you want to reproduce is [supported by this CLI](#status-of-reproducibility).
 1. Clone this repository and navigate to the `reproducibility-cli` directory.
 
-   ```git clone https://github.com/kahypar/mt-kahypar.git```
+   ```git clone https://github.com/wembed-pdf/rembed```
 
 2. Create a data directory and download the required datasets. The data directory should have the following structure:
 
