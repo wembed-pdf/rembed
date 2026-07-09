@@ -48,6 +48,9 @@ enum Commands {
         /// Filter to only run benchmarks for specified embedding seed (e.g 12 13 14 ) default is to run all embedding seeds
         #[arg(long, num_args = 1..)]
         embedding_seeds: Option<Vec<u64>>,
+        /// Filter to only run benchmarks for specified realworld category (e.g. "nn", "clustering", "poi") default is to run all categories
+        #[arg(long, num_args = 1..)]
+        realworld_categories: Option<Vec<String>>,
     },
 }
 
@@ -59,12 +62,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
 
-        Commands::Reproduce { figure, table , structures, data_dir, plotscript_dir, output, fast, dimensions, node_counts, embedding_seeds } => {
+        Commands::Reproduce { figure, table , structures, data_dir, plotscript_dir, output, fast, dimensions, node_counts, embedding_seeds, realworld_categories } => {
             assert!(figure.is_some() || table.is_some(), "Either figure or table must be specified");
             assert!(!(figure.is_some() && table.is_some()), "Cannot specify both figure and table");
             let is_figure = figure.is_some();
             let index = if is_figure { figure.unwrap() } else { table.unwrap() };
-            let (benchmark_configs, plotscript_command, default_output) = map_figure_to_benchmark_config(index, is_figure, data_dir, plotscript_dir, fast)?;
+            let (benchmark_configs, plotscript_command, default_output) = map_figure_to_benchmark_config(index, is_figure, data_dir, plotscript_dir, fast, realworld_categories.unwrap_or(vec!["nn".to_string(), "clustering".to_string(), "poi".to_string()]))?;
         
             let output = output.unwrap_or(default_output.clone());
             if let Some(mut output_file) = validate_output_dialog(&output)? {
@@ -100,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // This is not the place to create your own benchmark configurations. Instead, use the benchmark cli.
-fn map_figure_to_benchmark_config(index: i64, is_figure: bool, data_dir: PathBuf, plotscript_dir: PathBuf, fast: bool) -> Result<(Vec<DistributionBenchConfig>, String, String), String> {
+fn map_figure_to_benchmark_config(index: i64, is_figure: bool, data_dir: PathBuf, plotscript_dir: PathBuf, fast: bool, realworld_categories: Vec<String>) -> Result<(Vec<DistributionBenchConfig>, String, String), String> {
     if is_figure {
         match index {
             3 => Ok((generate_embedding_benchmark_configs(data_dir, vec!["atree".to_string(), "neighbourhood".to_string()], fast), format!("Rscript {}/fixed_n_dim.R", plotscript_dir.to_string_lossy()), "benchmark_results/embedding_benchmark_results.csv".to_string())),
@@ -112,10 +115,10 @@ fn map_figure_to_benchmark_config(index: i64, is_figure: bool, data_dir: PathBuf
     } else {
         match index {
             2 => Ok((generate_embedding_benchmark_configs(data_dir, vec!["atree".to_string()], fast), format!("python {}/table.py", plotscript_dir.to_string_lossy()), "benchmark_results/embedding_benchmark_results.csv".to_string())),
-            3 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
-            4 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
-            5 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
-            6 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
+            3 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast, realworld_categories), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
+            4 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast, realworld_categories), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
+            5 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast, realworld_categories), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
+            6 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast, realworld_categories), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
             7 => Ok((generate_embedding_benchmark_configs(data_dir, vec!["atree".to_string()], fast), format!("python {}/snn_comparison.py", plotscript_dir.to_string_lossy()), "benchmark_results/embedding_benchmark_results.csv".to_string())),
             _ => Err(format!("Table {} was not in the paper or is not supported yet", index)),
         }
@@ -129,6 +132,7 @@ struct SmallEmbeddingMetadata {
 
 fn generate_embedding_benchmark_configs(data_dir: PathBuf, structures: Vec<String>, fast: bool) -> Vec<DistributionBenchConfig> {
     let data_dir = data_dir.join("embedding");
+    download_dialog(&data_dir, "data/download_scripts/download_embedding.sh").expect("Failed to download embedding data");
     // read metadata csv file
     let mut metadata_map = std::collections::HashMap::new();
     // graph_id,result_id,embedding_dim,dim_hint,max_iterations,actual_iterations,seed,file_path,checksum,created_at,created_at,n,deg,ple,dim,alpha,wseed,pseed,sseed,processed_n,processed_avg_degree,file_path,checksum
@@ -176,8 +180,9 @@ fn generate_embedding_benchmark_configs(data_dir: PathBuf, structures: Vec<Strin
 
 fn generate_distribution_benchmark_configs(data_dir: PathBuf, structures: Vec<String>, fast: bool) -> Vec<DistributionBenchConfig> {
     let data_dir = data_dir.join("distributions");
+    download_dialog(&data_dir, "data/download_scripts/download_distributions.sh").expect("Failed to download distributions data");
     let mut configs = Vec::new();
-    for entry in std::fs::read_dir(&data_dir.join("distribution_data")).expect("Failed to read data directory") {
+    for entry in std::fs::read_dir(&data_dir.join("distributions_data")).expect("Failed to read data directory") {
         let entry = entry.expect("Failed to read directory entry");
         if !entry.file_name().to_string_lossy().ends_with("train.csv") {
             continue;
@@ -203,93 +208,102 @@ fn generate_distribution_benchmark_configs(data_dir: PathBuf, structures: Vec<St
     configs
 }
 
-fn generate_realworld_benchmark_configs(data_dir: PathBuf, structures: Vec<String>, fast: bool) -> Vec<DistributionBenchConfig> {
+fn generate_realworld_benchmark_configs(data_dir: PathBuf, structures: Vec<String>, fast: bool, categories: Vec<String>) -> Vec<DistributionBenchConfig> {
     let data_dir = data_dir.join("realworld");
     let mut configs = Vec::new();
     
-    // generate nearest neighbor benchmark configurations 
-    let nearest_neighbor_data_dir = data_dir.join("nearest_neighbor_data");
-    for entry in std::fs::read_dir(&nearest_neighbor_data_dir).expect(format!("Missing nearest neighbor data directory: {}", nearest_neighbor_data_dir.to_string_lossy()).as_str()) {
-        let entry = entry.expect("Failed to read directory entry");
-        if !entry.file_name().to_string_lossy().ends_with("train.csv") {
-            continue;
-        }
-        let general_data_file_name = entry.file_name().to_string_lossy().to_string();
-        let general_data_file_path = entry.path().parent().unwrap().to_path_buf().join(general_data_file_name.replace("_train.csv", ""));
-        let query_path = general_data_file_path.with_file_name(format!("{}_query.csv", general_data_file_path.file_stem().unwrap().to_string_lossy()));
-        for radius in get_radii_for_realworld_dataset(general_data_file_path.file_stem().unwrap().to_string_lossy().as_ref()) {
-            configs.push(DistributionBenchConfig {
-                train_path: entry.path(),
-                radii_path: PathBuf::new(), // use one radius for all queries
-                radius: Some(radius),
-                query_path: Some(query_path.clone()),
-                structures: structures.clone(),
-                fast: fast,
-                name: general_data_file_path.file_stem().unwrap().to_string_lossy().to_string(),
-                node_count_override: None,
-                graph_generation_seed: None,
-                category: "nn".into(),
-                dimension_filter: None,
-                node_count_filter: None,
-            });
-        }
-    }
-
-    // generate clustering benchmark configurations
-    let clustering_data_dir = data_dir.join("clustering_data");
-    for entry in std::fs::read_dir(&clustering_data_dir).expect(format!("Missing clustering data directory: {}", clustering_data_dir.to_string_lossy()).as_str()) {
-        let entry = entry.expect("Failed to read directory entry");
-        assert!(entry.file_name().to_string_lossy().ends_with(".csv"), "Expecting clustering data files to end with .csv");
-        let general_data_file_name = entry.file_name().to_string_lossy().to_string();
-        let general_data_file_path = entry.path().parent().unwrap().to_path_buf().join(general_data_file_name.replace(".csv", ""));
-        for radius in get_radii_for_realworld_dataset(general_data_file_path.file_stem().unwrap().to_string_lossy().as_ref()) {
-            configs.push(DistributionBenchConfig {
-                train_path: entry.path(),
-                radii_path: PathBuf::new(), // use one radius for all queries
-                radius: Some(radius),
-                query_path: None, // clustering queries are all-to-all, so no query file is needed
-                structures: structures.clone(),
-                fast: fast,
-                name: general_data_file_path.file_stem().unwrap().to_string_lossy().to_string(),
-                node_count_override: None,
-                graph_generation_seed: None,
-                category: "clustering".into(),
-                dimension_filter: None,
-                node_count_filter: None,
-            });
+    if categories.contains(&"nn".to_string()) {
+        // generate nearest neighbor benchmark configurations 
+        let nearest_neighbor_data_dir = data_dir.join("nearest_neighbor_data");
+        download_dialog(&nearest_neighbor_data_dir, "data/download_scripts/download_nn.sh").expect("Failed to download nearest neighbor data");
+        for entry in std::fs::read_dir(&nearest_neighbor_data_dir).expect(format!("Missing nearest neighbor data directory: {}", nearest_neighbor_data_dir.to_string_lossy()).as_str()) {
+            let entry = entry.expect("Failed to read directory entry");
+            if !entry.file_name().to_string_lossy().ends_with("train.csv") {
+                continue;
+            }
+            let general_data_file_name = entry.file_name().to_string_lossy().to_string();
+            let general_data_file_path = entry.path().parent().unwrap().to_path_buf().join(general_data_file_name.replace("_train.csv", ""));
+            let query_path = general_data_file_path.with_file_name(format!("{}_query.csv", general_data_file_path.file_stem().unwrap().to_string_lossy()));
+            for radius in get_radii_for_realworld_dataset(general_data_file_path.file_stem().unwrap().to_string_lossy().as_ref()) {
+                configs.push(DistributionBenchConfig {
+                    train_path: entry.path(),
+                    radii_path: PathBuf::new(), // use one radius for all queries
+                    radius: Some(radius),
+                    query_path: Some(query_path.clone()),
+                    structures: structures.clone(),
+                    fast: fast,
+                    name: general_data_file_path.file_stem().unwrap().to_string_lossy().to_string(),
+                    node_count_override: None,
+                    graph_generation_seed: None,
+                    category: "nn".into(),
+                    dimension_filter: None,
+                    node_count_filter: None,
+                });
+            }
         }
     }
 
-    // generate poi benchmark configurations
-    let poi_data_dir = data_dir.join("poi_data");
-    let poi_radii = vec![500.0, 1000.0, 2000.0, 5000.0];
-    let poi_pairs = vec![
-        ("parking_hospital", "parking.csv", "hospital.csv"),
-        ("restaurant_trainstation", "restaurant.csv", "trainstation.csv"),
-        ("pharmacy_hospital", "pharmacy.csv", "hospital.csv"),
-        ("busstop_trainstation", "busstop.csv", "trainstation.csv"),
-        ("atm_supermarket", "atm.csv", "supermarket.csv"),
-        ("hospital_university", "hospital.csv", "university.csv"),
-        ("bakery_university", "bakery.csv", "university.csv"),
-    ];
-    for (name, poi_file, query_file) in poi_pairs {
-        let poi_path = poi_data_dir.join(poi_file);
-        let query_path = poi_data_dir.join(query_file);
-        for radius in &poi_radii {
-            configs.push(DistributionBenchConfig {
-                train_path: poi_path.clone(),
-                radii_path: PathBuf::new(), // use one radius for all queries
-                radius: Some(*radius),
-                query_path: Some(query_path.clone()),
-                structures: structures.clone(),
-                fast: fast,
-                name: name.to_string(),
-                node_count_override: None,
-                graph_generation_seed: None,
-                category: "poi".into(),
-                dimension_filter: None,
-                node_count_filter: None,
-            });
+    if categories.contains(&"clustering".to_string()) {
+        // generate clustering benchmark configurations
+        let clustering_data_dir = data_dir.join("clustering_data");
+        download_dialog(&clustering_data_dir, "data/download_scripts/download_clustering.sh").expect("Failed to download clustering data");
+        for entry in std::fs::read_dir(&clustering_data_dir).expect(format!("Missing clustering data directory: {}", clustering_data_dir.to_string_lossy()).as_str()) {
+            let entry = entry.expect("Failed to read directory entry");
+            assert!(entry.file_name().to_string_lossy().ends_with(".csv"), "Expecting clustering data files to end with .csv");
+            let general_data_file_name = entry.file_name().to_string_lossy().to_string();
+            let general_data_file_path = entry.path().parent().unwrap().to_path_buf().join(general_data_file_name.replace(".csv", ""));
+            for radius in get_radii_for_realworld_dataset(general_data_file_path.file_stem().unwrap().to_string_lossy().as_ref()) {
+                configs.push(DistributionBenchConfig {
+                    train_path: entry.path(),
+                    radii_path: PathBuf::new(), // use one radius for all queries
+                    radius: Some(radius),
+                    query_path: None, // clustering queries are all-to-all, so no query file is needed
+                    structures: structures.clone(),
+                    fast: fast,
+                    name: general_data_file_path.file_stem().unwrap().to_string_lossy().to_string(),
+                    node_count_override: None,
+                    graph_generation_seed: None,
+                    category: "clustering".into(),
+                    dimension_filter: None,
+                    node_count_filter: None,
+                });
+            }
+        }
+    }
+
+    if categories.contains(&"poi".to_string()) {
+        // generate poi benchmark configurations
+        let poi_data_dir = data_dir.join("poi_data");
+        download_dialog(&poi_data_dir, "data/download_scripts/download_poi.sh").expect("Failed to download poi data");
+        let poi_radii = vec![500.0, 1000.0, 2000.0, 5000.0];
+        let poi_pairs = vec![
+            ("parking_hospital", "parking.csv", "hospital.csv"),
+            ("restaurant_trainstation", "restaurant.csv", "trainstation.csv"),
+            ("pharmacy_hospital", "pharmacy.csv", "hospital.csv"),
+            ("busstop_trainstation", "busstop.csv", "trainstation.csv"),
+            ("atm_supermarket", "atm.csv", "supermarket.csv"),
+            ("hospital_university", "hospital.csv", "university.csv"),
+            ("bakery_university", "bakery.csv", "university.csv"),
+        ];
+        for (name, poi_file, query_file) in poi_pairs {
+            let poi_path = poi_data_dir.join(poi_file);
+            let query_path = poi_data_dir.join(query_file);
+            for radius in &poi_radii {
+                configs.push(DistributionBenchConfig {
+                    train_path: poi_path.clone(),
+                    radii_path: PathBuf::new(), // use one radius for all queries
+                    radius: Some(*radius),
+                    query_path: Some(query_path.clone()),
+                    structures: structures.clone(),
+                    fast: fast,
+                    name: name.to_string(),
+                    node_count_override: None,
+                    graph_generation_seed: None,
+                    category: "poi".into(),
+                    dimension_filter: None,
+                    node_count_filter: None,
+                });
+            }
         }
     }
     configs
@@ -350,6 +364,29 @@ fn validate_output_dialog(output: &String) -> Result<Option<File>, Box<dyn std::
     let mut file = std::fs::File::create(output_path).expect("Failed to create output file");
     writeln!(file, "dimension,node_count,radius,graph_gen_seed,avg_returned_points,name,category,data_structure,wall_time_mean_ns,wall_time_stddev_ns,instructions_mean,instructions_stddev,cycles_mean,cycles_stddev,sample_count")?;
     Ok(Some(file))
+}
+
+fn download_dialog(input_path: &PathBuf, download_script: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if !input_path.exists() {
+        println!("Benchmark data does not exist: {}", input_path.display());
+        println!("You can download the required data using the following script: {}", download_script);
+        println!("Do you want to run the download script now? [Y]es, [N]o");
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).expect("Failed to read input");
+        match input.trim() {
+            "Y" => {
+                std::process::Command::new("bash")
+                    .arg(download_script)
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::inherit())
+                    .status()
+                    .expect(&format!("Failed to execute download script: {}", download_script));
+            }
+            "N" => panic!("Aborted by user"),
+            _ => panic!("Invalid input"),
+        }
+    }
+    Ok(())
 }
 
 fn map_structure_alias(structures: &Vec<String>) -> Vec<String> {

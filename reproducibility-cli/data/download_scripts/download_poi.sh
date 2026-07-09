@@ -28,3 +28,5 @@ echo "=== Downloading compressed poi datasets to ${DOWNLOAD_CACHE}... ==="
 
 wget https://zenodo.org/records/TODO/files/poi.zip?download=1 -O $DOWNLOAD_CACHE/poi.zip
 unzip $DOWNLOAD_CACHE/poi.zip -d $POI_DATA_DIR
+
+echo "=== Finished unpacking poi datasets to ${POI_DATA_DIR} ==="
