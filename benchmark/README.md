@@ -24,9 +24,7 @@ Useful Tips
 -----------
 
 - To use python-based backends run 
-```sh
-   cargo run --release --features python benchmark
-```
+``` cargo run --release --features python benchmark```
 
 Bug Reports
 -----------

@@ -17,7 +17,9 @@ How to Use
 
    ```nix develop```
 
-   Alternatively, you can install the dependencies manually, take a look at the `flake.nix` file to see which dependencies are required. Most dependencies are for competitor implementations and are not strictly necessary to get the CLI running. 
+   Alternatively, you can use the provided Dockerfile to create a reproducible environment. To do so, you need to have [docker](https://docs.docker.com/get-docker/) installed. Then, you can run the following command to build the docker image:
+
+   ```docker run -it -v "$PWD:/work" docker.io/truedoctor/rembed-env:latest```
 
 3. Run the CLI for the figure/table you want to reproduce. For example, to reproduce Figure 3, run:
 
@@ -26,12 +28,17 @@ How to Use
    The cli will automatically download the required datasets and run the benchmarks. 
    If you prefer to download the datasets manually, you can do so by following the instructions in the [datasets](#datasets) section.
 
-Useful Tips
+Useful Tips / Troubleshooting
 -----------
 
 - The default settings for the CLI are set to reproduce the figures/tables thoroughly, which may take a long time. If you want to reproduce the figures/tables faster and with less precision, you can use the `--fast` flag. Alternatively, you can use the `--node-counts`, `--dimensions`, and `--embedding-seeds` flags to only reproduce parts of the figures/tables. For example, to reproduce Figure 3 with only 100,000 nodes and 2 or 8 dimensions and a single embedding seed, run:
 
    ```cargo run --release reproduce --figure 4 --structures sprk kiddo --node-counts 100000 --dimensions 2 8 --embedding-seeds 12```
+
+- To use python-based backends run 
+```sh
+   cargo run --release --features python reproduce --figure 4 --structures sklearn_kdtree py_snn
+```
 
 
 
