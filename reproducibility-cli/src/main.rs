@@ -63,6 +63,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
 
         Commands::Reproduce { figure, table , structures, data_dir, plotscript_dir, output, fast, dimensions, node_counts, embedding_seeds, realworld_categories } => {
+
+            println!("\n\n\n=== Reproducing benchmark for {} ===\n", if figure.is_some() { format!("figure {}", figure.unwrap()) } else { format!("table {}", table.unwrap()) });
+
             if !figure.is_some() && !table.is_some() {
                 return Err("Either figure or table must be specified. For example, use `cargo run -r --figure 3` or `cargo run -r --table 2`".into());
             }
@@ -135,10 +138,6 @@ fn generate_embedding_benchmark_configs(data_dir: PathBuf, structures: Vec<Strin
     let data_dir = data_dir.join("embedding");
     download_dialog(&data_dir, "data/download_scripts/download_embedding.sh").expect("Failed to download embedding data");
 
-    // Read the metadata csv. The `export_prefix` column already names each row's
-    // files ({prefix}_train.csv, {prefix}_query_points.csv, {prefix}_query_radii.csv),
-    // so we build one config per metadata row instead of scanning the directory
-    // and reverse-parsing result_ids back out of filenames.
     // header: result_id,iteration,embedding_dim,dim_hint,pos_seed,n,node_count,deg,
     //         processed_avg_degree,ple,latent_dim,alpha,wseed,pseed,sseed,
     //         intrinsic_dimension,export_prefix
@@ -146,9 +145,6 @@ fn generate_embedding_benchmark_configs(data_dir: PathBuf, structures: Vec<Strin
         .expect("Failed to read metadata file");
     let mut lines = metadata_file.lines();
     let header = lines.next().expect("Metadata file is empty");
-
-    // Resolve column indices by header name, so the parser survives column
-    // reordering and only depends on the three columns it actually reads.
     let col = |name: &str| header
         .split(',')
         .position(|c| c.trim() == name)
