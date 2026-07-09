@@ -131,57 +131,55 @@ fn map_figure_to_benchmark_config(index: i64, is_figure: bool, data_dir: PathBuf
     }
 }
 
-struct SmallEmbeddingMetadata {
-    n: usize,
-    wseed: u64,
-}
-
 fn generate_embedding_benchmark_configs(data_dir: PathBuf, structures: Vec<String>, fast: bool) -> Vec<DistributionBenchConfig> {
     let data_dir = data_dir.join("embedding");
     download_dialog(&data_dir, "data/download_scripts/download_embedding.sh").expect("Failed to download embedding data");
-    // read metadata csv file
-    let mut metadata_map = std::collections::HashMap::new();
-    // graph_id,result_id,embedding_dim,dim_hint,max_iterations,actual_iterations,seed,file_path,checksum,created_at,created_at,n,deg,ple,dim,alpha,wseed,pseed,sseed,processed_n,processed_avg_degree,file_path,checksum
+
+    // Read the metadata csv. The `export_prefix` column already names each row's
+    // files ({prefix}_train.csv, {prefix}_query_points.csv, {prefix}_query_radii.csv),
+    // so we build one config per metadata row instead of scanning the directory
+    // and reverse-parsing result_ids back out of filenames.
+    // header: result_id,iteration,embedding_dim,dim_hint,pos_seed,n,node_count,deg,
+    //         processed_avg_degree,ple,latent_dim,alpha,wseed,pseed,sseed,
+    //         intrinsic_dimension,export_prefix
     let metadata_file = std::fs::read_to_string(&data_dir.join("embedding_metadata.csv"))
         .expect("Failed to read metadata file");
-    for line in metadata_file.lines().skip(1) { // skip header
-        let parts: Vec<&str> = line.split(',').collect();
-        assert!(parts.len() == 17, "Metadata file has unexpected number of columns");
-        let n = parts[5].parse::<usize>().expect("Failed to parse n");
-        let wseed = parts[12].parse::<u64>().expect("Failed to parse wseed");
-        metadata_map.insert(parts[1].to_string(), SmallEmbeddingMetadata { n, wseed });
-    }
+    let mut lines = metadata_file.lines();
+    let header = lines.next().expect("Metadata file is empty");
 
-    // Generate benchmark configurations for all input files in the data directory
-    let mut configs = Vec::new();
-    for entry in std::fs::read_dir(&data_dir.join("embedding_data")).expect("Failed to read data directory") {
-        let entry = entry.expect("Failed to read directory entry");
-        // skip files that do not end with train.csv
-        if !entry.file_name().to_string_lossy().ends_with("train.csv") {
-            continue;
-        }
-        println!("Processing file: {}", entry.path().display());
-        let general_data_file_name = entry.file_name().to_string_lossy().to_string();
-        let general_data_file_path = entry.path().parent().unwrap().to_path_buf().join(general_data_file_name.replace("train.csv", ""));
-        let result_id = general_data_file_name.split("@").next().expect("Expecting data file name of form embedding_result_{result_id}@{iteration_id}_dim-{embedding_dimension}_train.csv").split("_").nth(2).expect("Expecting data file name of form embedding_result_{result_id}@{iteration_id}_dim-{embedding_dimension}_train.csv");
-        let metadata = metadata_map.get(&result_id.to_string())
-            .expect(&format!("Metadata not found for file: {}", general_data_file_path.to_string_lossy()));
-        configs.push(DistributionBenchConfig {
-            train_path: entry.path(),
-            radii_path: general_data_file_path.with_file_name(format!("{}query_radii.csv", general_data_file_path.file_stem().unwrap().to_string_lossy())),
-            radius: None, // use the radii from the query_radii.csv file
-            query_path: Some(general_data_file_path.with_file_name(format!("{}query_points.csv", general_data_file_path.file_stem().unwrap().to_string_lossy()))),
-            structures: structures.clone(),
-            fast: fast,
-            name: general_data_file_path.file_stem().unwrap().to_string_lossy().to_string(),
-            node_count_override: Some(metadata.n),
-            graph_generation_seed: Some(metadata.wseed),
-            category: "embedding".into(),
-            dimension_filter: None,
-            node_count_filter: None,
-        });
-    }
-    configs
+    // Resolve column indices by header name, so the parser survives column
+    // reordering and only depends on the three columns it actually reads.
+    let col = |name: &str| header
+        .split(',')
+        .position(|c| c.trim() == name)
+        .unwrap_or_else(|| panic!("Metadata file missing '{name}' column"));
+    let (n_col, wseed_col, prefix_col) = (col("n"), col("wseed"), col("export_prefix"));
+
+    let embedding_data_dir = data_dir.join("embedding_data");
+    lines
+        .map(|line| {
+            let parts: Vec<&str> = line.split(',').collect();
+            let n = parts[n_col].parse::<usize>().expect("Failed to parse n");
+            let wseed = parts[wseed_col].parse::<u64>().expect("Failed to parse wseed");
+            let prefix = parts[prefix_col].trim();
+
+            let file = |suffix: &str| embedding_data_dir.join(format!("{prefix}_{suffix}"));
+            DistributionBenchConfig {
+                train_path: file("train.csv"),
+                radii_path: file("query_radii.csv"),
+                radius: None, // use the radii from the query_radii.csv file
+                query_path: Some(file("query_points.csv")),
+                structures: structures.clone(),
+                fast,
+                name: prefix.to_string(),
+                node_count_override: Some(n),
+                graph_generation_seed: Some(wseed),
+                category: "embedding".into(),
+                dimension_filter: None,
+                node_count_filter: None,
+            }
+        })
+        .collect()
 }
 
 fn generate_distribution_benchmark_configs(data_dir: PathBuf, structures: Vec<String>, fast: bool) -> Vec<DistributionBenchConfig> {
