@@ -63,8 +63,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
 
         Commands::Reproduce { figure, table , structures, data_dir, plotscript_dir, output, fast, dimensions, node_counts, embedding_seeds, realworld_categories } => {
-            assert!(figure.is_some() || table.is_some(), "Either figure or table must be specified");
-            assert!(!(figure.is_some() && table.is_some()), "Cannot specify both figure and table");
+            if !figure.is_some() && !table.is_some() {
+                return Err("Either figure or table must be specified. For example, use `cargo run -r --figure 3` or `cargo run -r --table 2`".into());
+            }
+
+            if figure.is_some() && table.is_some() {
+                return Err("Cannot specify both figure and table at the same time.".into());
+            }
+
             let is_figure = figure.is_some();
             let index = if is_figure { figure.unwrap() } else { table.unwrap() };
             let (benchmark_configs, plotscript_command, default_output) = map_figure_to_benchmark_config(index, is_figure, data_dir, plotscript_dir, fast, realworld_categories.unwrap_or(vec!["nn".to_string(), "clustering".to_string(), "poi".to_string()]))?;
@@ -110,7 +116,7 @@ fn map_figure_to_benchmark_config(index: i64, is_figure: bool, data_dir: PathBuf
             4 => Ok((generate_distribution_benchmark_configs(data_dir, vec!["atree".to_string()], fast), format!("Rscript {}/distributions.R", plotscript_dir.to_string_lossy()), "benchmark_results/distribution_benchmark_results.csv".to_string())),
             9 => Ok((generate_embedding_benchmark_configs(data_dir, vec!["atree".to_string(), "neighbourhood".to_string()], fast), format!("Rscript {}/fixed_n_dim.R", plotscript_dir.to_string_lossy()), "benchmark_results/embedding_benchmark_results.csv".to_string())),
             11 => Ok((generate_distribution_benchmark_configs(data_dir, vec!["naive_atree".to_string()], fast), format!("Rscript {}/distributions.R", plotscript_dir.to_string_lossy()), "benchmark_results/distribution_benchmark_results.csv".to_string())),
-            _ => Err(format!("Figure {} was not in the paper or is not supported yet", index)),
+            _ => Err(format!("Figure {} was not in the paper, not a benchmark or is not supported yet", index)),
         }
     } else {
         match index {
@@ -120,7 +126,7 @@ fn map_figure_to_benchmark_config(index: i64, is_figure: bool, data_dir: PathBuf
             5 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast, realworld_categories), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
             6 => Ok((generate_realworld_benchmark_configs(data_dir, vec!["atree".to_string(), "kiddo".to_string()], fast, realworld_categories), format!("python {}/extern.py", plotscript_dir.to_string_lossy()), "benchmark_results/realworld_benchmark_results.csv".to_string())),
             7 => Ok((generate_embedding_benchmark_configs(data_dir, vec!["atree".to_string()], fast), format!("python {}/snn_comparison.py", plotscript_dir.to_string_lossy()), "benchmark_results/embedding_benchmark_results.csv".to_string())),
-            _ => Err(format!("Table {} was not in the paper or is not supported yet", index)),
+            _ => Err(format!("Table {} was not in the paper, not a benchmark or is not supported yet", index)),
         }
     }
 }
