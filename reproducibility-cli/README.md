@@ -11,23 +11,7 @@ How to Use
 
    ```git clone https://github.com/wembed-pdf/rembed```
 
-2. Create a data directory and download the required datasets. The data directory should have the following structure:
-
-   ```
-   reproducibility-cli
-   ├── data
-       ├── embedding(https://zenodo.org/records/21243483)
-       │   ├── embedding_data
-       │   ├── embedding_metadata.csv
-       ├── distributions(https://zenodo.org/records/21243483)
-       │   ├── distribution_data
-       ├── realworld(https://zenodo.org/records/21243483)
-           ├── clustering_data
-           ├── nearest_neighbor_data
-           ├── poi_data
-   ```
-
-3. This project uses a nix flake to create a reproducible environment. 
+2. This project uses a nix flake to create a reproducible environment. 
 
    To use the flake, you need to have [nix](https://nixos.org/download.html) installed. Then, you can run the following command to enter the environment:
 
@@ -35,10 +19,12 @@ How to Use
 
    Alternatively, you can install the dependencies manually, take a look at the `flake.nix` file to see which dependencies are required. Most dependencies are for competitor implementations and are not strictly necessary to get the CLI running. 
 
-4. Run the CLI for the figure/table you want to reproduce. For example, to reproduce Figure 3, run:
+3. Run the CLI for the figure/table you want to reproduce. For example, to reproduce Figure 3, run:
 
    ```cargo run --release reproduce --figure 4 --structures sprk kiddo```
 
+   The cli will automatically download the required datasets and run the benchmarks. 
+   If you prefer to download the datasets manually, you can do so by following the instructions in the [datasets](#datasets) section.
 
 Useful Tips
 -----------
@@ -72,3 +58,28 @@ Status of Reproducibility
 | Table 5 | ✨ | ✅ |  |
 | Table 6 | ✨ | ✅ |  |
 | Table 7 | ✨ | ✅ |  |
+
+
+Datasets
+-----------
+
+Create a data directory and download the required datasets. The data directory should have the following structure:
+
+```
+reproducibility-cli
+├── data
+      ├── embedding(https://zenodo.org/records/21243483/files/embedding_data.zip?download=1)
+      │   ├── embedding_data
+      │   ├── embedding_metadata.csv
+      ├── distributions(https://zenodo.org/records/21243483/files/distributions_data.zip?download=1)
+      │   ├── distributions_data
+      ├── realworld
+         ├── clustering_data
+         ├── nearest_neighbor_data 
+         ├── poi_data (https://zenodo.org/records/21243483/files/poi_data.zip?download=1)
+```
+
+- The clustering data stem from the [openML datasets](https://www.openml.org).
+- The nearest neighbor data stem from the [ANN-Benchmarks](https://github.com/erikbern/ann-benchmarks).
+
+There are download helper scripts in the reproducibility-cli/data/download_scripts directory. You can run the scripts to download the datasets automatically. These are also the scripts that are run by the CLI when you run the `reproduce` command. 
