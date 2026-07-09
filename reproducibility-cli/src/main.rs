@@ -146,9 +146,9 @@ fn generate_embedding_benchmark_configs(data_dir: PathBuf, structures: Vec<Strin
         .expect("Failed to read metadata file");
     for line in metadata_file.lines().skip(1) { // skip header
         let parts: Vec<&str> = line.split(',').collect();
-        assert!(parts.len() == 23, "Metadata file has unexpected number of columns");
-        let n = parts[11].parse::<usize>().expect("Failed to parse n");
-        let wseed = parts[16].parse::<u64>().expect("Failed to parse wseed");
+        assert!(parts.len() == 17, "Metadata file has unexpected number of columns");
+        let n = parts[5].parse::<usize>().expect("Failed to parse n");
+        let wseed = parts[12].parse::<u64>().expect("Failed to parse wseed");
         metadata_map.insert(parts[1].to_string(), SmallEmbeddingMetadata { n, wseed });
     }
 
