@@ -10,11 +10,16 @@
 #     docker run -it -v "$PWD:/work" <image> \
 #         cargo run --bin embedder-cli -- ...
 #
+# A push publishes two tags pointing at the same image: the primary TAG (git
+# short SHA by default, for traceability) and `latest`. Set PUSH_LATEST=0 to
+# publish only the primary tag.
+#
 # Usage:
 #     ./build_docker.sh                      # build + load into local docker
-#     ./build_docker.sh --push               # build, load, tag, and push
+#     ./build_docker.sh --push               # build, push :<git-sha> and :latest
 #     REGISTRY=docker.io/truedoctor ./build_docker.sh --push
-#     TAG=v0.1.0 ./build_docker.sh --push
+#     TAG=v0.1.0 ./build_docker.sh --push    # push :v0.1.0 and :latest
+#     PUSH_LATEST=0 ./build_docker.sh --push # push only the primary tag
 #     ./build_docker.sh --push --skopeo      # push without a docker daemon
 #
 set -euo pipefail
@@ -30,8 +35,16 @@ REGISTRY="${REGISTRY:-docker.io/truedoctor}"
 IMAGE_NAME="${IMAGE_NAME:-rembed-env}"
 # Tag to publish. Defaults to the short git commit so images are traceable.
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo latest)}"
+# Also move the `latest` tag to this build. Set PUSH_LATEST=0 to opt out.
+PUSH_LATEST="${PUSH_LATEST:-1}"
 
 FULL_REF="${REGISTRY}/${IMAGE_NAME}:${TAG}"
+LATEST_REF="${REGISTRY}/${IMAGE_NAME}:latest"
+
+# Nothing extra to do if the primary tag is already `latest`.
+if [ "$TAG" = "latest" ]; then
+    PUSH_LATEST=0
+fi
 
 PUSH=0
 USE_SKOPEO=0
@@ -78,6 +91,12 @@ if [ "$USE_SKOPEO" -eq 1 ]; then
     echo ">> Pushing ${FULL_REF} via skopeo (no docker daemon needed)..."
     skopeo copy --policy "${POLICY}" \
         "docker-archive:${IMAGE_TARBALL}" "docker://${FULL_REF}"
+    if [ "$PUSH_LATEST" -eq 1 ]; then
+        # Same manifest under a second name; only the manifest is re-uploaded.
+        echo ">> Also tagging ${LATEST_REF}..."
+        skopeo copy --policy "${POLICY}" \
+            "docker-archive:${IMAGE_TARBALL}" "docker://${LATEST_REF}"
+    fi
 else
     # Docker path: load, tag, push. Requires `docker login` first.
     echo ">> Loading into local docker daemon..."
@@ -87,8 +106,15 @@ else
     docker tag "${LOADED}" "${FULL_REF}"
     echo ">> Pushing ${FULL_REF}..."
     docker push "${FULL_REF}"
+    if [ "$PUSH_LATEST" -eq 1 ]; then
+        # Same manifest under a second name; only the manifest is re-uploaded.
+        echo ">> Tagging + pushing ${LATEST_REF}..."
+        docker tag "${LOADED}" "${LATEST_REF}"
+        docker push "${LATEST_REF}"
+    fi
 fi
 
 echo ">> Published: ${FULL_REF}"
+[ "$PUSH_LATEST" -eq 1 ] && echo ">> Published: ${LATEST_REF}"
 echo ">> Researchers can now run:"
-echo "     docker run -it -v \"\$PWD:/work\" ${FULL_REF}"
+echo "     docker run -it --cap-add PERFMON -v \"\$PWD:/work\" ${LATEST_REF}"

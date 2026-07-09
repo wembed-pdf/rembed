@@ -17,9 +17,13 @@ How to Use
 
    ```nix develop```
 
-   Alternatively, you can use the provided Dockerfile to create a reproducible environment. To do so, you need to have [docker](https://docs.docker.com/get-docker/) installed. Then, you can run the following command to build the docker image:
+   Alternatively, you can use the prebuilt Docker image to get the same environment without installing nix. To do so, you need to have [docker](https://docs.docker.com/get-docker/) installed. Then, run the following command from the repository root to start a shell inside the environment (the current directory is mounted at `/work`):
 
-   ```docker run -it -v "$PWD:/work" docker.io/truedoctor/rembed-env:latest```
+   ```docker run -it --cap-add PERFMON -v "$PWD:/work" docker.io/truedoctor/rembed-env:latest```
+
+   The `--cap-add PERFMON` flag is required: the benchmark measures CPU cycles and instructions via Linux perf counters (`perf_event_open`), which containers block by default. If you still see `Failed to create perf event group: PermissionDenied`, your setup needs one or both of the following:
+   - Add `--security-opt seccomp=unconfined` to the `docker run` command, since Docker's default seccomp profile also filters the `perf_event_open` syscall.
+   - On the host, lower the perf paranoia level: `sudo sysctl kernel.perf_event_paranoid=1`.
 
 3. Run the CLI for the figure/table you want to reproduce. For example, to reproduce Figure 3, run:
 
