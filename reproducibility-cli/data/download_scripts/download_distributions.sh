@@ -19,7 +19,7 @@ fi
 
 echo "=== Downloading compressed distributions datasets to ${DOWNLOAD_CACHE}... ==="
 
-wget https://zenodo.org/records/TODO/files/distributions.zip?download=1 -O $DOWNLOAD_CACHE/distributions.zip
+wget https://zenodo.org/records/21243483/files/distributions.zip?download=1 -O $DOWNLOAD_CACHE/distributions.zip
 unzip $DOWNLOAD_CACHE/distributions.zip -d $DISTRIBUTIONS_DATA_DIR
 
 echo "=== Finished unpacking distributions datasets to ${DISTRIBUTIONS_DATA_DIR} ==="
