@@ -65,7 +65,8 @@ plot_distributions <- function(df, filename = "benchmark_fixed_n.pdf", measureme
         ) 
 
     if (facet_wrap_var == "node_count") {
-        p <- p + facet_wrap(~node_count, nrow = 1, labeller = labeller(node_count = function(x) paste("Vertices:", format(as.numeric(as.character(x)), big.mark = " ", scientific = FALSE, trim = TRUE))), scales = "free_y")
+        # p <- p + facet_wrap(~node_count, nrow = 1, labeller = labeller(node_count = function(x) paste("Vertices:", format(as.numeric(as.character(x)), big.mark = " ", scientific = FALSE, trim = TRUE))), scales = "free_y") # dont use thin space for docker compatibility
+        p <- p + facet_wrap(~node_count, nrow = 1, labeller = labeller(node_count = function(x) paste("Vertices:", format(as.numeric(as.character(x)), big.mark = " ", scientific = FALSE, trim = TRUE))), scales = "free_y")
     } else if (facet_wrap_var == "dimension") {
         p <- p + scale_x_log10_nice()
         p <- p + facet_wrap(~dimension, nrow = 1, labeller = labeller(dimension = function(x) paste("Embedding Dimension:", x)), scales = "free_y")
