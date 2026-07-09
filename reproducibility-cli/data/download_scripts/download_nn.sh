@@ -43,4 +43,4 @@ wget http://ann-benchmarks.com/deep-image-96-angular.hdf5
 mv glove-100-angular.hdf5 $DOWNLOAD_CACHE/glove-100-angular.hdf5
 mv deep-image-96-angular.hdf5 $DOWNLOAD_CACHE/deep-image-96-angular.hdf5
 
-python download_to_csv.py
+python data/download_scripts/download_to_csv.py
